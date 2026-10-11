@@ -281,7 +281,7 @@ test('drag-out-and-back, a secondary contact and a pinch release never engage ty
 });
 
 function keyboardPointer(w,button,type,id=1){const e=new w.Event(type,{bubbles:true,cancelable:true});Object.assign(e,{pointerId:id,button:0,isPrimary:id===1,clientX:20,clientY:20});button.dispatchEvent(e)}
-function keyboardTap(w,value,id=1){const b=w.document.querySelector(`[data-typing-key="${value}"]`);assert.ok(b,`Keyboard key ${value} exists`);keyboardPointer(w,b,'pointerdown',id);keyboardPointer(w,b,'pointerup',id);b.dispatchEvent(new w.MouseEvent('click',{bubbles:true,detail:1}));}
+function keyboardTap(w,value,id=1){const b=w.document.querySelector(`[data-typing-key="${value}"]`);assert.ok(b,`Keyboard key ${value} exists`);keyboardPointer(w,b,'pointerdown',id);keyboardPointer(w,b,'pointerup',id);b.dispatchEvent(new w.MouseEvent('click',{bubbles:true,cancelable:true,detail:1}));}
 test('custom keyboard owns typing without a native editor; dismissal and one tap reopen it',async()=>{
  const dom=terminal({keyboardMode:'custom'}),w=dom.window,d=w.document;
  try{
@@ -468,4 +468,8 @@ test('word navigation preview lights only the deflected side and resets on cance
  const dom=terminal(),w=dom.window,handle=w.document.querySelector('#cursorJoystick');
  const x=parseFloat(handle.style.left)+22,y=parseFloat(handle.style.top)+22,point=(dx)=>({pointerId:8,button:0,isPrimary:true,clientX:x+dx,clientY:y,preventDefault(){}});
  try{handle.onpointerdown(point(0));handle.onpointermove(point(-80));await new Promise(r=>w.setTimeout(r,0));const word=[...handle.querySelectorAll('.word-ticks.active')];assert.equal(word.length,1,'A word preview must identify one side');assert.equal(word[0].dataset.wordDirection,'Left');handle.onpointercancel();assert.equal(handle.querySelectorAll('.word-ticks.active').length,0)}finally{w.close()}
+});
+
+test('language activation stays open through release and compatibility click and toggles once per tap',()=>{
+ const dom=terminal({keyboardMode:'custom'}),w=dom.window,d=w.document;try{w.fixture.focusInput();const button=d.querySelector('.typing-layout:not([hidden]) [data-typing-key="Language"]'),icon=button.querySelector('svg path'),popover=d.querySelector('#languagePopover');keyboardPointer(w,icon,'pointerdown');keyboardPointer(w,icon,'pointerup');button.dispatchEvent(new w.MouseEvent('click',{bubbles:true,cancelable:true,detail:1}));assert.equal(popover.dataset.testPopover,'open');keyboardTap(w,'Language');assert.equal(popover.dataset.testPopover,'closed');keyboardTap(w,'Language');assert.equal(popover.dataset.testPopover,'open');const output=d.querySelector('.terminal');keyboardPointer(w,output,'pointerdown');keyboardPointer(w,output,'pointerup');assert.equal(popover.dataset.testPopover,'closed')}finally{w.close()}
 });

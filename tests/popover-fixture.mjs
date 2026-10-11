@@ -5,7 +5,9 @@ export function installPopover(w){
  w.HTMLElement.prototype.showPopover=function(){if(this.getAttribute('popover')!=='auto')throw new Error('Expected a native auto popover');change(this,true)};
  w.HTMLElement.prototype.hidePopover=function(){change(this,false)};
  w.HTMLElement.prototype.togglePopover=function(){this.dataset.testPopover==='open'?this.hidePopover():this.showPopover()};
- w.document.addEventListener('pointerdown',e=>{down=opened&&!opened.contains(e.target)});
- w.document.addEventListener('pointerup',e=>{if(down&&opened&&!opened.contains(e.target))opened.hidePopover();down=false});
+ function clicked(target){if(!opened)return null;if(opened.contains(target))return opened;const invoker=target.closest('[popovertarget]');return invoker?.getAttribute('popovertarget')===opened.id?opened:null}
+ w.document.addEventListener('pointerdown',e=>{down=clicked(e.target)});
+ w.document.addEventListener('pointerup',e=>{if(opened&&clicked(e.target)===down&&!down)opened.hidePopover();down=null});
+ w.document.addEventListener('click',e=>{const invoker=e.target.closest('[popovertarget]');if(invoker&&!e.defaultPrevented)w.document.getElementById(invoker.getAttribute('popovertarget')).togglePopover({source:invoker})});
  w.addEventListener('keydown',e=>{if(e.key==='Escape')opened?.hidePopover()});
 }
