@@ -40,7 +40,7 @@ test('swipe without a follow-up click cannot swallow the next dialog action',asy
     assert.equal(d.querySelector('#dialog').open,false);
     d.querySelector('#appActions').click();d.querySelector('#menuKeyboard').click();
     assert.equal(d.querySelector('#dialogTitle').textContent,'Shortcuts');
-    d.querySelector('#dialog [data-key="Tab"]').click();await new Promise(r=>w.setTimeout(r,0));
+    d.querySelector('.inputdock [data-key="Tab"]').click();await new Promise(r=>w.setTimeout(r,0));
     assert.equal(w.actions.length,1);assert.equal(w.actions[0].key,'Tab');
   } finally {w.close()}
 });
@@ -204,11 +204,22 @@ test('terminal pinch is local and Zoom Toggle switches full grid and readable ty
   Object.defineProperty(wrap,'clientWidth',{value:390});wrap.style.padding='0';output.style.width='960px';
   const computed=w.getComputedStyle.bind(w);w.getComputedStyle=e=>e===output?{width:'960px'}:computed(e);
   output.focus();
-  const touch=(type,points)=>{const e=new w.Event(type,{bubbles:true,cancelable:true});Object.assign(e,{touches:points.map(([clientX,clientY])=>({clientX,clientY}))});wrap.dispatchEvent(e)};
+  const touch=(type,points)=>{const e=new w.Event(type,{bubbles:true,cancelable:true});Object.assign(e,{touches:points.map(([clientX,clientY])=>({clientX,clientY,target:wrap}))});wrap.dispatchEvent(e)};
   touch('touchstart',[[100,200],[300,200]]);touch('touchmove',[[0,200],[400,200]]);touch('touchend',[]);
   assert.equal(parseFloat(output.parentElement.style.width),1320,'Pinch must enlarge terminal content, rather than the browser page');
   d.querySelector('[data-function="0"]').click();assert.equal(parseFloat(output.parentElement.style.width),390);d.querySelector('[data-function="0"]').click();assert.equal(parseFloat(output.parentElement.style.width),720);assert.equal(w.visualViewport.scale,1);
   output.focus();Object.assign(w.visualViewport,{height:430});w.fixture.syncViewport();touch('touchstart',[[100,200],[300,200]]);touch('touchmove',[[0,200],[400,200]]);touch('touchend',[]);Object.assign(w.visualViewport,{height:844});w.fixture.syncViewport();assert.equal(parseFloat(output.parentElement.style.width),720,'Closing keyboard must restore readable size after manual pinch');
+ }finally{w.close()}
+});
+
+test('a finger on a floating control cannot join the terminal pinch and a terminal finger pans independently',()=>{
+ const dom=terminal(),w=dom.window,d=w.document,output=d.querySelector('.terminal'),wrap=d.querySelector('.terminalwrap');
+ try{Object.defineProperty(wrap,'clientWidth',{value:390});wrap.style.padding='0';output.style.width='960px';const computed=w.getComputedStyle.bind(w);w.getComputedStyle=e=>e===output?{width:'960px'}:computed(e);output.focus();const width=output.parentElement.style.width;wrap.scrollLeft=100;wrap.scrollTop=100;
+ const held={identifier:1,target:d.querySelector('#cursorJoystick'),clientX:60,clientY:888};
+ const touch=(type,x,y)=>{const e=new w.Event(type,{bubbles:true,cancelable:true});e.touches=[held,{identifier:2,target:output,clientX:x,clientY:y}];wrap.dispatchEvent(e)};
+ touch('touchstart',250,400);touch('touchmove',150,100);assert.equal(output.parentElement.style.width,width,'Separate control contact must not change terminal scale');assert.equal(wrap.scrollLeft,200);assert.equal(wrap.scrollTop,400);
+ const end=new w.Event('touchend',{cancelable:true});end.touches=[held];wrap.dispatchEvent(end);
+ const controlOnly=new w.Event('touchmove',{cancelable:true});controlOnly.touches=[held];wrap.dispatchEvent(controlOnly);assert.equal(wrap.scrollLeft,200,'Released terminal finger has no remaining pan ownership');
  }finally{w.close()}
 });
 
@@ -329,7 +340,7 @@ test('custom keyboard reopens with one terminal tap after pinch without stale ge
  const dom=terminal({keyboardMode:'custom'}),w=dom.window,d=w.document;
  try{
   w.HTMLElement.prototype.setPointerCapture=()=>{};w.fixture.focusInput();keyboardTap(w,'Dismiss');const wrap=d.querySelector('.terminalwrap');Object.defineProperty(wrap,'clientWidth',{value:390});
-  const pinch=new w.Event('touchstart',{cancelable:true});pinch.touches=[{clientX:80,clientY:120},{clientX:200,clientY:120}];wrap.dispatchEvent(pinch);const end=new w.Event('touchend',{cancelable:true});end.touches=[];wrap.dispatchEvent(end);
+  const pinch=new w.Event('touchstart',{cancelable:true});pinch.touches=[{clientX:80,clientY:120,target:wrap},{clientX:200,clientY:120,target:wrap}];wrap.dispatchEvent(pinch);const end=new w.Event('touchend',{cancelable:true});end.touches=[];wrap.dispatchEvent(end);
   keyboardPointer(w,wrap,'pointerdown');keyboardPointer(w,wrap,'pointerup');assert.equal(d.querySelector('#softwareKeyboard').hidden,false);
  }finally{w.close()}
 });

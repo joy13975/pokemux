@@ -5,6 +5,12 @@ import { createInterface } from 'node:readline';
 import { randomUUID } from 'node:crypto';
 import { CmuxBridge } from '../bridge.mjs';
 const until = async predicate => { const end = Date.now() + 3000; while (!predicate()) { assert.ok(Date.now() < end, 'local mirror made progress'); await new Promise(r => setTimeout(r, 10)); } };
+test('function-key shortcuts use terminal input because stock cmux named-key API rejects them',async()=>{
+ const workspace_id=randomUUID(),surface_id=randomUUID(),bridge=new CmuxBridge(),received=[];
+ bridge.rpc=async(method,params)=>{if(method==='surface.health')return {workspace_id,surfaces:[{id:surface_id,type:'terminal'}]};if(method==='surface.send_key')throw new Error('Unknown key');received.push({method,params});return {ok:true}};
+ for(const key of ['F1','Ctrl-F1','Shift-Alt-F5','Ctrl-Alt-Shift-F12','Insert','Ctrl-Home','Ctrl-PageUp'])await bridge.action({action:'key',key,workspace_id,surface_id});
+ assert.deepEqual(received.map(r=>[r.method,r.params.text]),[['terminal.input','\x1bOP'],['terminal.input','\x1b[1;5P'],['terminal.input','\x1b[15;4~'],['terminal.input','\x1b[24;8~'],['terminal.input','\x1b[2~'],['terminal.input','\x1b[1;5H'],['terminal.input','\x1b[5;5~']]);assert.ok(received.every(r=>r.params.workspace_id===workspace_id&&r.params.surface_id===surface_id));
+});
 test('local mirror needs no vendor account, pushes authoritative changes and stops reading when detached', async () => {
   const path = new URL(`../state/mirror-${randomUUID()}.sock`, import.meta.url).pathname;
   const sockets = new Set(), requests = [], frames = [];

@@ -159,7 +159,16 @@ export class CmuxBridge extends EventEmitter {
       }
       if (body.action === 'key') {
         if (typeof body.key !== 'string' || body.key.length > 40 || !/^(?:(?:Ctrl|Alt|Shift)-)*(?:[\p{L}\p{N}\p{P}\p{S}]|Enter|Tab|Escape|Backspace|Space|Left|Right|Up|Down|Home|End|PageUp|PageDown|Insert|Delete|F(?:[1-9]|1[0-2]))$/u.test(body.key)) throw new RequestError(400, 'Unsupported key');
-        const result = await this.rpc('surface.send_key', { ...target, key: body.key });
+        const parts=body.key.split('-'),key=parts.pop(),modifier=1+(parts.includes('Shift')?1:0)+(parts.includes('Alt')?2:0)+(parts.includes('Ctrl')?4:0);
+        let sequence;
+        if (/^F\d+$/.test(key)) {
+          const n=Number(key.slice(1));
+          sequence=n<=4?(modifier===1?'\x1bO':'\x1b[1;'+modifier)+'PQRS'[n-1]:'\x1b['+[15,17,18,19,20,21,23,24][n-5]+(modifier===1?'':';'+modifier)+'~';
+        } else if (key==='Insert'||(modifier>1&&['Home','End','PageUp','PageDown','Delete'].includes(key))) {
+          const final={Home:'H',End:'F'}[key],code={Insert:2,Delete:3,PageUp:5,PageDown:6}[key];
+          sequence='\x1b['+(final?'1;'+modifier+final:code+(modifier===1?'':';'+modifier)+'~');
+        }
+        const result = await this.rpc(sequence?'terminal.input':'surface.send_key',sequence?{...target,text:sequence}:{...target,key:body.key});
         this.emit('input', target);
         return result;
       }
