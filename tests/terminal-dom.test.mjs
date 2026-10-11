@@ -4,12 +4,13 @@ import { readFileSync } from 'node:fs';
 import { JSDOM } from 'jsdom';
 import { RenderGrid } from '../grid.mjs';
 import { KanaComposer } from '../kana.mjs';
+import { installPopover } from './popover-fixture.mjs';
 const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 function terminal(saved) {
   const dom = new JSDOM(html, { url: 'https://pokemux-test.invalid', runScripts: 'outside-only', pretendToBeVisual: true }), w = dom.window;
   w.localStorage.setItem("cmux-pocket-customizations",JSON.stringify({shortcuts:[],snippets:[],keyboardMode:"native",...saved}));
   w.resizeObservers=[];w.ResizeObserver = class { constructor(callback){this.callback=callback;this.targets=new Set();w.resizeObservers.push(this)} observe(target){this.targets.add(target)} disconnect(){this.targets.clear()} };
-  w.HTMLElement.prototype.setPointerCapture=()=>{};
+  installPopover(w);w.HTMLElement.prototype.setPointerCapture=()=>{};
   w.matchMedia = () => ({ matches: true });
   w.visualViewport = { width:390, height: 844, scale: 1, offsetTop: 0, offsetLeft:0, addEventListener() {} };
   w.EventSource = class { constructor() { w.fixtureStream=this; } addEventListener() {} close() { this.closed=true; } };
@@ -380,14 +381,8 @@ test('custom keyboard has language switching, floating Paste and Zoom Toggle, Ct
  }finally{w.close()}
 });
 
-test('language modal opens after the initiating touch compatibility click, then outside touch dismisses it',async()=>{
- const dom=terminal({keyboardMode:'custom'}),w=dom.window,d=w.document;
- try{
-  w.fixture.focusInput();keyboardTap(w,'Language');
-  d.querySelector('#dialog').dispatchEvent(new w.MouseEvent('click',{bubbles:true,clientX:80,clientY:700}));
-  await new Promise(r=>w.requestAnimationFrame(r));assert.equal(d.querySelector('#dialog').open,true,'The same touch release must not dismiss its newly opened modal');
-  d.querySelector('#dialog').dispatchEvent(new w.MouseEvent('pointerdown',{bubbles:true,clientX:80,clientY:700}));d.querySelector('#dialog').dispatchEvent(new w.MouseEvent('click',{bubbles:true,clientX:80,clientY:700}));assert.equal(d.querySelector('#dialog').open,false);
- }finally{w.close()}
+test('language choice stays beside a visible keyboard without moving terminal space or focus, and supports native light dismiss',async()=>{
+ const dom=terminal({keyboardMode:'custom'}),w=dom.window,d=w.document;try{w.fixture.focusInput();const keyboard=d.querySelector('#softwareKeyboard'),focused=d.activeElement,height=d.documentElement.style.getPropertyValue('--dock-height');keyboardTap(w,'Language');const popover=d.querySelector('#languagePopover');assert.ok(popover);assert.equal(popover.dataset.testPopover,'open');assert.equal(d.querySelector('#dialog').open,false);assert.equal(keyboard.hidden,false);assert.equal(d.documentElement.style.getPropertyValue('--dock-height'),height);assert.equal(d.activeElement,focused);assert.equal(popover.querySelectorAll('button').length,4);const output=d.querySelector('.terminal');keyboardPointer(w,output,'pointerdown');keyboardPointer(w,output,'pointerup');assert.equal(popover.dataset.testPopover,'closed');keyboardTap(w,'Language');d.body.dispatchEvent(new w.KeyboardEvent('keydown',{key:'Escape',bubbles:true}));assert.equal(popover.dataset.testPopover,'closed');await new Promise(resolve=>w.setTimeout(resolve,0));assert.equal(w.actions.length,0,'Closing the language chooser must not send Escape to the terminal');keyboardTap(w,'Language');d.querySelector('#languageHiragana').click();assert.equal(popover.dataset.testPopover,'closed');assert.equal(keyboard.hidden,false);keyboardTap(w,'Language');assert.equal(d.querySelector('#languageHiragana').getAttribute('aria-pressed'),'true')}finally{w.close()}
 });
 
 test('late custom keyboard size change updates reserved terminal space',()=>{
