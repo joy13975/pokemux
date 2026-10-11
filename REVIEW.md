@@ -1,6 +1,6 @@
 # Pokemux — review ledger
 
-This is the authoritative checklist of all 147 feedback entries. Repeated reports and superseded instructions remain visible. Pokemux uses its own passkeys and stock cmux's local API. This fork restored browser access at the same approved origin. Independent native Safari testing reproduced focus-induced page zoom, selected-paste frozen output and no-op deletion losing the insertion caret; fixes and their evidence are below. Browser touch checks cover actual input-engine gestures, not dispatched DOM events. The photographed tiny offset text remains open; no synthetic pass establishes that specific fix.
+This is the authoritative checklist of all 149 feedback entries. Repeated reports and superseded instructions remain visible. Pokemux uses its own passkeys and stock cmux's local API. This fork restored browser access at the same approved origin. Independent native Safari testing reproduced focus-induced page zoom, selected-paste frozen output and no-op deletion losing the insertion caret; fixes and their evidence are below. Browser touch checks cover actual input-engine gestures, not dispatched DOM events. The photographed tiny offset text remains open; no synthetic pass establishes that specific fix.
 
 1. Explain confusing controls.
    Delivered the previous screenshot’s control-by-control explanation. Current UI removes the redundant controls instead of adding more explanation.
@@ -388,10 +388,13 @@ Historical count correction: the synthetic keyboard runner used60 burst characte
 | 139 | Finger-tracked cancellable pull-up expansion and downward stow at scroll top; control inertia. | In progress: no collapse merely from reaching scrollTop0; release/reversal acceptance required. |
 | 140 | Avoid stream interruption each time app is backgrounded. | In progress: lifecycle/reconnect investigation; iOS background suspension boundary must be explicit. |
 | 141 | Disconnected stream must not block UI scrolling, expansion or dismissal. | In progress: gate terminal actions separately from local navigation. |
-| 142 | Provide top-right menu switch from System to Pokemux keyboard. | In progress: visible recovery route. |
-| 143 | Add fourth floating function for switching to Pokemux keyboard. | In progress: four-slot configuration and saved-preference migration. |
+| 142 | Provide top-right menu switch from System to Pokemux keyboard. | Verified: actual touch restores visible custom keyboard and preserves Japanese; real cmux input/echo passes. Native iPhone acceptance remains. |
+| 143 | Add fourth floating function for switching to Pokemux keyboard. | Verified: fourth action restores visible custom keyboard; three saved actions preserved. Actual touch and real cmux input pass. |
 | 144 | Left/right swipes in expanded shortcut panel switch its tabs. | In progress: horizontal gesture separate from scroll/pull. |
 | 145 | Commit baseline and run parallel agents in isolated worktrees. | Done: verified baseline042be62 committed; three worker branches/worktrees plus root integration worktree. No push/publication. |
 
 | 146 | Replace default shortcut groups: Esc/Tab/Ctrl/Alt/Shift/Del; Ctrl+C/A/E/W/L/R; up to4 hard-to-find coding characters. Remove1/2/3/Enter group. | In progress: exact defaults, separate modifier row retained; group3 chosen pipe/backslash/backtick/tilde. |
 | 147 | Use Mac key icons wherever available. | In progress: familiar key symbols with accessible full names. |
+
+| 148 | Investigate replacing sidebar/menu buttons with linear cancellable left/right edge drawers and opacity curve. | In progress: isolated edge worktree; native Safari history boundary to verify before removing fallback controls. |
+| 149 | Prioritize keyboard return so the user can review keyboard UI. | Verified hotfix: 9997229;96 regressions pass, actual touch both return paths and real cmux delivery pass. Broader131–148 work remains separate. |
