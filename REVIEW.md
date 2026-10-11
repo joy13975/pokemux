@@ -6,7 +6,7 @@ This is the authoritative checklist of all feedback entries. Repeated reports an
    Delivered the previous screenshot’s control-by-control explanation. Current UI removes the redundant controls instead of adding more explanation.
 
 2. More terminal space; minimal UI.
-    Browser verified: compact header and tab strip; no default input row or repeated target/status rows. The shortcut rail gives its space to the terminal while input is inactive, and is hidden while extended shortcuts are open.
+    Current space/layout behavior is tracked in101,114,153,155 and159. The strip stays visible as the panel extends upward; earlier hidden-strip behavior is superseded by159.
 
 3. Dark mode by default.
    Browser verified in the previous revision. Retained throughout output, sidebar, sheets, and native controls.
@@ -18,16 +18,16 @@ This is the authoritative checklist of all feedback entries. Repeated reports an
    Implemented: no submit button or draft editor in the default interface. Compose has been removed by item 26.
 
 6. No visible text field for direct input; tap terminal to type.
-   Implemented: the terminal output itself is the native editable input surface. No separate visible or hidden input field. You confirmed on iPhone that touching it now supports selection and paste. Automatic focus zoom is a separate issue in item 50.
+    Tap the terminal to engage direct input. Default custom keyboard behavior follows112–114. Terminal selection and native editing-menu access are restored under172, with inputmode=none preventing the system keyboard.
 
 7. Small opt-in Compose icon; textarea appears only when on.
    Superseded by item 26: remove Compose and its pencil toggle entirely.
 
 8. Keys button crowds shortcut rail.
-    Removed from the rail. Your later gesture request supersedes the floating Keys button: swipe left for the top panel, with an accessible entry in the single app menu. Browser opening/focus checks pass.
+    Crowded Keys button removed. Shortcut access is now the integrated pull-up strip/panel under116,139 and159.
 
 9. Remove “Needs input” banner.
-   Removed. Orange tab indicator carries that state. Current metadata comes from cmux lifecycle events. Physical notification acceptance remains open.
+    Banner removed. Audit reproduced discarded cmux unread notifications;171 restores real orange indicators on target tabs/workspaces/group anchors and clears them when read.
 
 10. One top-right menu, not three.
     Implemented: one top-right menu. Later refinements in items 39–41 and 45–46 remove redundant actions and move workspace operations into the sidebar.
@@ -36,7 +36,7 @@ This is the authoritative checklist of all feedback entries. Repeated reports an
     Browser verified: drag visibly reorders the phone tab strip and persists across reload. A reproduced bug moved tabs between cmux panes; the fix preserves pane IDs, membership and the active input target. Handler regression failed before and passes after; rendered ordering/reload checks pass.
 
 12. Swipe right opens left sidebar.
-    Superseded by118: left icon opens sidebar; terminal horizontal gestures only pan. Earlier gesture evidence remains historical.
+    Opening is superseded by148: cancellable edge drawers, with browser button fallback under118. Terminal gestures pan under115.
 
 13. Swipe left opens keys panel.
     Superseded by116: swipe UP on shortcut rail expands integrated panel above keyboard; terminal horizontal gestures only pan.
@@ -51,7 +51,7 @@ This is the authoritative checklist of all feedback entries. Repeated reports an
     Added Home Screen web-app metadata, manifest, and icon. Safari → Share → Add to Home Screen → Open as Web App → Add, then launch the icon. This requires an action on your iPhone; a website cannot perform it itself. Owned iPhone13ProMax Simulator Home Screen launch and native keyboard check passed; physical launch remains pending.
 
 17. Remove fat gap below controls when keyboard opens.
-    Browser geometry and three native Safari keyboard cycles keep the rail at the web viewport bottom. App layout reserves the rail height without an extra gutter. Native Home Screen check removes address chrome, retains iOS form-accessory strip and places app rail directly above it; physical acceptance remains open.
+    Default custom keyboard geometry follows114/126 and has no OS form-accessory strip. Optional System keyboard retains browser-owned accessory chrome.
 
 18. Dismiss every modal by tapping outside.
     Browser verified for the shared modal backdrop and nonmodal shortcuts dropdown. Taps inside remain active.
@@ -66,19 +66,19 @@ This is the authoritative checklist of all feedback entries. Repeated reports an
     Browser verified: no terminal/file/browser tab prefixes; names and compact state indicators remain.
 
 22. Text selection while the keyboard is showing.
-    Confirmed by you on iPhone after replacing the separate input receiver with the terminal editing surface: text selection now works. Retain native selection rather than synthesizing a separate selection UI. See item 50 for the new focus-zoom regression.
+    Native custom-mode double-tap selection, Copy, Paste and subsequent typing now pass under172. Duration-controlled long hold remains a separate unavailable native actuator.
 
 23. Paste into terminal.
-    Confirmed by you on iPhone: native paste is now available directly in the terminal editing surface. Removed the separate paste sheet and menu action. Paste inserts text without automatically pressing Enter.
+    Current trusted Paste and permission-denied native route follow127/135. Direct native editing-menu access in default custom mode is restored and verified under172.
 
 24. Remove unnecessary workspace-group icons; show hierarchy clearly.
     Browser verified: plain group headings, indented children and a hierarchy line; folder and group-plus icons removed.
 
 25. Organize menu and remove useless actions.
-    Implemented static Terminal / App sections in the top menu, and workspace actions on sidebar rows. No expand/collapse menus, keyboard-dismiss action, extra tab menu, current-screen/scrollback mode, paste command, Switch terminal or rename-tab button.
+    Static sections retained. Later tab controls follow121/131/132; menu keyboard return follows142. Removed redundant terminal/workspace actions stay removed.
 
 26. Remove Compose entirely; direct terminal input must be sufficient.
-    Browser verified: no Compose, draft state, default textarea, submit or floating input toggle. Native direct typing/selection/paste are exercised in the terminal surface.
+    Compose remains removed. Direct input follows112–114, with native selection/paste restored under172.
 
 27. One user-defined custom shortcut group, up to 10 shortcuts.
     Browser verified: create/edit/delete/execute and persistence, ten-item limit and disabled eleventh item. Agent-created shortcut fixtures removed. Named label/chord layout verified in Customize.
@@ -87,7 +87,7 @@ This is the authoritative checklist of all feedback entries. Repeated reports an
     Browser verified: multiline snippet creation, persistence and literal insertion without Enter; editing and confirmed deletion passed. Removed the hardcoded sample snippets and agent-created test fixture.
 
 29. Left-swipe keys panel drops from the top, leaving terminal visible.
-    Implemented top dropdown with bounded height and internal scrolling. Later items 47–49 reduce height and separate its raised surface from output. Opening it must preserve an already active keyboard but must not initiate one.
+    Top placement superseded by116/159. The panel now extends upward from the retained shortcut strip; progressive pull and cancellation follow139.
 
 30. Drag-down refresh activates only from the top bar.
     Implemented page reload restricted to a pull starting on the top bar. The visible, release-only, reversible gesture is tracked in item 43.
@@ -99,13 +99,13 @@ This is the authoritative checklist of all feedback entries. Repeated reports an
     Actual browser touch records exactly one Document request after an armed header release and none after returning before release or dragging terminal output. Handler tests also cover cancellation and diagonal disarming. Changed terminal replay snapshots arrive independently over SSE. Native pull gesture remains unverified.
 
 33. Clicking a workspace group changes its name but not its tabs.
-    Browser verified: selecting AO and agentstrap group anchors changes heading, tab identity/title and terminal pwd content together. Earlier sample anchors had identical names and output despite distinct IDs. Current adapter uses authoritative UUIDs and updates workspace identity and tabs together. Live group selection acceptance remains part of item42.
+    Current real-cmux group test passes: selecting a member shows its own tabs; tapping its group header selects the anchor and restores the anchor tabs. BROWSER_METADATA_RESULT.json records owned identities and actual touches.
 
 34. Paste must be available through terminal long hold or double tap.
-    Native Safari double-tap → Copy → Paste → typing passes with immediate authoritative echo and exact delivery. No custom paste button or sheet. Reliable timed long-hold and selection-handle actuation remain unavailable in the current controller.
+    Default-custom native double-tap opens Copy/Paste; Copy of RECV and native Paste plus custom q deliver exact bytes under172. Timed long hold remains unverified by the current native actuator.
 
 35. Long hold must select terminal output while the keyboard is showing.
-    Confirmed by your subsequent iPhone report: selection works in the terminal editing surface. Current render-grid updates defer painting while text is selected. Metadata updates preserve the terminal DOM, caret, selection and scroll; regressions cover that state.
+    Native custom-mode selection/Copy/Paste is verified under172; streaming defers during active selection. Duration-controlled hold and selection-handle dragging remain unsupported by the native controller.
 
 36. Separate custom shortcut name from its content.
     Browser verified: custom shortcut row separates its name and chord with spacing and a middle dot. Native accessible name also includes the separator.
@@ -117,7 +117,7 @@ This is the authoritative checklist of all feedback entries. Repeated reports an
     Pokemux naming, manifest and icon implemented; split creation, multi-pane display and orphaned controls removed. Browser verified: all existing sample tabs, including tabs from another pane, are reachable in one strip. Original pane membership is preserved.
 
 39. Remove View scrollback, Current screen, and Paste into terminal menu entries.
-    Implemented: output modes and the separate paste sheet are removed. You subsequently confirmed native terminal selection/paste on iPhone.
+    Requested top-menu entries remain removed. Contextual native paste follows127/135/172; no top-menu Paste entry is restored.
 
 40. Workspace actions belong in the sidebar, not the top-right menu.
     Implemented: workspace operations are only in sidebar row actions. Top-right menu contains Terminal / App sections.
@@ -132,7 +132,7 @@ This is the authoritative checklist of all feedback entries. Repeated reports an
     Actual touch verifies page displacement, visible Release to refresh feedback, return-before-release cancellation and exactly one whole-document reload on armed release. Handler regressions also cover short pulls and OS cancellation. Native/physical gesture acceptance remains open.
 
 44. Left/right swipes stopped working.
-    Removed the reproduced blanket contenteditable exclusion. Actual browser touch now verifies reading navigation, typing Left/Right, panel-only dismissal, zero accidental swipe delivery and first-key delivery after reopening. Native fast swipe remains unsupported by the controller.
+    Earlier terminal-swipe behavior is superseded by115–118. Current edge drawers follow148; shortcut category gestures follow159. Historical failure evidence retained.
 
 45. Remove Switch terminal; workspace navigation already covers it.
     Removed both the menu action and the leftover Open terminal tab button on nonterminal surfaces. Workspace tabs/sidebar provide navigation; nonterminal surfaces do not reserve an input dock.
@@ -141,13 +141,13 @@ This is the authoritative checklist of all feedback entries. Repeated reports an
     Browser verified double-click rename; pointer long-hold handler is implemented, and movement cancels its timer for dragging. Menu button removed. Physical long-touch check remains pending.
 
 47. Opening Keyboard Shortcuts must not summon the iPhone keyboard.
-    Native Safari menu → Shortcuts → Tab leaves the keyboard hidden while delivering exactly one Tab. Browser reading-swipe opening and first-key delivery preserve reading focus; an already typing terminal retains its keyboard.
+    Opening shortcuts preserves the selected keyboard mode and deliberate reading state. Current panel follows114/116/159; optional-System no-summon check remains historical native evidence.
 
 48. Separate shortcut-panel styling from terminal output.
-    Updated browser screenshot verifies a raised panel, separator and shadow distinct from output. Redundant title row and duplicate rail are removed.
+    Current styling and strip continuity follow153/154/159. Earlier duplicate-rail removal is superseded by the continuous retained strip.
 
 49. Keep the terminal readable while shortcut UI is open.
-    Browser geometry verifies a readable terminal region below the compact dropdown, with the input line visible and no overlap. Customize uses more space for editing. Physical readability check remains pending.
+    Current reserved space and readability follow116/139/159; earlier top-dropdown placement is superseded. Physical-device acceptance is separate.
 
 50. No automatic zoom when touching the terminal; pinch zoom remains available.
     Native Safari reproduced whole-page focus zoom at12px typing display size. Transform scaling on a bounded terminal canvas keeps the editable layout font16px; three native keyboard cycles retain header/tab geometry. Browser two-finger pinch changes terminal content while chrome remains scale1; Reset/reverse pinch reach full view. Your requested typing-size preference remains local to terminal content. Native pinch and physical iPhone remain unverified.
@@ -159,7 +159,7 @@ This is the authoritative checklist of all feedback entries. Repeated reports an
     Original requested reference is Termius iPhone, correcting the initial Terminus name. Official mobile-terminal keyboard guide reviewed; compact rail, groups and extended keys inform the design. Latest direct-touch behavior follows your Termius comparison.
 
 53. Match cmux full-window hierarchy, grouped workspaces, tabs and names.
-    Preserve window/group/workspace/tab identities, names and ordering. Minimal group headings and indentation, selected workspace tab strip, one terminal at a time. Current tree reads real cmux windows, groups, workspaces and surfaces; full browser parity acceptance remains item42.
+    Real-cmux group anchor/member navigation now passes BROWSER_METADATA_RESULT.json. Input remains scoped to explicit workspace/surface UUIDs.
 
 54. Access remotely from iPhone over Tailscale while away from the Mac.
     The loopback bridge is installed as a launch agent. The former HTTP preview now shows HTTPS activation instructions. The private HTTPS origin now routes to the real passkey setup. The enrolled passkey and private HTTPS deployment are verified. Fresh real-cmux checks pass under item130; physical-phone access acceptance remains separate.
@@ -177,10 +177,10 @@ This is the authoritative checklist of all feedback entries. Repeated reports an
     Same focus/scaling repair as50. Native menu/Shortcuts/Tab does not summon the keyboard. Actual browser pinch within Shortcuts leaves page scale1; native multitouch remains unverified.
 
 59. After manually unpinching, terminal cursor is hidden by the bad scroll state.
-    Browser verified: dropdown space is reserved rather than covering the terminal; resizing reveals active input without disrupting selection. Pinch-scale regression is covered. At the tested keyboard-sized viewport, the input line remains inside the visible terminal. Physical unpinch/keyboard combination remains pending.
+    Current reserved space and readability follow116/139/159; earlier top-dropdown placement is superseded.
 
 60. Show more shortcut buttons: make them smaller and remove gaps.
-    Browser verified: denser extended grid shows18 complete keys at the tested keyboard-sized viewport, compared with12 in your unzoomed screenshot. Smaller keys, near-zero gaps and compact integrated close/navigation leave the terminal visible.
+    Current key density, dimensions and configurable rows follow153/155. Earlier screenshot counts describe historical layouts.
 
 61. Make scrollable shortcut/customization areas obvious.
     Browser verified: panel fade/chevron disappears at the scroll end; horizontal rail shows a right-edge cue while more keys exist. Customize has no fixed blank spacer.
@@ -191,7 +191,7 @@ This is the authoritative checklist of all feedback entries. Repeated reports an
 |---|---|---|
 | 62 | Tab headers look like loose text; need clear boundaries. | Each tab has a visible border and shaped upper corners, with the existing blue active edge. Tab-strip height unchanged. Rendered browser verified: visible 1px boundaries, each tab remains 45px tall. |
 | 63 | Ctrl+C → Cancel leaves Ctrl highlighted although the next character is plain. | Reproduced in browser and failing regression. Modifier buttons in rail/panel now project from one state; consuming Ctrl clears all visuals before confirmation. Passing regression and rendered browser check; Cancel restores the native caret so the next character is delivered. |
-| 64 | With keyboard out, left/right swipes should be arrow keys. | Actual browser input-engine touch delivers exactly Left then Right while typing, with focus preserved; reading swipes navigate. Selection and vertical scrolling retain their own interaction. Native fast swipe remains unverified. |
+| 64 | With keyboard out, left/right swipes should be arrow keys. | Earlier terminal-swipe behavior is superseded by115–118. Edge drawers follow148; category gestures follow159. |
 | 65 | Remove preview-input recording; connect real cmux to test cursor behavior. | Sample agents and input recording removed. Persistent local RPC reads the viewed terminal's authoritative grid and cursor; changed snapshots stream to the browser. Real browser cursor, input/paste, switching, reconnect and large-history/erase checks pass on owned fixtures. A phone passkey is now enrolled; physical interaction acceptance remains open. |
 
 ## Connection preference — 2026-10-09
@@ -212,14 +212,14 @@ This is the authoritative checklist of all feedback entries. Repeated reports an
 |---|---|---|
 | 68 | A paid cmux prerequisite defeats Pokemux because the paid plan includes its own iOS app. | No paid cmux feature is required. Cloud/Devices guidance withdrawn; obsolete native helper, build dependencies, own vendor identity and email-code setup removed. |
 | 69 | Start our own remote helper and authenticate through Pokemux. | Implemented: Pokemux authenticates the phone with its own passkeys and serves a local-API mirror. No vendor enrollment. Browser E2E passes with a temporary test session; the live server now reports an enrolled passkey; physical interaction acceptance remains open. |
-| 70 | Check existing cmux iOS apps; why not obtain output through cmux API server-side? | Reviewed Cmux Remote and Telecmux primary sources. Cmux Remote uses timed terminal.replay polling; Telecmux documents ~1.5s screen polling over SSH. Pokemux now samples the local authoritative grid and pushes changes over SSE. cmux itself does not provide a continuous local output subscription. Earlier real browser checks pass; the latest changes require a fresh real run; no paid feature or cmux patch. |
+| 70 | Check existing cmux iOS apps; why not obtain output through cmux API server-side? | Independent stock-cmux API mirror implemented; fresh combined real-cmux acceptance follows130 and EXECUTION.md. Earlier pending real-run statement is historical. |
 
 ## Phone regressions — 2026-10-10
 
 | # | Complaint / intent | Change / evidence |
 |---|---|---|
 | 71 | Real terminal scaling is wrong; text and prompt are cropped on iPhone. | Implemented full-grid overview fitting without resizing the Mac PTY, plus independent typing zoom. Actual wide-grid overflow was reproduced before the fit fix and browser widths verified afterward. Physical iPhone acceptance remains open. |
-| 72 | Left/right swipes fail; horizontal terminal scrolling may take precedence. | Width fitting removes unintended overview overflow. Reading swipes navigate, typing swipes send arrows, and an open shortcut panel consumes its dismissing swipe. Combined browser gestures pass; physical touch arbitration remains open. |
+| 72 | Left/right swipes fail; horizontal terminal scrolling may take precedence. | Earlier terminal-swipe behavior is superseded by115–118. Edge drawers follow148; category gestures follow159. |
 
 ## Input, zoom and floating functions — 2026-10-10
 
@@ -227,10 +227,10 @@ This is the authoritative checklist of all feedback entries. Repeated reports an
 |---|---|---|
 | 73 | Typed text sometimes disappears. | Reproduced a live repaint deleting native composition; composition listeners and paint deferral implemented. Regression fails before, passes after. Real iPhone acceptance remains open. |
 | 74 | A second cursor appears in the wrong position. | Native browser caret hidden; cmux cursor retained. The subsequent offset report is tracked separately below. |
-| 75 | After left swipe opens shortcuts, right swipe must only dismiss shortcuts. | Gesture remembers the open panel at contact start; covers swipes within the panel and below it. Unit regression and combined browser checks pass, including swipes within and below the panel. |
+| 75 | After left swipe opens shortcuts, right swipe must only dismiss shortcuts. | Earlier terminal-swipe behavior is superseded by115–118. Edge drawers follow148; category gestures follow159. |
 | 76 | Typing zoom is too close; provide a tunable slider in Settings. | Implemented a 10–22px typing display-size slider, default12px, persisted per browser. Browser slider, persistence and applied zoom verified. |
-| 77 | Closing the keyboard should restore global view by default; allow disabling it. | Enabled-by-default return-to-full-view setting. Native three-cycle dismissal restores overview. Actual browser touch enlarges the terminal manually before simulated keyboard close, then verifies full grid/no overflow. Physical-device acceptance remains open. |
-| 78 | Add draggable viewport-relative Floating functions, independent of page zoom/scroll. Hold reveals three configurable branches pointing away from the nearest two view edges. Defaults: reset to maximum/global view, most-used shortcut, copy highlight. Configure in Settings. | Original interaction superseded by85; reset interpretation superseded by86. Current control retains three configurable inward functions, viewport position, most-used delivered shortcut and native highlight copy. Browser/event checks pass; physical Safari pinch/hold remains open. |
+| 77 | Closing the keyboard should restore global view by default; allow disabling it. | Restore target superseded by110. Explicit full-view/readable Zoom Toggle follows128; automatic keyboard-close restore remains configurable. |
+| 78 | Add draggable viewport-relative Floating functions, independent of page zoom/scroll. Hold reveals three configurable branches pointing away from the nearest two view edges. Defaults: reset to maximum/global view, most-used shortcut, copy highlight. Configure in Settings. | Interaction and actions refined by85/127/128/136/143; fourth Keyboard action retained. Current Command handle and branch aesthetics follow160. |
 | 79 | Ctrl-C should send immediately, with optional confirmation disabled by default. | Implemented centrally: immediate Ctrl-C by default, optional confirmation persisted in Settings. Modifier+C, shortcut buttons and configured floating keys share delivery. Automated immediate-delivery and opt-in cancellation checks pass; fresh real-cmux touch confirms immediate interruption and following command execution. |
 | 80 | Cursor remains offset after the first fix. | Reproduced mixed-font cell-width drift and cursor row drift after 4005 history rows. Graphemes now occupy authoritative cell widths; cursor belongs to its rendered row. Browser checks verify shared columns and cursor alignment in both views and long scrollback. Latest physical iPhone report remains acceptance-open. |
 | 81 | Shortcut strip disappears after keyboard dismissal and second engagement. | Keyboard baseline survives repeated viewport cycles, independently of PRE focus events. Regression/browser checks and three native iPhone13ProMax Safari dismissal/reengagement cycles show the rail every time. Physical-device acceptance remains open. |
@@ -243,7 +243,7 @@ This is the authoritative checklist of all feedback entries. Repeated reports an
 | 83 | Floating control is far from the thumb during dragging, especially pinched (red marking, photo1). | Reproduced Safari visual-origin rectangle versus layout-origin control coordinates at scale2 with nonzero viewport offsets. Pointer origin now comes from the control's own position and preserves the grab offset. Regression fails before and passes after; physical iPhone pinch acceptance remains open. |
 | 84 | Expanded floating panel has overflowing labels, no active-action highlight and weak layout (photo2). | Implemented bounded pill labels, active fill/border/halo. Separate caption subsequently removed by89. Browser verifies readable labels and target preview; event tests cover all corners and reduced390×300 action bounds. Current proof: proof-floating-v2.jpg. |
 | 85 | Hold should move the handle; ordinary drag should open/select an action. | Implemented: hold locks reposition mode; ordinary drag opens branches, highlights the release target and activates on release. Returning to center cancels. Event regressions pass; actual browser drag delivers exactly one Backspace without moving the handle. Native iPhone hold remains acceptance-open. |
-| 86 | “Fit” is not the requested reset zoom; reset should set zoom to maximum. | Earlier largest-text interpretation was wrong and is superseded by92: reset fits the complete terminal, fully zoomed out, without changing saved typing size. |
+| 86 | “Fit” is not the requested reset zoom; reset should set zoom to maximum. | Reset action superseded by Zoom Toggle128. Original reset/page-scale failure evidence retained. |
 
 ## App identity — 2026-10-10
 
@@ -268,8 +268,8 @@ This is the authoritative checklist of all feedback entries. Repeated reports an
 | # | Complaint / intent | Change / evidence |
 |---|---|---|
 | 90 | Typed text has the wrong size and offset until zoom changes (photo1). | Open for the photographed tiny/raised glyph variant. Native Safari short ASCII, Powerline selection/paste and repeated keyboard cycles did not reproduce that shape. A separate frozen-echo failure82 was reproduced and repaired. Terminal scaling now uses a transform on a bounded canvas, keeping the editable layout font16px; native12px display-size focus checks no longer zoom the whole page. This is not proof that the original tiny glyph failure is fixed. |
-| 91 | Left/right swipe broken again. | Actual browser touch reproduced a stale dialog swipe flag swallowing the first action after reopening; clear that flag at dialog opening. Touch checks now pass reading sidebar/shortcuts swipes, panel-only dismissal, zero accidental keys, first reopened key delivery and typing Left/Right. A later selection fix also moved reading focus into PRE; before BUTTON→PRE, after selection clearing preserves focus, and the complete touch sequence passes. Native fast swipe remains unsupported by the current actuator. |
-| 92 | Reset zoom does not work (photo2). | Actual browser two-finger pinch reproduced page scale2 remaining after the former local-only Reset. Pinch now changes terminal canvas scale while app chrome stays at page scale1. Reset clears manual terminal scale/scroll, fits every column, retains header at top0, and preserves full view through fresh output and keyboard changes. Regression and actual touch checks pass; physical iPhone acceptance remains open. |
+| 91 | Left/right swipe broken again. | Earlier terminal-swipe behavior is superseded by115–118. Edge drawers follow148; category gestures follow159. |
+| 92 | Reset zoom does not work (photo2). | Reset action superseded by Zoom Toggle128. Original reset/page-scale failure evidence retained. |
 | 93 | Pinching cannot reach maximum zoom-out and leaves scrollbars (photo2). | Actual two-finger touch paths now zoom terminal content back to the minimum full-grid scale without horizontal overflow. Pinch uses terminal coordinates; page chrome remains scale1. Keyboard close clears manual scale when automatic overview restore is enabled. Actual browser touch passes; native UIKit multitouch is not available through the controller. |
 
 ## Keyboard-relative shortcut rail — 2026-10-10
@@ -312,7 +312,7 @@ This is the authoritative checklist of all feedback entries. Repeated reports an
 - [BROWSER_FIXTURE_CLEANUP.json](BROWSER_FIXTURE_CLEANUP.json): current owned fixture removed and existing workspace state unchanged. Historical automatic-title failure remains in the plan; current passing evidence does not erase it.
 - Private Tailscale service remains active with the existing passkey. Assets are read fresh on reload. Tested bridge replay wake/socket-error changes are active; current deployment and cleanup details are in EXECUTION.md.
 
-Original tiny/raised native input90/98, physical typing acceptance, native duration-controlled hold/multitouch, physical-iPhone acceptance and live groups/notifications remain separate acceptance gates. Custom input avoids native editing for typing; passing synthetic echo does not prove the original physical failure resolved.
+Original tiny/raised native input90/98, physical typing acceptance, native duration-controlled hold/multitouch, physical-iPhone acceptance remain separate acceptance gates. Live groups/notifications now pass171; native custom selection and paste pass172. Custom keys own typing; passing synthetic echo does not prove the original physical failure resolved.
 
 User authorization to create a fresh cmux workspace was executed under item130. Current real-cmux acceptance and cleanup pass; no existing terminal received input or rename, and cmux source/settings were not modified. Stock global title flushing remains an external side effect to check on every fixture cleanup.
 
@@ -320,10 +320,10 @@ User authorization to create a fresh cmux workspace was executed under item130. 
 
 | # | Complaint / intent | Change / evidence |
 |---|---|---|
-| 100 | Holding native Backspace stops deleting after a couple characters; it should continue. | Partly open: native repeated deletion and delete-past-empty→typing pass after the caret fix in104. Sustained hold remains unverified: documented native actuator has no duration-controlled press; its drag emits one Backspace. Repeated taps do not certify held repeat. |
+| 100 | Holding native Backspace stops deleting after a couple characters; it should continue. | Default-custom held-repeat and immediate retyping pass114/130 and the current real-cmux run. Optional-System sustained native hold remains unverified; repeated taps do not certify it. |
 | 101 | Remove the repeated workspace name and move tab navigation up. | Implemented: tabs and one44px app-menu target share a46px top row, reclaiming53px from the previous99px heading+tabs. Workspace identity remains in sidebar/accessibility. Rendered canary failed before and passes after; native Safari current acceptance passed. Current actual touch replay passed twice: tab reorder persists without active-terminal change; blank-rail and tab-origin pull cancel correctly; release reloads one document. |
-| 102 | Remove the middle strip above the keyboard that wastes vertical space. | OS boundary verified in native Safari and Home Screen mode: arrows/checkmark strip remains in both. Home Screen removes the Safari address/navigation bar and places the app rail directly above the native strip. WebKit creates the contenteditable accessory view in native host code; no supported page control to remove it. Screenshots native13-standalone-{reading,keyboard}.png; retain native input/selection/paste. |
-| 103 | Put the bottom language switch inside the123/ABC switch to reclaim keyboard space. | OS boundary: the globe and123/ABC keys belong to the native iOS keyboard, whose layout the web page cannot rearrange. Retain native typing/selection/paste; no custom keyboard added. Apple keyboard guidance and native Simulator UI verified. |
+| 102 | Remove the middle strip above the keyboard that wastes vertical space. | Resolved for default custom mode114. OS accessory limitation applies only to optional System keyboard. |
+| 103 | Put the bottom language switch inside the123/ABC switch to reclaim keyboard space. | Native-layout limitation applies only to optional System mode. Custom keyboard and fluid language selection follow114/127/151. |
 | 104 | After deleting text, typing can get stuck with no visible text or cursor movement. | Fixed and native replay passed: empty Backspace removed Safari insertion caret; unchanged terminal output emits no frame, so the next letter never reached the server. Preserve collapsed caret on committed actions; end only actual highlights. Regression failed before/passes after, plus native empty/past-empty deletion, no-op Left/Ctrl-X, selection/paste and three keyboard cycles. See INTERACTIVE_IOS_REPORT.md and native13-delete-noop-{then-type,fixed}.png. |
 | 105 | Can cmux render a mobile-sized terminal independently without changing the Mac view? | Verified: viewport_columns/viewport_rows on terminal replay resize the existing shared Ghostty surface via applyMobileViewportLimit→applySurfaceSize→ghostty_surface_set_size; native iOS consumes the returned common grid. They do not request an independent mobile render. Local scale/scroll leaves Mac geometry untouched; independent mobile reflow is unavailable through this API. No cmux geometry changed. |
 
@@ -345,12 +345,12 @@ Final native Safari replay on source7e5d80bf: empty Backspace→a, abc→five de
 | 111 | Stop automatically panning horizontally to keep the right end of input visible. | Fixed in native replay: before75 typed characters panned the left edge offscreen despite vertical-only JS scrolling. When the remote cursor is horizontally outside view, keep the invisible native editing caret on the input row inside the viewport; leave authoritative output/cursor unchanged. After72 letters preserve the left edge, native Copy/Paste→typing paints immediately and three keyboard engagements pass. JS regression failed before/passes after. Manual pan/pinch remains available. |
 
 | 112 | A single terminal tap should engage the keyboard; currently several taps are needed. | Native trace reproduced pointerdown/up without Safari compatibility click. Recognize a short stationary pointer tap directly; keep click/accessibility activation, long-press selection and swipe arbitration. Regression failed before/passes after; native367d first-tap-after-dismissal passed. Tap-lifetime rejection covers secondary contacts and drag/pinch; final native5f541 replay and repeated browser touch pass. |
-| 113 | Keyboard engaged by default; dismissal is a deliberate reading mode. | Implemented startup and terminal-navigation focus. Native367d Safari Reload actually opened the keyboard without a terminal tap. Cold startup remains subject to WebKit user activation; the rail is hidden if no keyboard opens. Deliberate dismissal enters reading mode. |
+| 113 | Keyboard engaged by default; dismissal is a deliberate reading mode. | Default keyboard engagement follows114; deliberate dismissal is reading mode. Optional-System cold startup remains subject to WebKit user activation. |
 
 | 114 | Replace the native iOS keyboard with a well-emulated custom keyboard to remove its accessory strip. | Implemented and verified: custom terminal keyboard is default, with optional system keyboard in Settings. Actual synthetic touch covers60-character burst, held deletion, following echo, Shift/Caps/modifiers/symbol layers and concurrent contacts. Native Safari/Home Screen avoid the OS keyboard/accessory strip in custom mode; final Japanese/native replay recorded in EXECUTION.md. |
 
 | 115 | Horizontal scrolling keeps breaking left/right terminal gestures; move sidebar opening to a right swipe on the navigation bar. | Superseded by117/118. Terminal horizontal gestures now pan only; no sidebar/keys swipe competes with terminal scrolling. |
-| 116 | Swipe up from shortcut strip to expand it, integrated above the keyboard rather than a separate panel at top. | Verified through actual touch: rail-up expands keys directly above the custom keyboard, reserves terminal space, and delivers each chosen key once. Scrolling down preserves the panel; returning to its top collapses it. Landscape replaces alphabet keys while expanded. |
+| 116 | Swipe up from shortcut strip to expand it, integrated above the keyboard rather than a separate panel at top. | Expansion/stow refined by139/159. Current stow requires deliberate downward pull at scroll top; reaching top alone does not stow. |
 
 | 117 | Correction: RIGHT swipe on nav bar opens sidebar. | Superseded immediately by118; retained as requested ledger history. |
 | 118 | Remove navigation swipes; use a left-side icon button to open sidebar. | Verified: left-side44px icon opens sidebar. Navigation swipes scroll overflowing tabs; terminal swipes only pan. Drawer remains closed after landscape rotation. |
@@ -362,7 +362,7 @@ Final native Safari replay on source7e5d80bf: empty Backspace→a, abc→five de
 | 122 | Sidebar search should also match tab names and on-screen text if inexpensive. | Verified sidebar search matches tab names and cached streamed terminal text, opens matching tab and sends no terminal input. No extra cmux reads; unvisited output is not fetched. |
 | 123 | After UI requests, measure input-to-display delay and optimize substantially. | Implemented measured renderer and bridge improvements.4000-row apply+paint median199ms→36ms in Node/JSDOM CPU benchmark; unchanged rows retained, linear history ingestion. Input omits unrelated group RPCs, uses live surface.health membership validation instead of a full tree per key, and wakes matching replay immediately. Real-cmux touch-to-observed-echo samples101–127ms include actuator/observation overhead. Physical-phone/network latency remains unmeasured; details are in EXECUTION.md. |
 
-| 124 | Scrolling to the top of expanded shortcut keys should collapse the panel. | Verified actual panel overflow scrolling: scrolling down keeps it expanded; returning to scrollTop0 collapses without sending a key. |
+| 124 | Scrolling to the top of expanded shortcut keys should collapse the panel. | Expansion/stow refined by139/159. Current stow requires deliberate downward pull at scroll top; reaching top alone does not stow. |
 | 125 | Default Ctrl-C group should use Ctrl-W instead of Ctrl-D. | Verified default Ctrl-W reachable by rail scrolling and delivered once. Exact old default group migrates; custom groups remain. |
 | 126 | Raise keyboard slightly and let floating controls occupy the space underneath. | Verified52px internal shelf under custom key area accepts both controls through stationary hold then drag without terminal input. Native Safari and Home Screen geometry consume safe-area once and reserve keyboard size after late resize. Landscape alphabet keys compact to preserve terminal height. |
 | 127 | Replace keyboard Paste with language switch; floating Paste replaces Copy. | Verified keyboard Language selector replaces Paste. Floating Paste highlights its branch, returning to center cancels, release delivers once to its captured target. Optional system-keyboard mode retains native highlight Copy; custom-mode native selection remains unverified. |
@@ -379,7 +379,7 @@ Historical count correction: the synthetic keyboard runner used60 burst characte
 |---|---|---|
 | 131 | Keep tab controls open after Move left/right. | Verified actual touch: Move left and Move right retain the same visible modal; modal ownership no longer changes during redraw. |
 | 132 | Add Close tab to the same control modal. | Verified actual touch: hold tab, Move left/right retains modal, Close removes only the owned second tab; first and shell tabs remain. |
-| 133 | Prompt characters render as boxes although correct on Mac. | Bundled terminal font supplies known Powerline private-use glyphs; cmap/asset tests and Chrome rendering pass. Native Powerline visual acceptance remains open. |
+| 133 | Prompt characters render as boxes although correct on Mac. | Known Powerline glyphs render in native iPhone13ProMax Simulator Safari on the current bundle; proof-reaudit-native-glyphs.png. Cmap/asset regressions and Chrome glyph rendering also pass. Arbitrary private-use font glyphs are not implied. |
 | 134 | Floating functions handle must be a real unselectable icon. | SVG handle is unselectable and all floating control descendants disable text selection; actual touch function access passes. |
 | 135 | Paste fails with browser permission/context error. | Trusted browser Paste sends exact bracketed UTF-8 once. Native Safari denied-permission route opens explicit native paste field; actual native Paste delivers exact bracketed text without Return. |
 | 136 | Last-used shortcut/function does not update in floating control. | Verified actual touch: Ctrl-A then Ctrl-E updates the floating recent action; repeat delivers bytes01,05,05. |
@@ -390,7 +390,7 @@ Historical count correction: the synthetic keyboard runner used60 burst characte
 | 141 | Disconnected stream must not block UI scrolling, expansion or dismissal. | Verified actual offline UI: sidebar/menu/shortcut expansion and dismissal remain interactive while terminal input is blocked; reconnect restores action availability. |
 | 142 | Provide top-right menu switch from System to Pokemux keyboard. | Verified native Safari: System→menu restores Pokemux keys and removes native keyboard/accessory; exact deployed hotfix and combined build recorded separately. |
 | 143 | Add fourth floating function for switching to Pokemux keyboard. | Verified native Safari: System→fourth floating function restores Pokemux keys and removes native keyboard/accessory. |
-| 144 | Left/right swipes in expanded shortcut panel switch its tabs. | Verified actual touch: horizontal panel swipes traverse Keys→Snippets→Customize and back; first key sends once. |
+| 144 | Left/right swipes in expanded shortcut panel switch its tabs. | Actual touch category-bar swipes traverse Keys/Snippets/Customize, with F1 delivered exactly once. Panel-body horizontal scrolling preserves strip/key context under159. |
 | 145 | Commit baseline and run parallel agents in isolated worktrees. | Done: verified baseline042be62 committed; three worker branches/worktrees plus root integration worktree. No push/publication. |
 
 | 146 | Replace default shortcut groups: Esc/Tab/Ctrl/Alt/Shift/Del; Ctrl+C/A/E/W/L/R; up to4 hard-to-find coding characters. Remove1/2/3/Enter group. | Implemented exact defaults: Esc/Tab/Ctrl/Alt/Shift/Del; Ctrl+C/A/E/W/L/R; pipe/backslash/backtick/tilde. Number/Enter group removed. |
@@ -427,3 +427,8 @@ Historical count correction: the synthetic keyboard runner used60 burst characte
 
 | 168 | Represent portal with a swirl; pocket need not be a shirt pocket or opaque. | New clean-line spiral inside a rounded open pocket outline, complementary teal/coral, in design/icon-concepts-v10/spiral-in-a-pocket.png. Proposal only; installed icon unchanged. |
 | 169 | Build the icon from the supplied pocket-and-spiral sketch, excluding the leaf background. | Refined the broad open U pocket with outward lips and nested spiral in complementary coral/cyan. Saved in design/icon-concepts-v11/sketch-refinement.png with generation prompt; visually reviewed against sketch. Proposal only. |
+
+
+| 170 | Stop icon work and fix every other prior request. | Installed icon unchanged. Full ledger audited against current source and evidence; obsolete UI descriptions now point to superseding requests. Current acceptance and precise remaining physical/native actuator limits are in EXECUTION.md. |
+| 171 | Full audit found live cmux notifications discarded before rendering; group-anchor indicators also missing. | Reproduced in owned stock-cmux workspace and failing regression. Bridge now reads notification.list; frontend derives indicators and Inbox from actual unread notifications. Real create→orange target tab/anchor dot→mark-read→clear passes without reload; other workspace/tab stay clear. Live group anchor/member navigation also passes. |
+| 172 | Full audit found custom-keyboard terminal noneditable, disabling native selection and editing-menu access. | Native Safari regression failed before: double-tap exposed no Copy/Paste. Connected terminal now retains plaintext-only editing with custom inputmode=none and transparent native caret; beforeinput still prevents local echo. Native double-tap→Copy of actual RECV→Paste→custom q delivers exact bracketed bytes once without Return, with custom keyboard retained. Repeatable native canary and before/after screenshots saved. Timed native hold remains uncertified. |

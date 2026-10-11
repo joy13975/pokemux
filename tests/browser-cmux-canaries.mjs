@@ -16,7 +16,7 @@ export async function* verifyRealCmux(tab,cdp) {
  const output=()=>tab.playwright.locator('.terminal').textContent();
  const typing=async text=>{for(const c of text)await tap(key(c===' '?'Space':c))};
  await wait(async()=> (await output()).includes('POKEMUX_TEST_READY'));
- assert.equal(await tab.playwright.locator('.terminal').getAttribute('contenteditable'),'false');
+ assert.equal(await tab.playwright.locator('.terminal').getAttribute('inputmode'),'none');
  assert.equal((await bytes(false)).length,0);assert.equal((await bytes(true)).length,0);
  for(const c of 'sync'){const start=Date.now();await tap(key(c));await wait(async()=> (await bytes(false)).toString().endsWith(c)&&(await output()).includes('RECV:'+Buffer.from(c).toString('hex')));timings.push(Date.now()-start)}
  assert.equal((await bytes(false)).toString(),'sync');assert.equal((await bytes(true)).length,0);

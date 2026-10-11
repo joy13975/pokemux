@@ -293,11 +293,11 @@ test('drag-out-and-back, a secondary contact and a pinch release never engage ty
 
 function keyboardPointer(w,button,type,id=1){const e=new w.Event(type,{bubbles:true,cancelable:true});Object.assign(e,{pointerId:id,button:0,isPrimary:id===1,clientX:20,clientY:20});button.dispatchEvent(e)}
 function keyboardTap(w,value,id=1){const b=w.document.querySelector(`[data-typing-key="${value}"]`);assert.ok(b,`Keyboard key ${value} exists`);keyboardPointer(w,b,'pointerdown',id);keyboardPointer(w,b,'pointerup',id);b.dispatchEvent(new w.MouseEvent('click',{bubbles:true,cancelable:true,detail:1}));}
-test('custom keyboard owns typing without a native editor; dismissal and one tap reopen it',async()=>{
+test('custom keyboard owns typing while terminal retains native selection; dismissal and one tap reopen it',async()=>{
  const dom=terminal({keyboardMode:'custom'}),w=dom.window,d=w.document;
  try{
   w.HTMLElement.prototype.setPointerCapture=()=>{};w.fixture.focusInput();
-  assert.equal(d.querySelector('.terminal').getAttribute('contenteditable'),'false');assert.equal(d.querySelector('#softwareKeyboard').hidden,false);assert.equal(w.getSelection().toString(),'');
+  assert.equal(d.querySelector('.terminal').getAttribute('contenteditable'),'plaintext-only');assert.equal(d.querySelector('.terminal').getAttribute('inputmode'),'none');assert.equal(d.querySelector('#softwareKeyboard').hidden,false);assert.equal(w.getSelection().toString(),'');
   keyboardTap(w,'a');keyboardTap(w,'Shift');keyboardTap(w,'b');keyboardTap(w,'123');keyboardTap(w,'/');keyboardTap(w,'ABC');keyboardTap(w,'Space');keyboardTap(w,'Enter');
   await new Promise(r=>w.setTimeout(r,0));assert.deepEqual(w.actions.map(a=>a.text??a.key),['a','B','/',' ','Enter']);
   keyboardTap(w,'Dismiss');assert.equal(d.querySelector('#softwareKeyboard').hidden,true);

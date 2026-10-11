@@ -114,6 +114,7 @@ export class CmuxBridge extends EventEmitter {
   close() { for (const stop of this.watches) stop(); this.metadata?.destroy(); this.local.close(); }
   async tree() {
     const tree = await this.rpc('system.tree', { all_windows: true });
+    tree.notifications = (await this.rpc('notification.list', {})).notifications;
     await Promise.all(tree.windows.map(async w => { w.groups = (await this.rpc('workspace.group.list', { window_id: w.id })).groups; }));
     return tree;
   }

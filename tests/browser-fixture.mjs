@@ -12,11 +12,13 @@ const prefix=new URL('../state/browser-fixture-'+randomUUID()+'-',import.meta.ur
 const info=new URL('../state/browser-fixture-info.json',import.meta.url);
 const log=prefix+'terminal.log';
 const command=`/usr/bin/python3 -u ${new URL('terminal-fixture.py',import.meta.url).pathname} ${log}`;
-let workspaceId, bridge, server, auth, closing=false, published=false;
+let workspaceId, groupedWorkspaceId, groupId, bridge, server, auth, closing=false, published=false;
 async function cleanup(){
  if(closing)return;closing=true;
  if(server?.listening){server.closeAllConnections();await new Promise(r=>server.close(r));}
  bridge?.close();
+ if(groupId)rpc('workspace.group.ungroup',{window_id:window.id,group_id:groupId});
+ if(groupedWorkspaceId)rpc('workspace.close',{workspace_id:groupedWorkspaceId,force:true});
  if(workspaceId)rpc('workspace.close',{workspace_id:workspaceId,force:true});
  let after;const deadline=Date.now()+10000;
  do{after=rpc('system.tree',{all_windows:true});if(!after.windows.some(w=>w.workspaces.some(ws=>ws.id===workspaceId)))break;assert.ok(Date.now()<deadline,'Owned workspace closes');await new Promise(r=>setTimeout(r,50));}while(true);
@@ -41,12 +43,17 @@ let ws;const deadline=Date.now()+10000;
 while(!ws){ws=rpc('system.tree',{all_windows:true}).windows.flatMap(w=>w.workspaces).find(w=>w.id===workspaceId);if(!ws){assert.ok(Date.now()<deadline);await new Promise(r=>setTimeout(r,50));}}
 const second=rpc('surface.create',{workspace_id:workspaceId,pane_id:ws.panes[0].id,type:'terminal',initial_command:command+'-second',focus:false}).surface_id;
 const shellSurfaceId=process.env.POKEMUX_CANARY_SHELL==='1'?rpc('surface.create',{workspace_id:workspaceId,pane_id:ws.panes[0].id,type:'terminal',initial_command:process.env.POKEMUX_CANARY_GLYPHS==='1'?`/bin/zsh -f -c 'printf "\\ue0a0 \\ue0b0 \\ue0b1 \\ue0b2 \\ue0b3\\n"; exec /bin/zsh -f'`:'/bin/zsh -f',focus:false}).surface_id:undefined;
+let groupedSurfaceId;
+if(process.env.POKEMUX_CANARY_GROUP==='1'){
+ const child=rpc('workspace.create',{window_id:window.id,title:'Pokemux grouped child',initial_command:'/bin/zsh -f',focus:false});groupedWorkspaceId=child.workspace_id;groupedSurfaceId=child.surface_id;
+ groupId=rpc('workspace.group.create',{window_id:window.id,name:'Pokemux owned group',child_workspace_ids:[workspaceId,groupedWorkspaceId],external_id:randomUUID()}).group.id;
+}
 bridge=new CmuxBridge();
-const rawRPC=bridge.rpc.bind(bridge),allowedReads=new Set(['system.ping','system.tree','workspace.group.list','terminal.replay']);
-bridge.rpc=(method,params)=>{assert.ok(allowedReads.has(method)||params?.workspace_id===workspaceId,'Fixture RPC cannot mutate any existing workspace');return rawRPC(method,params)};
+const rawRPC=bridge.rpc.bind(bridge),allowedReads=new Set(['system.ping','system.tree','workspace.group.list','notification.list','terminal.replay']);
+bridge.rpc=(method,params)=>{assert.ok(allowedReads.has(method)||params?.workspace_id===workspaceId||groupedWorkspaceId&&params?.workspace_id===groupedWorkspaceId,'Fixture RPC cannot mutate any existing workspace');return rawRPC(method,params)};
 await bridge.initialize();
 const inventory=bridge.tree.bind(bridge);
-bridge.tree=async()=>{const t=await inventory();return {...t,windows:t.windows.filter(w=>w.id===window.id).map(w=>({...w,groups:[],workspaces:w.workspaces.filter(ws=>ws.id===workspaceId)}))};};
+bridge.tree=async()=>{const t=await inventory();return {...t,notifications:t.notifications.filter(n=>n.workspace_id===workspaceId||n.workspace_id===groupedWorkspaceId),windows:t.windows.filter(w=>w.id===window.id).map(w=>({...w,groups:w.groups.filter(g=>g.id===groupId),workspaces:w.workspaces.filter(ws=>ws.id===workspaceId||ws.id===groupedWorkspaceId)}))};};
 const authFile=new URL('../state/browser-fixture-passkeys.json',import.meta.url);
 auth=new Passkeys({origin:'http://localhost:4391',ownerLogin:'fixture@example.invalid',file:authFile});await auth.initialize();
 const id=randomBytes(32).toString('hex');auth.sessions.set(id,{authenticated:true,expires:Date.now()+3600000});
@@ -56,7 +63,7 @@ server.on('request',(req,res)=>{
  else handler(req,res);
 });
 await new Promise((resolve,reject)=>server.once('error',reject).listen(4391,'127.0.0.1',resolve));
-await writeFile(info,JSON.stringify({origin:auth.origin,windowId:window.id,workspaceId,surfaceId,secondSurfaceId:second,shellSurfaceId,log},null,2));published=true;
+await writeFile(info,JSON.stringify({origin:auth.origin,windowId:window.id,workspaceId,surfaceId,secondSurfaceId:second,shellSurfaceId,groupId,groupedWorkspaceId,groupedSurfaceId,log},null,2));published=true;
 console.log(JSON.stringify({origin:auth.origin,...owned(),second,ready:true}));
 }
 main().catch(error=>{console.error(error);finish(1);});
