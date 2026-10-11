@@ -1,6 +1,6 @@
 # Pokemux — review ledger
 
-This is the authoritative checklist of all 145 feedback entries. Repeated reports and superseded instructions remain visible. Pokemux uses its own passkeys and stock cmux's local API. This fork restored browser access at the same approved origin. Independent native Safari testing reproduced focus-induced page zoom, selected-paste frozen output and no-op deletion losing the insertion caret; fixes and their evidence are below. Browser touch checks cover actual input-engine gestures, not dispatched DOM events. The photographed tiny offset text remains open; no synthetic pass establishes that specific fix.
+This is the authoritative checklist of all 147 feedback entries. Repeated reports and superseded instructions remain visible. Pokemux uses its own passkeys and stock cmux's local API. This fork restored browser access at the same approved origin. Independent native Safari testing reproduced focus-induced page zoom, selected-paste frozen output and no-op deletion losing the insertion caret; fixes and their evidence are below. Browser touch checks cover actual input-engine gestures, not dispatched DOM events. The photographed tiny offset text remains open; no synthetic pass establishes that specific fix.
 
 1. Explain confusing controls.
    Delivered the previous screenshot’s control-by-control explanation. Current UI removes the redundant controls instead of adding more explanation.
@@ -392,3 +392,6 @@ Historical count correction: the synthetic keyboard runner used60 burst characte
 | 143 | Add fourth floating function for switching to Pokemux keyboard. | In progress: four-slot configuration and saved-preference migration. |
 | 144 | Left/right swipes in expanded shortcut panel switch its tabs. | In progress: horizontal gesture separate from scroll/pull. |
 | 145 | Commit baseline and run parallel agents in isolated worktrees. | Done: verified baseline042be62 committed; three worker branches/worktrees plus root integration worktree. No push/publication. |
+
+| 146 | Replace default shortcut groups: Esc/Tab/Ctrl/Alt/Shift/Del; Ctrl+C/A/E/W/L/R; up to4 hard-to-find coding characters. Remove1/2/3/Enter group. | In progress: exact defaults, separate modifier row retained; group3 chosen pipe/backslash/backtick/tilde. |
+| 147 | Use Mac key icons wherever available. | In progress: familiar key symbols with accessible full names. |

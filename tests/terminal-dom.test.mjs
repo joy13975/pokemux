@@ -226,7 +226,7 @@ test('Zoom Toggle retains full grid through updates then returns to the saved ty
 
  test('old toolbar ordering removes default navigation groups without losing custom shortcuts or other order',()=>{
  const dom=terminal({shortcuts:[{id:'s',name:'Home custom',key:'Home'}],snippets:[],groupOrder:[['1','2','3','Enter'],['Home','End','PgUp','PgDn'],['←','↓','↑','→'],['Esc','Tab','Ctrl','Alt']]});
- try{const d=dom.window.document,rail=d.querySelector('.keygroups');assert.equal(rail.querySelector('[data-key="Home"]'),null);assert.equal(rail.querySelector('[data-key="←"]'),null);assert.equal(rail.querySelector('.key').textContent,'1');assert.equal(rail.querySelector('[data-shortcut="s"]').textContent,'Home custom')}finally{dom.window.close()}
+ try{const d=dom.window.document,rail=d.querySelector('.keygroups');assert.equal(rail.querySelector('[data-key="Home"]'),null);assert.equal(rail.querySelector('[data-key="←"]'),null);assert.equal(rail.querySelector('[data-key="1"]'),null);assert.ok(rail.querySelector('[data-key="Esc"]'));assert.equal(rail.querySelector('[data-shortcut="s"]').textContent,'Home custom')}finally{dom.window.close()}
  });
  test('joystick sends and repeats before release, stops at center, preserves modifiers throughout and holds to move',async()=>{
  const dom=terminal(),w=dom.window,d=w.document;
@@ -371,12 +371,12 @@ test('sidebar search finds tab names and cached screen output and opens the matc
  }finally{w.close()}
 });
 
-test('custom keyboard has language switching, floating Paste and Zoom Toggle, Ctrl-W default and collapse at panel top',()=>{
+test('custom keyboard has language switching, floating Paste and Zoom Toggle, Ctrl-W default and no inertial collapse at panel top',()=>{
  const dom=terminal({keyboardMode:'custom'}),w=dom.window,d=w.document;
  try{
   w.fixture.focusInput();assert.ok(d.querySelector('[data-typing-key="Language"]'));assert.equal(d.querySelector('[data-typing-key="Paste"]'),null);assert.ok(d.querySelector('.inputdock [data-key="Ctrl-W"]'));assert.equal(d.querySelector('.inputdock [data-key="Ctrl-D"]'),null);
   assert.equal(d.querySelector('[data-function="0"]').getAttribute('aria-label'),'Zoom toggle');assert.equal(d.querySelector('[data-function="2"]').getAttribute('aria-label'),'Paste');
-  d.querySelector('#appActions').click();d.querySelector('#menuKeyboard').click();const body=d.querySelector('#dialogBody');body.scrollTop=80;body.dispatchEvent(new w.Event('scroll'));assert.equal(d.querySelector('#dialog').open,true);body.scrollTop=0;body.dispatchEvent(new w.Event('scroll'));assert.equal(d.querySelector('#dialog').open,false);
+  d.querySelector('#appActions').click();d.querySelector('#menuKeyboard').click();const body=d.querySelector('#dialogBody');body.scrollTop=80;body.dispatchEvent(new w.Event('scroll'));assert.equal(d.querySelector('#dialog').open,true);body.scrollTop=0;body.dispatchEvent(new w.Event('scroll'));assert.equal(d.querySelector('#dialog').open,true,'Reaching top requires a further deliberate downward pull to stow');
  }finally{w.close()}
 });
 

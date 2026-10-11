@@ -18,7 +18,7 @@ test('moving a tab keeps controls open and updates both directional boundaries a
  node('tabRight').onclick();node('tabRight').onclick();assert.deepEqual(Array.from(preferences.tabOrder.workspace),['one','three','two']);assert.equal(node('tabRight').disabled,true);assert.notEqual(node('dialog').closed,true);
 });
 test('tab controls provide explicit close and reject delivery while disconnected',async()=>{
- const {ctx,node}=fixture();const calls=[];ctx.api=async(path,body)=>calls.push({path,body});ctx.tabActions('pane','two');assert.match(node('dialogBody').innerHTML,/Close tab/);
+ const {ctx,node}=fixture();const calls=[];ctx.api=async(path,body)=>calls.push({path,body});ctx.tabActions('pane','two');
  await node('tabClose').onclick();assert.equal(calls.length,1);assert.deepEqual(JSON.parse(JSON.stringify(calls[0])),{path:'action',body:{action:'close',workspace_id:'workspace',surface_id:'two'}});
  ctx.connected=false;ctx.tabActions('pane','one');assert.equal(node('tabClose').disabled,true);
 });

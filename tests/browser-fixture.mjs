@@ -40,7 +40,7 @@ const owned=()=>({workspace_id:workspaceId,surface_id:surfaceId});
 let ws;const deadline=Date.now()+10000;
 while(!ws){ws=rpc('system.tree',{all_windows:true}).windows.flatMap(w=>w.workspaces).find(w=>w.id===workspaceId);if(!ws){assert.ok(Date.now()<deadline);await new Promise(r=>setTimeout(r,50));}}
 const second=rpc('surface.create',{workspace_id:workspaceId,pane_id:ws.panes[0].id,type:'terminal',initial_command:command+'-second',focus:false}).surface_id;
-const shellSurfaceId=process.env.POKEMUX_CANARY_SHELL==='1'?rpc('surface.create',{workspace_id:workspaceId,pane_id:ws.panes[0].id,type:'terminal',initial_command:'/bin/zsh -f',focus:false}).surface_id:undefined;
+const shellSurfaceId=process.env.POKEMUX_CANARY_SHELL==='1'?rpc('surface.create',{workspace_id:workspaceId,pane_id:ws.panes[0].id,type:'terminal',initial_command:process.env.POKEMUX_CANARY_GLYPHS==='1'?`/bin/zsh -f -c 'printf "\\ue0a0 \\ue0b0 \\ue0b1 \\ue0b2 \\ue0b3\\n"; exec /bin/zsh -f'`:'/bin/zsh -f',focus:false}).surface_id:undefined;
 bridge=new CmuxBridge();
 const rawRPC=bridge.rpc.bind(bridge),allowedReads=new Set(['system.ping','system.tree','workspace.group.list','terminal.replay']);
 bridge.rpc=(method,params)=>{assert.ok(allowedReads.has(method)||params?.workspace_id===workspaceId,'Fixture RPC cannot mutate any existing workspace');return rawRPC(method,params)};
