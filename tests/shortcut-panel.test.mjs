@@ -48,7 +48,7 @@ test('panel horizontal swipes change Keys Snippets Customize without terminal in
 });
 test('panel separates modifiers and removes keyboard duplicates, with navigation last',()=>{
  const dom=terminal(),w=dom.window,d=w.document;
- try{open(w);const modifiers=d.querySelector('#dialog .modifierkeys');assert.ok(modifiers);assert.deepEqual([...modifiers.querySelectorAll('[data-key]')].map(b=>b.dataset.key),['Ctrl','Alt','Shift']);for(const key of ['Backspace','Space','Enter','1','2','3','4','5','6','/','|','~','-','_','`'])assert.equal(d.querySelector('#dialog [data-key="'+key+'"]'),null);const grid=d.querySelector('#dialog .navigationkeys');assert.ok(grid);assert.ok([...d.querySelectorAll('#dialog [data-key]')].indexOf(grid.firstElementChild)>10);assert.ok(d.querySelector('#dialog [data-key="Esc"] svg'));assert.ok(d.querySelector('#dialog [data-key="Ctrl-W"]'))}finally{w.close()}
+ try{open(w);const modifiers=d.querySelector('#dialog .modifierkeys');assert.ok(modifiers);assert.deepEqual([...modifiers.querySelectorAll('[data-key]')].map(b=>b.dataset.key),['Ctrl','Alt','Shift']);for(const key of ['Backspace','Space','Enter','1','2','3','4','5','6','/','-','_'])assert.equal(d.querySelector('#dialog [data-key="'+key+'"]'),null);const grid=d.querySelector('#dialog .navigationkeys');assert.ok(grid);assert.ok([...d.querySelectorAll('#dialog [data-key]')].indexOf(grid.firstElementChild)>10);assert.ok(d.querySelector('#dialog [data-key="Esc"] svg'));assert.ok(d.querySelector('#dialog [data-key="Ctrl-W"]'))}finally{w.close()}
 });
 test('a downward drag consumes panel scroll before it can start collapsing',()=>{
  const dom=terminal(),w=dom.window,d=w.document;
@@ -57,4 +57,16 @@ test('a downward drag consumes panel scroll before it can start collapsing',()=>
 test('the first fresh tap after a horizontal swipe is not swallowed when its compatibility click was omitted',()=>{
  const dom=terminal(),w=dom.window,d=w.document;
  try{open(w);const body=d.querySelector('#dialogBody');pointer(w,body,'pointerdown',320,430);pointer(w,body,'pointermove',70,430);pointer(w,body,'pointerup',70,430);const add=d.querySelector('#addSnippet');pointer(w,add,'pointerdown',120,440);pointer(w,add,'pointerup',120,440);add.click();assert.equal(d.querySelector('#dialogTitle').textContent,'Add snippet')}finally{w.close()}
+});
+test('fresh default strip separates modifiers and exposes the requested control and coding groups',()=>{
+ const dom=terminal(),w=dom.window,d=w.document;
+ try{const rail=d.querySelector('.inputdock');assert.deepEqual([...rail.querySelectorAll('.modifierkeys [data-key]')].map(b=>b.dataset.key),['Ctrl','Alt','Shift']);assert.deepEqual([...rail.querySelectorAll('.keygroups .keygroup')].map(g=>[...g.querySelectorAll('[data-key]')].map(b=>b.dataset.key)),[['Esc','Tab','Del'],['Ctrl-C','Ctrl-A','Ctrl-E','Ctrl-W','Ctrl-L','Ctrl-R'],['|','\\','`','~']]);assert.equal(rail.querySelectorAll('[data-key="Ctrl"]').length,1)}finally{w.close()}
+});
+test('old group ordering migrates complete defaults without empty groups or losing custom shortcuts',()=>{
+ const dom=terminal({groupOrder:[['Ctrl-C','Ctrl-D','Ctrl-Z','Ctrl-L'],['1','2','3','Enter'],['Esc','Tab','Ctrl','Alt'],['/','|','~','-']],shortcuts:[{id:'saved',name:'Mine',key:'Alt-x'}]}),w=dom.window,d=w.document;
+ try{const rail=d.querySelector('.inputdock'),groups=[...rail.querySelectorAll('.keygroups .keygroup')];assert.deepEqual([...groups[0].querySelectorAll('[data-key]')].map(b=>b.dataset.key),['Ctrl-C','Ctrl-A','Ctrl-E','Ctrl-W','Ctrl-L','Ctrl-R']);assert.deepEqual([...groups[1].querySelectorAll('[data-key]')].map(b=>b.dataset.key),['Esc','Tab','Del']);assert.deepEqual([...groups[2].querySelectorAll('[data-key]')].map(b=>b.dataset.key),['|','\\','`','~']);assert.equal(groups[3].querySelector('[data-shortcut="saved"]').textContent,'Mine');assert.ok(groups.every(g=>g.childElementCount>0))}finally{w.close()}
+});
+test('expanded defaults use unselectable vector Mac key symbols while retaining full accessible names',()=>{
+ const dom=terminal(),w=dom.window,d=w.document;
+ try{open(w);for(const k of ['Esc','Tab','Ctrl','Alt','Shift','Del','Ctrl-C','Ctrl-A','Ctrl-E','Ctrl-W','Ctrl-L','Ctrl-R']){const key=d.querySelector('#dialog [data-key="'+k+'"]');assert.ok(key,k);assert.equal(key.getAttribute('aria-label'),k);assert.ok(key.querySelector('svg path'),k+' has a vector symbol')}for(const k of ['Ctrl-A','Ctrl-E','Ctrl-R'])assert.ok(d.querySelector('#dialog [data-key="'+k+'"]').textContent.endsWith(k.slice(-1)));assert.equal(d.querySelector('#dialog [data-key="Ctrl-Z"]'),null);assert.ok(d.querySelector('#dialog [data-key="\\\\"]'))}finally{w.close()}
 });
