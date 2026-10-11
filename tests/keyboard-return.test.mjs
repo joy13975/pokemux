@@ -40,10 +40,11 @@ test('returning to custom input releases native keyboard focus without immediate
  assert.equal(w.fixture.preferences.keyboardMode,'custom');assert.equal(focused.filter(e=>e.classList.contains('terminal')).length,0);assert.notEqual(d.activeElement,d.querySelector('.terminal'));
  }finally{w.close()}
 });
-test('returning to custom input releases native keyboard focus without immediately focusing another terminal',()=>{
- const dom=client({keyboardMode:'native',keyboardLanguage:'system'}),w=dom.window,d=w.document,focused=[];
- try{d.querySelector('.terminal').focus();const focus=w.HTMLElement.prototype.focus;w.HTMLElement.prototype.focus=function(...args){focused.push(this);return focus.apply(this,args)};
- d.querySelector('#floatingHandle').click();d.querySelector('#floatingFunctions [data-function="3"]').click();
- assert.equal(w.fixture.preferences.keyboardMode,'custom');assert.equal(focused.filter(e=>e.classList.contains('terminal')).length,0);assert.notEqual(d.activeElement,d.querySelector('.terminal'));
+test('custom input still accepts a physical keyboard while terminal focus is released',async()=>{
+ const dom=client({keyboardMode:'native',keyboardLanguage:'system'}),w=dom.window,d=w.document;
+ try{d.querySelector('#floatingHandle').click();d.querySelector('#floatingFunctions [data-function="3"]').click();
+ d.body.dispatchEvent(new w.KeyboardEvent('keydown',{key:'x',bubbles:true}));await new Promise(r=>setTimeout(r,0));
+ assert.equal(w.actions.length,1);assert.equal(w.actions[0].action,'input');assert.equal(w.actions[0].text,'x');
+ w.fixture.appMenu();d.body.dispatchEvent(new w.KeyboardEvent('keydown',{key:'y',bubbles:true}));await new Promise(r=>setTimeout(r,0));assert.equal(w.actions.length,1);
  }finally{w.close()}
 });
