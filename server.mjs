@@ -8,6 +8,7 @@ const assets = new Map([
   ['/setup', ['setup.html', 'text/html; charset=utf-8']],
   ['/setup.mjs', ['setup.mjs', 'text/javascript']],
   ['/grid.mjs', ['grid.mjs', 'text/javascript']],
+  ['/vendor/powerline/PowerlineSymbols.otf', ['vendor/powerline/PowerlineSymbols.otf', 'font/otf']],
   ['/kana.mjs', ['kana.mjs', 'text/javascript']],
   ['/vendor/kana/wanakana.js', ['vendor/kana/wanakana.js', 'text/javascript']],
   ['/passkeys.js', ['node_modules/@simplewebauthn/browser/dist/bundle/index.umd.min.js', 'text/javascript']],

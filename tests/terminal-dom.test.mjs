@@ -4,12 +4,13 @@ import { readFileSync } from 'node:fs';
 import { JSDOM } from 'jsdom';
 import { RenderGrid } from '../grid.mjs';
 import { KanaComposer } from '../kana.mjs';
+import { installPopover } from './popover-fixture.mjs';
 const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 function terminal(saved) {
   const dom = new JSDOM(html, { url: 'https://pokemux-test.invalid', runScripts: 'outside-only', pretendToBeVisual: true }), w = dom.window;
   w.localStorage.setItem("cmux-pocket-customizations",JSON.stringify({shortcuts:[],snippets:[],keyboardMode:"native",...saved}));
   w.resizeObservers=[];w.ResizeObserver = class { constructor(callback){this.callback=callback;this.targets=new Set();w.resizeObservers.push(this)} observe(target){this.targets.add(target)} disconnect(){this.targets.clear()} };
-  w.HTMLElement.prototype.setPointerCapture=()=>{};
+  installPopover(w);w.HTMLElement.prototype.setPointerCapture=()=>{};
   w.matchMedia = () => ({ matches: true });
   w.visualViewport = { width:390, height: 844, scale: 1, offsetTop: 0, offsetLeft:0, addEventListener() {} };
   w.EventSource = class { constructor() { w.fixtureStream=this; } addEventListener() {} close() { this.closed=true; } };
@@ -226,7 +227,7 @@ test('Zoom Toggle retains full grid through updates then returns to the saved ty
 
  test('old toolbar ordering removes default navigation groups without losing custom shortcuts or other order',()=>{
  const dom=terminal({shortcuts:[{id:'s',name:'Home custom',key:'Home'}],snippets:[],groupOrder:[['1','2','3','Enter'],['Home','End','PgUp','PgDn'],['←','↓','↑','→'],['Esc','Tab','Ctrl','Alt']]});
- try{const d=dom.window.document,rail=d.querySelector('.keygroups');assert.equal(rail.querySelector('[data-key="Home"]'),null);assert.equal(rail.querySelector('[data-key="←"]'),null);assert.equal(rail.querySelector('.key').textContent,'1');assert.equal(rail.querySelector('[data-shortcut="s"]').textContent,'Home custom')}finally{dom.window.close()}
+ try{const d=dom.window.document,rail=d.querySelector('.keygroups');assert.equal(rail.querySelector('[data-key="Home"]'),null);assert.equal(rail.querySelector('[data-key="←"]'),null);assert.equal(rail.querySelector('[data-key="1"]'),null);assert.ok(rail.querySelector('[data-key="Esc"]'));assert.equal(rail.querySelector('[data-shortcut="s"]').textContent,'Home custom')}finally{dom.window.close()}
  });
  test('joystick sends and repeats before release, stops at center, preserves modifiers throughout and holds to move',async()=>{
  const dom=terminal(),w=dom.window,d=w.document;
@@ -237,7 +238,7 @@ test('Zoom Toggle retains full grid through updates then returns to the saved ty
  const center=()=>[parseFloat(handle.style.left)+22,parseFloat(handle.style.top)+22];let [x,y]=center();
  d.querySelector('[data-key="Ctrl"]').click();handle.onpointerdown(event(x,y));handle.onpointermove(event(x+25,y));await new Promise(r=>w.setTimeout(r,190));
  assert.ok(w.actions.length>=2,'A held deflection must repeat without release');assert.ok(w.actions.every(a=>a.key==='Ctrl-Right'));
- handle.onpointermove(event(x+80,y));await new Promise(r=>w.setTimeout(r,0));assert.equal(w.actions.at(-1).key,'Ctrl-Alt-f');
+ handle.onpointermove(event(x+80,y));await new Promise(r=>w.setTimeout(r,0));assert.equal(w.actions.at(-1).key,'Ctrl-Alt-Right');
  handle.onpointermove(event(x,y-80));await new Promise(r=>w.setTimeout(r,0));assert.equal(w.actions.at(-1).key,'Ctrl-Up','Far vertical drag stays an arrow');
  handle.onpointermove(event(x,y));const stopped=w.actions.length;await new Promise(r=>w.setTimeout(r,190));assert.equal(w.actions.length,stopped,'Center stops repeating');handle.onpointerup(event(x,y));assert.equal(d.querySelector('[data-key="Ctrl"]').getAttribute('aria-pressed'),'false');
  [x,y]=center();handle.onpointerdown(event(x,y));await new Promise(r=>w.setTimeout(r,375));handle.onpointermove(event(x+100,y-100));handle.onpointerup(event(x+100,y-100));assert.ok(parseFloat(handle.style.left)+22>x+90);assert.equal(w.actions.length,stopped,'Hold-to-move delivers no keys');
@@ -280,7 +281,7 @@ test('drag-out-and-back, a secondary contact and a pinch release never engage ty
 });
 
 function keyboardPointer(w,button,type,id=1){const e=new w.Event(type,{bubbles:true,cancelable:true});Object.assign(e,{pointerId:id,button:0,isPrimary:id===1,clientX:20,clientY:20});button.dispatchEvent(e)}
-function keyboardTap(w,value,id=1){const b=w.document.querySelector(`[data-typing-key="${value}"]`);assert.ok(b,`Keyboard key ${value} exists`);keyboardPointer(w,b,'pointerdown',id);keyboardPointer(w,b,'pointerup',id);b.dispatchEvent(new w.MouseEvent('click',{bubbles:true,detail:1}));}
+function keyboardTap(w,value,id=1){const b=w.document.querySelector(`[data-typing-key="${value}"]`);assert.ok(b,`Keyboard key ${value} exists`);keyboardPointer(w,b,'pointerdown',id);keyboardPointer(w,b,'pointerup',id);b.dispatchEvent(new w.MouseEvent('click',{bubbles:true,cancelable:true,detail:1}));}
 test('custom keyboard owns typing without a native editor; dismissal and one tap reopen it',async()=>{
  const dom=terminal({keyboardMode:'custom'}),w=dom.window,d=w.document;
  try{
@@ -371,23 +372,17 @@ test('sidebar search finds tab names and cached screen output and opens the matc
  }finally{w.close()}
 });
 
-test('custom keyboard has language switching, floating Paste and Zoom Toggle, Ctrl-W default and collapse at panel top',()=>{
+test('custom keyboard has language switching, floating Paste and Zoom Toggle, Ctrl-W default and no inertial collapse at panel top',()=>{
  const dom=terminal({keyboardMode:'custom'}),w=dom.window,d=w.document;
  try{
   w.fixture.focusInput();assert.ok(d.querySelector('[data-typing-key="Language"]'));assert.equal(d.querySelector('[data-typing-key="Paste"]'),null);assert.ok(d.querySelector('.inputdock [data-key="Ctrl-W"]'));assert.equal(d.querySelector('.inputdock [data-key="Ctrl-D"]'),null);
   assert.equal(d.querySelector('[data-function="0"]').getAttribute('aria-label'),'Zoom toggle');assert.equal(d.querySelector('[data-function="2"]').getAttribute('aria-label'),'Paste');
-  d.querySelector('#appActions').click();d.querySelector('#menuKeyboard').click();const body=d.querySelector('#dialogBody');body.scrollTop=80;body.dispatchEvent(new w.Event('scroll'));assert.equal(d.querySelector('#dialog').open,true);body.scrollTop=0;body.dispatchEvent(new w.Event('scroll'));assert.equal(d.querySelector('#dialog').open,false);
+  d.querySelector('#appActions').click();d.querySelector('#menuKeyboard').click();const body=d.querySelector('#dialogBody');body.scrollTop=80;body.dispatchEvent(new w.Event('scroll'));assert.equal(d.querySelector('#dialog').open,true);body.scrollTop=0;body.dispatchEvent(new w.Event('scroll'));assert.equal(d.querySelector('#dialog').open,true,'Reaching top requires a further deliberate downward pull to stow');
  }finally{w.close()}
 });
 
-test('language modal opens after the initiating touch compatibility click, then outside touch dismisses it',async()=>{
- const dom=terminal({keyboardMode:'custom'}),w=dom.window,d=w.document;
- try{
-  w.fixture.focusInput();keyboardTap(w,'Language');
-  d.querySelector('#dialog').dispatchEvent(new w.MouseEvent('click',{bubbles:true,clientX:80,clientY:700}));
-  await new Promise(r=>w.requestAnimationFrame(r));assert.equal(d.querySelector('#dialog').open,true,'The same touch release must not dismiss its newly opened modal');
-  d.querySelector('#dialog').dispatchEvent(new w.MouseEvent('pointerdown',{bubbles:true,clientX:80,clientY:700}));d.querySelector('#dialog').dispatchEvent(new w.MouseEvent('click',{bubbles:true,clientX:80,clientY:700}));assert.equal(d.querySelector('#dialog').open,false);
- }finally{w.close()}
+test('language choice stays beside a visible keyboard without moving terminal space or focus, and supports native light dismiss',async()=>{
+ const dom=terminal({keyboardMode:'custom'}),w=dom.window,d=w.document;try{w.fixture.focusInput();const keyboard=d.querySelector('#softwareKeyboard'),focused=d.activeElement,height=d.documentElement.style.getPropertyValue('--dock-height');keyboardTap(w,'Language');const popover=d.querySelector('#languagePopover');assert.ok(popover);assert.equal(popover.dataset.testPopover,'open');assert.equal(d.querySelector('#dialog').open,false);assert.equal(keyboard.hidden,false);assert.equal(d.documentElement.style.getPropertyValue('--dock-height'),height);assert.equal(d.activeElement,focused);assert.equal(popover.querySelectorAll('button').length,4);const output=d.querySelector('.terminal');keyboardPointer(w,output,'pointerdown');keyboardPointer(w,output,'pointerup');assert.equal(popover.dataset.testPopover,'closed');keyboardTap(w,'Language');d.body.dispatchEvent(new w.KeyboardEvent('keydown',{key:'Escape',bubbles:true}));assert.equal(popover.dataset.testPopover,'closed');await new Promise(resolve=>w.setTimeout(resolve,0));assert.equal(w.actions.length,0,'Closing the language chooser must not send Escape to the terminal');keyboardTap(w,'Language');d.querySelector('#languageHiragana').click();assert.equal(popover.dataset.testPopover,'closed');assert.equal(keyboard.hidden,false);keyboardTap(w,'Language');assert.equal(d.querySelector('#languageHiragana').getAttribute('aria-pressed'),'true')}finally{w.close()}
 });
 
 test('late custom keyboard size change updates reserved terminal space',()=>{
@@ -442,4 +437,39 @@ test('a retargeted compatibility click after keyboard dismissal cannot reuse an 
   wrap.dispatchEvent(new w.MouseEvent('click',{bubbles:true,detail:1}));
   assert.equal(d.querySelector('#softwareKeyboard').hidden,true,'The dismiss touch must not be reinterpreted as a new terminal gesture');
  }finally{w.close()}
+});
+
+test('Shift and Caps Lock use distinct shared SVG symbols and deliver the displayed letter case',async()=>{
+ const dom=terminal({keyboardMode:'custom'}),w=dom.window,d=w.document;try{w.fixture.focusInput();const shift=d.querySelector('[data-typing-key="Shift"]'),shortcut=d.querySelector('[data-key="Shift"]'),symbol=button=>button.querySelector('svg use')?.getAttribute('href');assert.ok(symbol(shift),'Shift has a vector icon');assert.equal(symbol(shift),symbol(shortcut),'The keyboard and shortcuts share one Shift symbol');const normal=symbol(shift);assert.ok(d.querySelector(normal).querySelector('path'));assert.equal(shift.getAttribute('aria-label'),'Shift');keyboardTap(w,'Shift');assert.equal(shift.getAttribute('aria-pressed'),'true');assert.equal(symbol(shift),normal);keyboardTap(w,'Shift');assert.equal(shift.getAttribute('aria-label'),'Caps Lock');assert.equal(shift.getAttribute('aria-pressed'),'true');assert.notEqual(symbol(shift),normal);assert.ok(d.querySelector(symbol(shift)).querySelector('path'));keyboardTap(w,'a');keyboardTap(w,'b');assert.equal(shift.getAttribute('aria-label'),'Caps Lock');keyboardTap(w,'Shift');assert.equal(shift.getAttribute('aria-label'),'Shift');assert.equal(shift.getAttribute('aria-pressed'),'false');assert.equal(symbol(shift),normal);keyboardTap(w,'c');await new Promise(resolve=>w.setTimeout(resolve,0));assert.deepEqual(w.actions.map(action=>action.text),['A','B','c'])}finally{w.close()}
+});
+
+test('an open language chooser owns hardware keys even while the terminal retains focus',async()=>{
+ const dom=terminal({keyboardMode:'custom'}),w=dom.window,d=w.document;try{w.fixture.focusInput();const output=d.querySelector('.terminal');output.focus();keyboardTap(w,'Language');const popover=d.querySelector('#languagePopover');assert.equal(d.activeElement,output);for(const key of ['x','ArrowLeft','Escape'])output.dispatchEvent(new w.KeyboardEvent('keydown',{key,bubbles:true,cancelable:true}));await new Promise(resolve=>w.setTimeout(resolve,0));assert.equal(popover.dataset.testPopover,'closed');assert.deepEqual(w.actions,[],'Chooser dismissal and other hardware keys must never reach cmux');output.dispatchEvent(new w.KeyboardEvent('keydown',{key:'x',bubbles:true,cancelable:true}));await new Promise(resolve=>w.setTimeout(resolve,0));assert.equal(w.actions.length,1);assert.equal(w.actions[0].text,'x')}finally{w.close()}
+});
+
+test('far joystick deflection uses directional word navigation and highlights only its direction',async()=>{
+ const dom=terminal(),w=dom.window,d=w.document,handle=d.querySelector('#cursorJoystick');
+ const point=(x,y)=>({pointerId:7,button:0,isPrimary:true,clientX:x,clientY:y,preventDefault(){}});
+ try{
+  const x=parseFloat(handle.style.left)+22,y=parseFloat(handle.style.top)+22;
+  for(const [dx,direction] of [[-80,'Left'],[80,'Right']]){
+   handle.onpointerdown(point(x,y));handle.onpointermove(point(x+dx,y));await new Promise(r=>w.setTimeout(r,0));
+   assert.equal(w.actions.at(-1).key,'Alt-'+direction,'Word movement must remain a directional key, not a printable letter whose Alt encoding varies by Mac layout');
+   const active=[...handle.querySelectorAll('.word-ticks.active')];assert.equal(active.length,1);assert.equal(active[0].dataset.wordDirection,direction);
+   const inactive=handle.querySelector(`.word-ticks[data-word-direction="${direction==='Left'?'Right':'Left'}"]`);assert.equal(w.getComputedStyle(inactive).display,'none');
+   handle.onpointerup(point(x+dx,y));assert.equal(handle.querySelectorAll('.word-ticks.active').length,0);
+  }
+  d.querySelector('[data-key="Ctrl"]').click();d.querySelector('[data-key="Alt"]').click();d.querySelector('[data-key="Shift"]').click();
+  handle.onpointerdown(point(x,y));handle.onpointermove(point(x-80,y));await new Promise(r=>w.setTimeout(r,0));assert.equal(w.actions.at(-1).key,'Ctrl-Alt-Shift-Left');handle.onpointerup(point(x-80,y));
+ }finally{w.close()}
+});
+
+test('word navigation preview lights only the deflected side and resets on cancel',async()=>{
+ const dom=terminal(),w=dom.window,handle=w.document.querySelector('#cursorJoystick');
+ const x=parseFloat(handle.style.left)+22,y=parseFloat(handle.style.top)+22,point=(dx)=>({pointerId:8,button:0,isPrimary:true,clientX:x+dx,clientY:y,preventDefault(){}});
+ try{handle.onpointerdown(point(0));handle.onpointermove(point(-80));await new Promise(r=>w.setTimeout(r,0));const word=[...handle.querySelectorAll('.word-ticks.active')];assert.equal(word.length,1,'A word preview must identify one side');assert.equal(word[0].dataset.wordDirection,'Left');handle.onpointercancel();assert.equal(handle.querySelectorAll('.word-ticks.active').length,0)}finally{w.close()}
+});
+
+test('language activation stays open through release and compatibility click and toggles once per tap',()=>{
+ const dom=terminal({keyboardMode:'custom'}),w=dom.window,d=w.document;try{w.fixture.focusInput();const button=d.querySelector('.typing-layout:not([hidden]) [data-typing-key="Language"]'),icon=button.querySelector('svg path'),popover=d.querySelector('#languagePopover');keyboardPointer(w,icon,'pointerdown');keyboardPointer(w,icon,'pointerup');button.dispatchEvent(new w.MouseEvent('click',{bubbles:true,cancelable:true,detail:1}));assert.equal(popover.dataset.testPopover,'open');keyboardTap(w,'Language');assert.equal(popover.dataset.testPopover,'closed');keyboardTap(w,'Language');assert.equal(popover.dataset.testPopover,'open');const output=d.querySelector('.terminal');keyboardPointer(w,output,'pointerdown');keyboardPointer(w,output,'pointerup');assert.equal(popover.dataset.testPopover,'closed')}finally{w.close()}
 });

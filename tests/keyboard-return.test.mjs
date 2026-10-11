@@ -4,12 +4,13 @@ import { readFileSync } from 'node:fs';
 import { JSDOM } from 'jsdom';
 import { RenderGrid } from '../grid.mjs';
 import { KanaComposer } from '../kana.mjs';
+import { installPopover } from './popover-fixture.mjs';
 const html=readFileSync(new URL('../index.html',import.meta.url),'utf8');
 function client(saved={}) {
  const dom=new JSDOM(html,{url:'https://pokemux-test.invalid',runScripts:'outside-only',pretendToBeVisual:true}),w=dom.window;
  w.localStorage.setItem('cmux-pocket-customizations',JSON.stringify({shortcuts:[],snippets:[],...saved}));
  w.ResizeObserver=class{observe(){} disconnect(){}};w.matchMedia=()=>({matches:true});w.visualViewport={width:428,height:926,scale:1,offsetTop:0,offsetLeft:0,addEventListener(){}};
- w.HTMLElement.prototype.setPointerCapture=()=>{};w.EventSource=class{addEventListener(){} close(){}};
+ installPopover(w);w.HTMLElement.prototype.setPointerCapture=()=>{};w.EventSource=class{addEventListener(){} close(){}};
  w.HTMLDialogElement.prototype.showModal=function(){this.open=true};w.HTMLDialogElement.prototype.show=function(){this.open=true};w.HTMLDialogElement.prototype.close=function(){this.open=false;this.dispatchEvent(new w.Event('close'))};
  w.actions=[];w.fetch=async(path,options)=>{if(path==='/api/action')w.actions.push(JSON.parse(options.body));return {ok:true,status:200,json:async()=>({})}};
  w.__RenderGrid=RenderGrid;w.__KanaComposer=KanaComposer;
@@ -31,12 +32,20 @@ test('language picker remembers custom Japanese mode across a system keyboard ro
 });
 test('existing three custom floating actions survive and receive a fourth keyboard action',()=>{
  const dom=client({floatingFunctions:['key:Ctrl-C','frequent','paste']}),w=dom.window;
- try{assert.deepEqual([...w.fixture.floatingChoices()],['key:Ctrl-C','frequent','paste','keyboard']);w.fixture.displaySettings();assert.equal(w.document.querySelectorAll('[data-function-setting]').length,4);assert.equal(w.document.querySelectorAll('#floatingFunctions [data-function]').length,4)}finally{w.close()}
+ try{assert.deepEqual([...w.fixture.floatingChoices()],['key:Ctrl-C','recent','paste','keyboard']);w.fixture.displaySettings();assert.equal(w.document.querySelectorAll('[data-function-setting]').length,4);assert.equal(w.document.querySelectorAll('#floatingFunctions [data-function]').length,4)}finally{w.close()}
 });
 test('returning to custom input releases native keyboard focus without immediately focusing another terminal',()=>{
- const dom=client({keyboardMode:'native',keyboardLanguage:'system'}),w=dom.window,d=w.document,focused=[];
- try{d.querySelector('.terminal').focus();const focus=w.HTMLElement.prototype.focus;w.HTMLElement.prototype.focus=function(...args){focused.push(this);return focus.apply(this,args)};
+ const dom=client({keyboardMode:'native',keyboardLanguage:'system'}),w=dom.window,d=w.document;
+ try{d.querySelector('.terminal').focus();
  d.querySelector('#floatingHandle').click();d.querySelector('#floatingFunctions [data-function="3"]').click();
- assert.equal(w.fixture.preferences.keyboardMode,'custom');assert.equal(focused.filter(e=>e.classList.contains('terminal')).length,0);assert.notEqual(d.activeElement,d.querySelector('.terminal'));
+ assert.equal(w.fixture.preferences.keyboardMode,'custom');assert.notEqual(d.activeElement,d.querySelector('.terminal'));
+ }finally{w.close()}
+});
+test('custom input still accepts a physical keyboard while terminal focus is released',async()=>{
+ const dom=client({keyboardMode:'native',keyboardLanguage:'system'}),w=dom.window,d=w.document;
+ try{d.querySelector('#floatingHandle').click();d.querySelector('#floatingFunctions [data-function="3"]').click();
+ d.body.dispatchEvent(new w.KeyboardEvent('keydown',{key:'x',bubbles:true}));await new Promise(r=>setTimeout(r,0));
+ assert.equal(w.actions.length,1);assert.equal(w.actions[0].action,'input');assert.equal(w.actions[0].text,'x');
+ w.fixture.appMenu();d.body.dispatchEvent(new w.KeyboardEvent('keydown',{key:'y',bubbles:true}));await new Promise(r=>setTimeout(r,0));assert.equal(w.actions.length,1);
  }finally{w.close()}
 });

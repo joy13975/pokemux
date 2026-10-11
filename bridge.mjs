@@ -163,6 +163,7 @@ export class CmuxBridge extends EventEmitter {
         this.emit('input', target);
         return result;
       }
+      if (body.action === 'close') return this.rpc('surface.close', { ...target, force: true });
       if (body.action === 'rename') {
         if (typeof body.name !== 'string' || !body.name.trim() || body.name.length > 120) throw new RequestError(400, 'A terminal name is required');
         return this.rpc('surface.action', { ...target, action: 'rename', title: body.name });
