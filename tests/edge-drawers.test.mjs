@@ -5,13 +5,13 @@ import { JSDOM } from 'jsdom';
 import { RenderGrid } from '../grid.mjs';
 import { KanaComposer } from '../kana.mjs';
 const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
-function terminal(standalone=false) {
+function terminal(standalone=false,width=390) {
   const dom = new JSDOM(html, { url: 'https://pokemux-test.invalid', runScripts: 'outside-only', pretendToBeVisual: true }), w = dom.window;
   w.localStorage.setItem("cmux-pocket-customizations",JSON.stringify({shortcuts:[],snippets:[],keyboardMode:"custom",}));
   w.resizeObservers=[];w.ResizeObserver = class { constructor(callback){this.callback=callback;this.targets=new Set();w.resizeObservers.push(this)} observe(target){this.targets.add(target)} disconnect(){this.targets.clear()} };
   w.HTMLElement.prototype.setPointerCapture=()=>{};
-  w.matchMedia = query => ({ matches:query.includes('max-width')||query.includes('max-height')||standalone&&query.includes('display-mode') });
-  w.visualViewport = { width:390, height: 844, scale: 1, offsetTop: 0, offsetLeft:0, addEventListener() {} };
+  w.matchMedia = query => ({ matches:query.includes('max-width')&&width<1000||query.includes('max-height')||standalone&&query.includes('display-mode') });
+  w.visualViewport = { width, height: 844, scale: 1, offsetTop: 0, offsetLeft:0, addEventListener() {} };
   w.EventSource = class { constructor() { w.fixtureStream=this; } addEventListener() {} close() { this.closed=true; } };
   w.HTMLDialogElement.prototype.showModal=function(){this.open=true;this.dataset.modal='true';};
   w.HTMLDialogElement.prototype.show=function(){this.open=true;delete this.dataset.modal;};
@@ -24,7 +24,7 @@ function terminal(standalone=false) {
     const fixture=workspace('owned-workspace','Owned workspace',null,'','',[pane('owned-pane',[surface('owned-surface','Owned terminal')])],'owned-window');
     workspaces.push(fixture);current=fixture;selectedWindow=fixture.window;connected=true;
     const initialFrame={format:'cmux.render-grid.v1',render_epoch:'owned-epoch',render_revision:1,full:true,rows:3,columns:30,row_spans:[{row:0,column:0,text:'hello 日本語',cell_width:12}],cursor:{row:0,column:12,visible:true,style:'bar'}};const model=new RenderGrid();model.apply(initialFrame);grids.set('owned-surface',model);
-    render();
+    render();window.fixtureUI={openDialog,keyboardDialog,openSidebar};
   `);
   return dom;
 }
@@ -60,4 +60,17 @@ test('native touch cancellation is restricted to a single edge contact',()=>{
 test('drawer drag release cannot activate its starting button and never swallows the next fresh tap',()=>{
  const dom=terminal(),w=dom.window,d=w.document;
  try{d.querySelector('#appActions').click();const dialog=d.querySelector('#dialog'),button=d.querySelector('#menuNewTab');box(dialog,300);let calls=0;button.onclick=()=>calls++;pointer(w,button,'pointerdown',180,200);pointer(w,button,'pointermove',380,200);pointer(w,button,'pointerup',380,200);button.dispatchEvent(new w.MouseEvent('click',{bubbles:true,cancelable:true,detail:1}));assert.equal(calls,0);d.querySelector('#appActions').click();const next=d.querySelector('#menuNewTab');next.onclick=()=>calls++;pointer(w,next,'pointerdown',180,200);pointer(w,next,'pointerup',180,200);next.dispatchEvent(new w.MouseEvent('click',{bubbles:true,cancelable:true,detail:1}));assert.equal(calls,1)}finally{w.close()}
+});
+
+test('reversed edge previews preserve the prior shortcut section and scroll position',()=>{
+ for(const side of ['left','right']){const dom=terminal(),w=dom.window,d=w.document;try{w.fixtureUI.keyboardDialog('snippets',false);const dialog=d.querySelector('#dialog'),body=d.querySelector('#dialogBody');body.scrollTop=17;box(dialog,300);box(d.querySelector('#sidebar'),300);const edge=d.querySelector('[data-edge="'+side+'"]'),x=side==='left'?4:386,sign=side==='left'?1:-1;pointer(w,edge,'pointerdown',x,200);pointer(w,edge,'pointermove',x+sign*90,200);pointer(w,edge,'pointermove',x+sign*10,200);pointer(w,edge,'pointerup',x+sign*10,200);assert.equal(dialog.open,true,side+' reversal retains prior overlay');assert.equal(d.querySelector('[data-panel].active')?.dataset.panel,'snippets');assert.equal(body.scrollTop,17)}finally{w.close()}}
+});
+test('committing the opposite edge transfers overlay ownership but reversing preserves it',()=>{
+ const dom=terminal(),w=dom.window,d=w.document;try{w.fixtureUI.openSidebar();box(d.querySelector('#dialog'),300);const edge=d.querySelector('[data-edge="right"]');pointer(w,edge,'pointerdown',386,200);pointer(w,edge,'pointermove',296,200);pointer(w,edge,'pointerup',296,200);assert.equal(d.querySelector('#shell').classList.contains('sidebar-open'),true);pointer(w,edge,'pointerdown',386,200);pointer(w,edge,'pointermove',186,200);pointer(w,edge,'pointerup',186,200);assert.equal(d.querySelector('#dialog').dataset.modal,'true');assert.equal(d.querySelector('#shell').classList.contains('sidebar-open'),false);assert.equal(d.querySelector('#viewportDock').inert,false)}finally{w.close()}
+});
+test('wide standalone layout retains launch controls when edge gestures are unavailable',()=>{
+ const dom=terminal(true,1200),d=dom.window.document;try{assert.equal(d.querySelector('#appActions').hidden,false);assert.equal(d.querySelector('#sidebarToggle').hidden,false)}finally{dom.window.close()}
+});
+test('updating an open modal preserves its native top-layer ownership without reopening it',()=>{
+ const dom=terminal(),w=dom.window,d=w.document;try{const dialog=d.querySelector('#dialog');let moved=0,opened=0;const append=d.body.append.bind(d.body),showModal=dialog.showModal.bind(dialog);d.body.append=(...nodes)=>{if(dialog.open&&nodes.includes(dialog)){moved++;delete dialog.dataset.modal}append(...nodes)};dialog.showModal=()=>{opened++;if(dialog.open&&dialog.dataset.modal!=='true')throw new w.DOMException('Already nonmodal','InvalidStateError');showModal()};w.fixtureUI.openDialog('Tab','<button>Move left</button>');w.fixtureUI.openDialog('Tab','<button>Move right</button>');assert.equal(dialog.open,true);assert.equal(dialog.dataset.modal,'true');assert.equal(moved,0);assert.equal(opened,1);assert.equal(dialog.textContent.includes('Move right'),true)}finally{w.close()}
 });

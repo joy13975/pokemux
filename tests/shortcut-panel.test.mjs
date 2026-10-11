@@ -9,7 +9,7 @@ function terminal(saved) {
   const dom = new JSDOM(html, { url: 'https://pokemux-test.invalid', runScripts: 'outside-only', pretendToBeVisual: true }), w = dom.window;
   w.localStorage.setItem("cmux-pocket-customizations",JSON.stringify({shortcuts:[],snippets:[],keyboardMode:"custom",...saved}));
   w.resizeObservers=[];w.ResizeObserver = class { constructor(callback){this.callback=callback;this.targets=new Set();w.resizeObservers.push(this)} observe(target){this.targets.add(target)} disconnect(){this.targets.clear()} };
-  w.HTMLElement.prototype.setPointerCapture=()=>{};
+  w.captureHost=null;w.HTMLElement.prototype.setPointerCapture=function(){w.captureHost=this};
   w.matchMedia = () => ({ matches: true });
   w.visualViewport = { width:390, height: 844, scale: 1, offsetTop: 0, offsetLeft:0, addEventListener() {} };
   w.EventSource = class { constructor() { w.fixtureStream=this; } addEventListener() {} close() { this.closed=true; } };
@@ -69,4 +69,11 @@ test('old group ordering migrates complete defaults without empty groups or losi
 test('expanded defaults use unselectable vector Mac key symbols while retaining full accessible names',()=>{
  const dom=terminal(),w=dom.window,d=w.document;
  try{open(w);for(const k of ['Esc','Tab','Ctrl','Alt','Shift','Del','Ctrl-C','Ctrl-A','Ctrl-E','Ctrl-W','Ctrl-L','Ctrl-R']){const key=d.querySelector('#dialog [data-key="'+k+'"]');assert.ok(key,k);assert.equal(key.getAttribute('aria-label'),k);assert.ok(key.querySelector('svg path'),k+' has a vector symbol')}for(const k of ['Ctrl-A','Ctrl-E','Ctrl-R'])assert.ok(d.querySelector('#dialog [data-key="'+k+'"]').textContent.endsWith(k.slice(-1)));assert.equal(d.querySelector('#dialog [data-key="Ctrl-Z"]'),null);assert.ok(d.querySelector('#dialog [data-key="\\\\"]'))}finally{w.close()}
+});
+
+test('a continuing pull retains capture on a visible host when preview hides the rail',()=>{
+ const dom=terminal(),w=dom.window,d=w.document;try{const rail=d.querySelector('.inputdock'),dialog=d.querySelector('#dialog');pointer(w,rail,'pointerdown',120,712);pointer(w,rail,'pointermove',120,688);const host=w.captureHost;assert.ok(host);if(host===rail)pointer(w,rail,'lostpointercapture',120,688);pointer(w,host,'pointermove',120,602);assert.equal(dialog.open,true,'preview survives the next actual held-finger move');assert.ok(parseFloat(dialog.style.getPropertyValue('--panel-height'))>=180);pointer(w,host,'pointerup',120,602);assert.equal(dialog.open,true)}finally{w.close()}
+});
+test('capture transfer from an implicit button contact does not cancel its panel swipe',()=>{
+ const dom=terminal(),w=dom.window,d=w.document;try{open(w);const button=d.querySelector('[data-panel="keys"]');pointer(w,button,'pointerdown',320,430);pointer(w,button,'pointermove',70,430);pointer(w,button,'lostpointercapture',70,430);pointer(w,w.captureHost,'pointerup',70,430);assert.equal(d.querySelector('[data-panel].active').dataset.panel,'snippets')}finally{w.close()}
 });
