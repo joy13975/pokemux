@@ -1,0 +1,572 @@
+{
+  "version": 2,
+  "purpose": "Repeatable interactive acceptance through visible UI and native touch input",
+  "layout": {
+    "device": "iPhone 13 Pro Max",
+    "viewport": {
+      "width": 428,
+      "height": 926
+    }
+  },
+  "safety": {
+    "target": "Disposable synthetic Pokemux fixture only; no existing cmux terminals",
+    "origin": "http://localhost:4392",
+    "prohibited": [
+      "DOM event dispatch",
+      "application function calls",
+      "changing browser security",
+      "using existing user terminals"
+    ]
+  },
+  "resultFields": [
+    "id",
+    "runtime",
+    "device",
+    "inputPrimitive",
+    "stepsWithActualCoordinates",
+    "expected",
+    "observed",
+    "status",
+    "evidence"
+  ],
+  "statuses": [
+    "pass",
+    "fail",
+    "blocked"
+  ],
+  "canaries": [
+    {
+      "id": "keyboard-cycles",
+      "intent": "Type while keeping prompt, cursor and special keys visible",
+      "requires": [
+        "tap",
+        "nativeKeyboard"
+      ],
+      "steps": [
+        "Open fixture fresh",
+        "Tap visible terminal",
+        "Tap three letter keys on the iOS keyboard",
+        "Dismiss keyboard using native control",
+        "Tap terminal again",
+        "Tap another letter key",
+        "Repeat dismissal and engagement once more"
+      ],
+      "expected": [
+        "No focus-induced page zoom",
+        "Each keyboard engagement shows rail immediately above native keyboard",
+        "Cursor stays above rail",
+        "Dismissal returns rail space and full view",
+        "Exactly one input delivery per letter tap"
+      ]
+    },
+    {
+      "id": "tab-reorder-and-pull",
+      "intent": "Organize terminals and refresh from the same compact top row",
+      "requires": [
+        "swipe",
+        "twoSyntheticTabs"
+      ],
+      "steps": [
+        "Drag first tab after second",
+        "Reload and inspect saved order and active terminal",
+        "Pull down from a tab; return upward before release",
+        "Pull down from blank tab-rail space; return upward before release",
+        "Pull blank rail past refresh threshold and release"
+      ],
+      "expected": [
+        "Tab order persists without changing active terminal",
+        "Vertical pulling does not reorder or rename a tab",
+        "Both tab and blank-rail origins move page and show indicator",
+        "Returning before release cancels reload",
+        "Armed release loads exactly one document"
+      ]
+    },
+    {
+      "id": "reading-navigation",
+      "intent": "Reach workspaces and shortcuts without extra chrome",
+      "requires": [
+        "swipe"
+      ],
+      "steps": [
+        "Start with keyboard dismissed and no text highlight",
+        "Drag horizontally within terminal output in both directions",
+        "Tap the sidebar icon and select a workspace or search result",
+        "Tap terminal once to reopen custom keyboard",
+        "Swipe up from the shortcut rail"
+      ],
+      "expected": [
+        "Terminal drags only scroll and deliver no keys",
+        "Sidebar is explicit and selecting a terminal resumes typing",
+        "Upward rail drag expands an integrated bottom shortcut panel without activating its starting key"
+      ]
+    },
+    {
+      "id": "typing-arrows",
+      "intent": "Use the separate joystick while terminal gestures scroll",
+      "requires": [
+        "tap",
+        "swipe",
+        "timedHold"
+      ],
+      "steps": [
+        "Type with the custom keyboard",
+        "Drag terminal output left and right",
+        "Deflect the joystick while holding contact",
+        "Move farther horizontally and then vertically",
+        "Return to center and release"
+      ],
+      "expected": [
+        "Terminal gestures scroll without emitting keys or opening navigation",
+        "Joystick arrows arrive and repeat before release",
+        "Far horizontal sends Alt-b/f; vertical stays arrows",
+        "Center and release stop repeat"
+      ]
+    },
+    {
+      "id": "panel-key-delivery",
+      "intent": "Send special keys from a panel without summoning keyboard",
+      "requires": [
+        "tap",
+        "swipe"
+      ],
+      "steps": [
+        "Swipe upward on the shortcut rail",
+        "Tap Tab and Right normally",
+        "Scroll the expanded panel body to reveal lower keys",
+        "Scroll the body back to its top",
+        "Reopen the panel and tap Tab again"
+      ],
+      "expected": [
+        "Panel appears immediately above keyboard and reserves terminal space",
+        "Each ordinary key tap delivers exactly once",
+        "Scrolling down keeps panel expanded without sending keys",
+        "Returning the body scroll to its top collapses the panel",
+        "Reopening retains normal key delivery"
+      ]
+    },
+    {
+      "id": "zoom-reset-and-rail",
+      "intent": "Read the full terminal or zoom in while keeping controls attached to the view",
+      "requires": [
+        "tap",
+        "pinch",
+        "customKeyboard"
+      ],
+      "steps": [
+        "Pinch terminal larger and pan it",
+        "Open floating functions and choose Zoom toggle",
+        "Choose Zoom toggle a second time",
+        "Pinch back to minimum scale",
+        "Dismiss and reopen custom keyboard"
+      ],
+      "expected": [
+        "Page scale stays1 and chrome remains fixed",
+        "First toggle fits every terminal column without horizontal scrolling",
+        "Second toggle restores saved readable text size",
+        "Rail stays directly above keyboard;52px shelf stays below it",
+        "Reverse pinch fits the grid and subsequent stationary tap reopens keyboard"
+      ]
+    },
+    {
+      "id": "typing-stream-paint",
+      "intent": "See each typed character at the authoritative cursor without nudging zoom",
+      "requires": [
+        "tap",
+        "nativeKeyboard",
+        "streamingEchoFixture"
+      ],
+      "steps": [
+        "Tap terminal",
+        "Type mixed letters using native keyboard while authoritative output updates",
+        "Type spaces and delete characters",
+        "Dismiss and reengage keyboard",
+        "Type more",
+        "Change zoom only after capturing any failure"
+      ],
+      "expected": [
+        "Each delivered character appears at correct cell and size",
+        "Painted cursor aligns with text",
+        "No invisible text",
+        "No zoom nudge required for correct paint"
+      ]
+    },
+    {
+      "id": "delete-noop-then-type",
+      "intent": "Keep native typing alive even when a terminal action produces no new output frame",
+      "requires": [
+        "tap",
+        "nativeKeyboard",
+        "streamingEchoFixture"
+      ],
+      "steps": [
+        "Open fresh echo fixture with unchanged-frame suppression",
+        "Tap terminal; Backspace at empty prompt; tap a without another terminal touch",
+        "Type b,c then delete five times past empty; tap d",
+        "Delete d; press Left at beginning; tap e",
+        "Select visible text; delete; type; paste; delete; type again",
+        "Dismiss and reengage keyboard three times",
+        "If duration-controlled native hold exists, hold Backspace through a long line then type immediately"
+      ],
+      "expected": [
+        "Every subsequent letter reaches server once and appears immediately",
+        "Collapsed insertion caret survives no-op actions without a new frame",
+        "Selected actions and paste do not freeze repaint",
+        "Keyboard cycles retain the rail and caret",
+        "Unsupported timed hold is reported blocked, separately from repeated taps"
+      ]
+    },
+    {
+      "id": "selection-copy-paste",
+      "intent": "Select and reuse terminal text while typing",
+      "requires": [
+        "tap",
+        "hold",
+        "nativeSelection",
+        "nativeClipboard",
+        "nativeKeyboard"
+      ],
+      "steps": [
+        "Tap terminal to engage keyboard",
+        "Long hold a visible word",
+        "Adjust native selection handles",
+        "Copy via native menu",
+        "Long hold terminal and paste",
+        "Swipe while a selection exists",
+        "Repeat selection via double-tap native menu when long-hold actuator is unavailable",
+        "Paste and immediately type a letter",
+        "Select again then press native Backspace",
+        "Select again then send a modified letter and type a plain letter"
+      ],
+      "expected": [
+        "Selection works with keyboard showing",
+        "Copy retains line breaks",
+        "Paste delivers exact text once",
+        "Selection gesture does not navigate or send arrows",
+        "Every committed action displays its authoritative echo without another terminal tap",
+        "Double-tap coverage is separate from unverified long-hold coverage"
+      ]
+    },
+    {
+      "id": "floating-functions",
+      "intent": "Choose one quick action or reposition handle under the thumb",
+      "requires": [
+        "tap",
+        "swipe",
+        "hold",
+        "pinch"
+      ],
+      "steps": [
+        "Ordinary drag toward the floating Paste branch",
+        "Return to center and release",
+        "Drag toward Paste again and release",
+        "Hold350ms then drag floating functions into bottom shelf",
+        "Hold350ms then drag joystick into bottom shelf",
+        "Repeat placement to different positions on a persisted second run"
+      ],
+      "expected": [
+        "Branches remain bounded and each label fits",
+        "Target highlight identifies release action without a separate caption",
+        "Returning to center cancels Paste",
+        "Release pastes exact clipboard text once without moving handle",
+        "Both held controls follow the thumb, fit within52px shelf and send no input",
+        "Keyboard has Language in its bottom row; Paste lives in floating functions"
+      ]
+    },
+    {
+      "id": "pull-to-refresh",
+      "intent": "Refresh the page intentionally without disrupting terminal scrolling",
+      "requires": [
+        "swipe"
+      ],
+      "steps": [
+        "Drag top tab bar down past threshold without releasing",
+        "Return tab bar upward and release",
+        "Drag tab bar past threshold and release",
+        "Drag down in terminal output"
+      ],
+      "expected": [
+        "Tab bar moves and refresh indicator appears while held",
+        "Returning before release cancels",
+        "Armed release reloads whole page once",
+        "Terminal drag never refreshes page"
+      ]
+    },
+    {
+      "id": "shortcut-customization",
+      "intent": "Create and order personal shortcuts and snippets",
+      "requires": [
+        "tap",
+        "swipe",
+        "nativeKeyboard"
+      ],
+      "steps": [
+        "Open Shortcuts then Customize",
+        "Add shortcut with distinct name and chord",
+        "Scroll to group ordering",
+        "Move custom group",
+        "Open Snippets and add personal text",
+        "Reopen both tabs",
+        "Use saved shortcut and snippet"
+      ],
+      "expected": [
+        "Name and chord separated clearly",
+        "Overflow has visible scroll cue",
+        "No empty gutter hides ordering",
+        "Saved entries persist",
+        "Chosen shortcut/snippet delivers once",
+        "Default shortcut rail includes Ctrl-W instead of Ctrl-D; user-defined shortcuts remain unchanged"
+      ]
+    },
+    {
+      "id": "modifier-state",
+      "intent": "Know whether the next key is modified",
+      "requires": [
+        "tap",
+        "nativeKeyboard"
+      ],
+      "steps": [
+        "Send Ctrl-C with default settings",
+        "Enable Confirm Ctrl-C in Settings",
+        "Tap Ctrl then C",
+        "Cancel confirmation",
+        "Tap a letter on native keyboard",
+        "Disable Confirm Ctrl-C"
+      ],
+      "expected": [
+        "Default Ctrl-C sends immediately",
+        "Cancel clears every Ctrl indicator",
+        "Next letter is plain",
+        "Rail and panel modifiers agree"
+      ]
+    },
+    {
+      "id": "modal-dismissal",
+      "intent": "Return to terminal without hunting close buttons",
+      "requires": [
+        "tap"
+      ],
+      "steps": [
+        "Open app menu and tap outside",
+        "Open Settings and tap outside",
+        "Open Shortcuts and tap terminal above it",
+        "Open custom entry editor and tap outside"
+      ],
+      "expected": [
+        "Each outside tap dismisses current modal",
+        "Terminal retains useful view",
+        "No unintended terminal input from dismissal"
+      ]
+    },
+    {
+      "id": "rapid-native-input",
+      "intent": "Typing and deletion keep responding at realistic speed",
+      "requires": [
+        "tap",
+        "nativeKeyboard"
+      ],
+      "steps": [
+        "Reload owned streamed echo terminal",
+        "Tap native letters in a measured burst",
+        "Delete rapidly past empty and immediately type again",
+        "Repeat after native selection and a keyboard close/open cycle"
+      ],
+      "expected": [
+        "Every intended action arrives exactly once",
+        "Text and authoritative cursor remain aligned without repair taps",
+        "Record measured actions per second; do not certify faster rates than the actuator performs"
+      ]
+    },
+    {
+      "id": "cursor-joystick",
+      "intent": "Move the terminal cursor continuously with a thumb",
+      "requires": [
+        "drag",
+        "timedHold"
+      ],
+      "steps": [
+        "Deflect cursor cross and keep contact down over160ms",
+        "Move farther horizontally, then vertically",
+        "Return to center while still touching, then release",
+        "Enable Ctrl and repeat",
+        "Hold center350ms then reposition"
+      ],
+      "expected": [
+        "Arrows arrive before release and repeat",
+        "Far horizontal sends Alt-b/f word keys; vertical remains arrows",
+        "Center and release stop new keys",
+        "Modifier survives every key in the gesture and clears after it",
+        "Held reposition follows thumb without sending keys"
+      ]
+    },
+    {
+      "id": "readable-rotation",
+      "intent": "Keep readable terminal text and intentional navigation in either orientation",
+      "requires": [
+        "tap",
+        "drag",
+        "pinch"
+      ],
+      "steps": [
+        "Read, engage keyboard, dismiss and use Zoom toggle twice",
+        "Rotate to926x428 landscape",
+        "Open and dismiss sidebar using its icon",
+        "Expand shortcuts and scroll them",
+        "Return to portrait"
+      ],
+      "expected": [
+        "Zoom alternates full-grid fit and saved readable size",
+        "Sidebar remains closed until explicitly requested",
+        "Landscape shortcuts replace letter keyboard to preserve terminal space",
+        "Both orientations reserve the keyboard and controls shelf without page zoom"
+      ]
+    },
+    {
+      "id": "single-tap-default-keyboard",
+      "intent": "Typing is ready without repeated taps",
+      "requires": [
+        "tap",
+        "customKeyboard"
+      ],
+      "steps": [
+        "Open Pokemux and verify custom keyboard visible",
+        "Dismiss keyboard deliberately",
+        "Tap terminal whitespace once",
+        "Switch terminal tab",
+        "Pinch then dismiss and tap terminal once again"
+      ],
+      "expected": [
+        "Custom keyboard is the default; native keyboard is optional in Settings",
+        "One stationary terminal tap reopens input",
+        "Navigation defaults to typing",
+        "Pinch suppression does not disable the next independent tap"
+      ]
+    },
+    {
+      "id": "no-horizontal-auto-pan",
+      "intent": "Keep user horizontal position while typing long input",
+      "requires": [
+        "tap",
+        "nativeKeyboard",
+        "drag"
+      ],
+      "steps": [
+        "Start at the left edge of an owned terminal",
+        "Type a line longer than the visible viewport",
+        "Manually pan to another horizontal position",
+        "Continue typing and move cursor with joystick"
+      ],
+      "expected": [
+        "Typing and streamed cursor updates do not pan sideways",
+        "Vertical input row remains above keyboard",
+        "Manual horizontal pan remains available"
+      ]
+    },
+    {
+      "id": "local-sidebar-search",
+      "intent": "Find an owned terminal by title or streamed content without sending a command",
+      "requires": [
+        "tap",
+        "browserTextInput",
+        "streamingEchoFixture"
+      ],
+      "steps": [
+        "Open sidebar and tap Search",
+        "Enter part of a terminal title and select its result",
+        "Reopen sidebar and search text present in streamed terminal output",
+        "Enter a query that matches no terminal",
+        "Clear the query"
+      ],
+      "expected": [
+        "Title and content matches expose terminal result buttons",
+        "Selecting a result activates that exact terminal",
+        "Unmatched query hides workspace results",
+        "Clearing restores the workspace list",
+        "Every search edit stays local; terminal action count is unchanged"
+      ]
+    },
+    {
+      "id": "japanese-kana-composition",
+      "intent": "Compose Japanese locally and commit it deliberately without executing a command",
+      "requires": [
+        "tap",
+        "timedHold",
+        "customKeyboard",
+        "streamingEchoFixture"
+      ],
+      "steps": [
+        "Select Language then Japanese Hiragana and tap konnichiha",
+        "Backspace the last romaji letter, type a again and tap Space",
+        "Inspect authoritative Japanese text and cursor, then tap Enter",
+        "Select Japanese Katakana, type neko, tap Enter to commit, then Enter to execute",
+        "Compose another word and hold Backspace until beyond empty, then release",
+        "Type pending n, send Ctrl-C, then restore English"
+      ],
+      "expected": [
+        "Preview is こんにちは; Backspace changes it to こんにちh without terminal actions",
+        "Space commits one input without Enter; subsequent Enter executes",
+        "Five hiragana occupy ten cells and authoritative cursor advances by ten cells",
+        "Katakana preview is ネコ; first Enter commits without execution and second Enter executes",
+        "Held deletion remains local after empty and stops on release",
+        "Ctrl-C cancels pending n without committing it",
+        "Preedit growth reserves space without moving rail away from keyboard",
+        "Custom input offers kana only; kanji conversion and dictation use optional System keyboard"
+      ]
+    },
+    {
+      "id": "custom-keyboard-stream",
+      "intent": "Type rapidly with visible authoritative echoes and bounded controls",
+      "requires": [
+        "tap",
+        "multitouch",
+        "timedHold",
+        "customKeyboard",
+        "streamingEchoFixture"
+      ],
+      "steps": [
+        "Type sampled letters, waiting for each authoritative echo",
+        "Tap a64-character burst without repair touches",
+        "Hold Backspace850ms, release, then type immediately",
+        "Use Shift, Caps Lock, Ctrl-C, symbols, Space and Enter",
+        "Press two letter keys with simultaneous thumb contacts",
+        "Pan terminal horizontally and continue typing"
+      ],
+      "expected": [
+        "Each sample has measured touch-to-echo latency",
+        "Burst arrives in order exactly once and does not pan horizontally",
+        "Deletion repeats before release and stops afterward",
+        "Modifiers and symbols produce expected terminal actions",
+        "Two thumb contacts each deliver once",
+        "No native editing caret, focus zoom or zoom nudge is needed"
+      ]
+    },
+    {
+      "id": "japanese-glyph-appearance",
+      "intent": "Read kana in controls, local preview and authoritative terminal output on native WebKit",
+      "requires": [
+        "tap",
+        "customKeyboard",
+        "nativeSafari",
+        "streamingEchoFixture"
+      ],
+      "steps": [
+        "Open the fresh fixture in native iPhone Safari",
+        "Choose Language then Hiragana and type konnichiha through custom key contacts",
+        "Visually read こんにちは in the local preview; commit with Space",
+        "Read the committed kana in the terminal and compare its baseline with adjacent ASCII",
+        "Choose Katakana and type neko, commit with Enter",
+        "Read ネコ, verify the next Enter sends the terminal key, then restore English",
+        "If glyphs fail, compare /__glyph-control with no application CSS before changing font assets"
+      ],
+      "expected": [
+        "Japanese labels, preview and terminal show readable kana rather than missing-glyph boxes",
+        "Committed wide glyphs occupy two terminal cells and the authoritative cursor follows them",
+        "Preview, keyboard and rail reserve space without hiding the prompt"
+      ],
+      "evidence": [
+        "native screenshot of preview and committed output",
+        "exact transport sequence and read-only cursor geometry",
+        "source hash"
+      ]
+    }
+  ]
+}

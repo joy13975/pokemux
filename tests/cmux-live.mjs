@@ -1,0 +1,67 @@
+import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
+import { writeFileSync } from 'node:fs';
+import { CmuxBridge } from '../bridge.mjs';
+const cli='/Applications/cmux.app/Contents/Resources/bin/cmux';
+const socket='/Users/USER/.local/state/cmux/cmux.sock';
+const call=(...args)=>JSON.parse(execFileSync(cli,['--socket',socket,'--json','--id-format','both',...args],{encoding:'utf8',timeout:15000,stdio:['ignore','pipe','pipe']}));
+const rpc=(method,params)=>call('rpc',method,JSON.stringify(params));
+const tree=()=>call('tree','--all');
+const before=tree();
+const preserved=t=>({active:t.active,windows:t.windows.map(w=>({id:w.id,selected:w.selected_workspace_id,workspaces:w.workspaces.filter(ws=>before.windows.some(bw=>bw.workspaces.some(bws=>bws.id===ws.id))).map(ws=>({id:ws.id,title:ws.title,selected:ws.selected,panes:ws.panes.map(p=>({id:p.id,selected:p.selected_surface_id,surfaces:p.surfaces.map(s=>({id:s.id,title:s.title}))}))}))}))});
+const baseline=preserved(before);
+const checks=[];
+const bridge=new CmuxBridge();
+let owned,passed=false;
+const command=`/usr/bin/python3 -u ${new URL('terminal-fixture.py',import.meta.url).pathname}`;
+async function until(read,predicate){const deadline=Date.now()+10000;while(Date.now()<deadline){const result=read();if(predicate(result))return result;await new Promise(resolve=>setTimeout(resolve,100));}throw new Error('Owned fixture did not reach expected state in 10 seconds');}
+try {
+ const created=call('workspace','create','--name','Pokemux isolated verification','--command',command,'--window',before.windows[0].id,'--focus','false');
+ owned=created.workspace_id;
+ assert.match(owned,/^[0-9A-F-]{36}$/i);
+ const inventory=await until(tree,t=>t.windows.some(w=>w.workspaces.some(ws=>ws.id===owned)));
+ const ws=inventory.windows.flatMap(w=>w.workspaces).find(w=>w.id===owned);
+ assert.deepEqual(preserved(inventory),baseline);checks.push('creation preserves existing Mac selection, names and ordering');
+ const first=created.surface_id;
+ const target=surface_id=>{assert.match(surface_id,/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i);return {workspace_id:owned,surface_id}};
+ const read=surface_id=>rpc('surface.read_text',{...target(surface_id),scrollback:true,lines:200}).text;
+ await until(()=>read(first),t=>t.includes('POKEMUX_TEST_READY'));
+ const second=rpc('surface.create',{workspace_id:owned,pane_id:ws.panes[0].id,type:'terminal',initial_command:command,focus:false}).surface_id;
+ await until(()=>read(second),t=>t.includes('POKEMUX_TEST_READY'));
+ const bytes=text=>[...text.matchAll(/RECV:([0-9a-f]+)/g)].map(m=>m[1]).join('');
+ await bridge.initialize();
+ const status=await bridge.status();assert.equal(status.connected,true);
+ await assert.rejects(bridge.action({action:'input',workspace_id:before.windows[0].workspaces[0].id,surface_id:first,text:'must-not-send'}),/no longer in this workspace/);
+ await assert.rejects(bridge.action({action:'input',workspace_id:owned,surface_id:'surface:1',text:'must-not-send'}),/Explicit/);
+ checks.push('external bridge helper boots; cross-workspace and implicit targets rejected before delivery');
+ const typedText='Pokemux-日本語';await bridge.action({action:'input',...target(first),text:typedText});
+ await until(()=>read(first),t=>bytes(t).includes(Buffer.from(typedText).toString('hex')));
+ assert.equal(bytes(read(second)),'');checks.push('Unicode typing reaches only explicitly targeted tab');
+ const pasteText='first line\nsecond line';await bridge.action({action:'paste',...target(second),text:pasteText});
+ const pasted=await until(()=>read(second),t=>bytes(t).includes(Buffer.from('second line').toString('hex')));
+ const pasteBytes=bytes(pasted);
+ assert.equal(pasteBytes,Buffer.from('\x1b[200~'+pasteText+'\x1b[201~').toString('hex'));
+ checks.push('multiline bracketed paste preserves literal content and does not submit');
+ await bridge.action({action:'key',...target(first),key:'Enter'});
+ await until(()=>read(first),t=>bytes(t).endsWith('0d'));checks.push('Return is a distinct targeted key');
+ const replay=rpc('terminal.replay',target(first));
+ assert.equal(replay.workspace_id,owned);assert.equal(replay.surface_id,first);assert.ok(replay.columns>0&&replay.rows>0);const gridText=replay.render_grid.row_spans.map(span=>span.text).join('');assert.ok(bytes(gridText).includes(Buffer.from(typedText).toString('hex')));checks.push('explicit terminal replay snapshot is available');
+ // Each CLI invocation opens a fresh socket connection.
+ rpc('terminal.input',{...target(second),text:'after-reconnect'});
+ await until(()=>read(second),t=>bytes(t).includes(Buffer.from('after-reconnect').toString('hex')));
+ checks.push('fresh socket connections retain target identity and accept input');
+ let subscribeError;try{rpc('mobile.events.subscribe',{stream_id:first,topics:['terminal.bytes'],...target(first)})}catch(error){if(!String(error.stderr).includes('method_not_found'))throw error;subscribeError='method_not_found'}assert.equal(subscribeError,'method_not_found');checks.push('local socket byte subscription is unavailable despite advertised mobile capability');
+ assert.deepEqual(preserved(tree()),baseline);checks.push('all input operations preserve existing workspace/tab state');
+ await bridge.action({action:'rename',...target(second),name:'Owned renamed terminal'});
+ assert.equal(tree().windows.flatMap(w=>w.workspaces).find(w=>w.id===owned).panes.flatMap(p=>p.surfaces).find(s=>s.id===second).title,'Owned renamed terminal');
+ checks.push('real tab rename targets only the owned terminal');
+ passed=true;
+} finally {
+ bridge.close();
+ if(owned)rpc('workspace.close',{workspace_id:owned,force:true});
+ const after=await until(tree,t=>!t.windows.some(w=>w.workspaces.some(ws=>ws.id===owned)));
+ assert.deepEqual(preserved(after),baseline);
+ if(owned)checks.push('owned fixtures removed; existing identity, title, order and selection unchanged');
+ writeFileSync(new URL('../CMUX_TEST_RESULT.json',import.meta.url),JSON.stringify({time:new Date().toISOString(),passed,scope:'isolated local cmux protocol tests; not web client E2E',localByteStream:false,checks},null,2)+'\n');
+ console.log(JSON.stringify({passed,checks},null,2));
+}

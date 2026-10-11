@@ -1,0 +1,15 @@
+{
+  "id": "/",
+  "name": "Pokemux",
+  "short_name": "Pokemux",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "icons": [
+    {
+      "src": "app-icon.png?v=3",
+      "sizes": "180x180",
+      "type": "image/png"
+    }
+  ]
+}

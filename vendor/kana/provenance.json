@@ -1,0 +1,12 @@
+{
+  "name": "wanakana",
+  "version": "5.3.1",
+  "license": "MIT",
+  "source": "https://github.com/WaniKani/WanaKana",
+  "tarball": "https://registry.npmjs.org/wanakana/-/wanakana-5.3.1.tgz",
+  "integrity": "sha512-OSDqupzTlzl2LGyqTdhcXcl6ezMiFhcUwLBP8YKaBIbMYW1wAwDvupw2T9G9oVaKT9RmaSpyTXjxddFPUcFFIw==",
+  "file": "package/esm/index.js",
+  "upstreamSha256": "fa9cfd1f841e57094da55ab372d02246277ba2e2fab2c771715dc2824d4e785f",
+  "sha256": "b7548b3961b8fe48578c2ae080b86bc6764202c71c9e4fde3e4f3564c458cb92",
+  "patch": "Removed sourceMappingURL because the optional source map is not distributed with this application."
+}

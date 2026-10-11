@@ -1,0 +1,20 @@
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { test } from 'node:test';
+import vm from 'node:vm';
+const html=readFileSync(new URL('../index.html',import.meta.url),'utf8');
+const source=html.slice(html.indexOf('function bindTabDragging()'),html.indexOf('function selectSurface('));
+test('reordering the phone tab strip preserves cmux pane membership and active target',()=>{
+ const panes=[{id:'main',active:'agent',tabs:[{id:'agent'}]},{id:'side',active:'logs',tabs:[{id:'logs'}]}];
+ const current={id:'workspace',window:'window',activePane:'main',panes};
+ const preferences={},classes={add(){},remove(){}};
+ const button=(surface,pane)=>({dataset:{surface,pane},classList:classes,setPointerCapture(){},getBoundingClientRect:()=>({x:0,width:100})});
+ const agent=button('agent','main'),logs=button('logs','side');
+ let clock=0;const context=vm.createContext({performance:{now:()=>clock},current,preferences,document:{querySelectorAll:selector=>selector==='[data-surface]'?[agent,logs]:[],elementFromPoint:()=>({closest:selector=>selector==='[data-surface]'?agent:null})},setTimeout:()=>1,clearTimeout(){},orderedTabs:()=>panes.flatMap(pane=>pane.tabs.map(surface=>({pane,surface}))),persistPreferences(){},mods:{clear(){}},render(){},activeSurface:()=>({id:'agent'}),history:{replaceState(){}}});
+ vm.runInContext(source+';bindTabDragging()',context);
+ const event=x=>({button:0,clientX:x,clientY:50,pointerId:1,preventDefault(){}});
+ logs.onpointerdown(event(160));clock=400;logs.onpointermove(event(10));logs.onpointerup(event(10));
+ assert.deepEqual(current.panes.map(p=>p.tabs.map(t=>t.id)),[['agent'],['logs']]);
+ assert.equal(current.activePane,'main');
+ assert.deepEqual(Array.from(preferences.tabOrder.workspace),['logs','agent']);
+});
