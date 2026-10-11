@@ -54,3 +54,7 @@ test('a downward drag consumes panel scroll before it can start collapsing',()=>
  const dom=terminal(),w=dom.window,d=w.document;
  try{const dialog=open(w),body=d.querySelector('#dialogBody');body.scrollTop=100;pointer(w,body,'pointerdown',120,400);pointer(w,body,'pointermove',120,440);assert.equal(body.scrollTop,60);assert.equal(dialog.classList.contains('panel-pulling'),false);pointer(w,body,'pointerup',120,440);assert.equal(dialog.open,true);assert.equal(w.actions.length,0)}finally{w.close()}
 });
+test('the first fresh tap after a horizontal swipe is not swallowed when its compatibility click was omitted',()=>{
+ const dom=terminal(),w=dom.window,d=w.document;
+ try{open(w);const body=d.querySelector('#dialogBody');pointer(w,body,'pointerdown',320,430);pointer(w,body,'pointermove',70,430);pointer(w,body,'pointerup',70,430);const add=d.querySelector('#addSnippet');pointer(w,add,'pointerdown',120,440);pointer(w,add,'pointerup',120,440);add.click();assert.equal(d.querySelector('#dialogTitle').textContent,'Add snippet')}finally{w.close()}
+});
