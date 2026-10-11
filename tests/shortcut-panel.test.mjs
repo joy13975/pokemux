@@ -68,7 +68,7 @@ test('old group ordering migrates complete defaults without empty groups or losi
 });
 test('expanded defaults use unselectable vector Mac key symbols while retaining full accessible names',()=>{
  const dom=terminal(),w=dom.window,d=w.document;
- try{open(w);for(const k of ['Esc','Tab','Ctrl','Alt','Shift','Del','Ctrl-C','Ctrl-A','Ctrl-E','Ctrl-W','Ctrl-L','Ctrl-R']){const key=d.querySelector('#dialog [data-key="'+k+'"]');assert.ok(key,k);assert.equal(key.getAttribute('aria-label'),k);assert.ok(key.querySelector('svg path'),k+' has a vector symbol')}for(const k of ['Ctrl-A','Ctrl-E','Ctrl-R'])assert.ok(d.querySelector('#dialog [data-key="'+k+'"]').textContent.endsWith(k.slice(-1)));assert.equal(d.querySelector('#dialog [data-key="Ctrl-Z"]'),null);assert.ok(d.querySelector('#dialog [data-key="\\\\"]'))}finally{w.close()}
+ try{open(w);for(const k of ['Esc','Tab','Ctrl','Alt','Shift','Del','Ctrl-C','Ctrl-A','Ctrl-E','Ctrl-W','Ctrl-L','Ctrl-R']){const key=d.querySelector('#dialog [data-key="'+k+'"]');assert.ok(key,k);assert.equal(key.getAttribute('aria-label'),k);assert.ok(key.querySelector('svg path')||d.querySelector(key.querySelector('svg use')?.getAttribute('href')||'#missing-icon')?.querySelector('path'),k+' has a vector symbol')}for(const k of ['Ctrl-A','Ctrl-E','Ctrl-R'])assert.ok(d.querySelector('#dialog [data-key="'+k+'"]').textContent.endsWith(k.slice(-1)));assert.equal(d.querySelector('#dialog [data-key="Ctrl-Z"]'),null);assert.ok(d.querySelector('#dialog [data-key="\\\\"]'))}finally{w.close()}
 });
 
 test('a continuing pull retains capture on a visible host when preview hides the rail',()=>{
