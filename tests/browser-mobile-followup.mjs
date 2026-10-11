@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {readFile,writeFile,mkdir} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
-export async function* verifyMobileFollowup(tab,cdp,{fixtureRoot='/Users/USER/pm/integration',closeOwnedSecond=true}={}){
+export async function* verifyMobileFollowup(tab,cdp,{fixtureRoot=new URL('../',import.meta.url).pathname.replace(/\/$/,''),closeOwnedSecond=true}={}){
  const info=JSON.parse(await readFile(fixtureRoot+'/state/browser-fixture-info.json','utf8')),checks=[],steps=[],artifactRoot=new URL('../state/',import.meta.url);await mkdir(artifactRoot,{recursive:true});
  const observe=()=>tab.getAXState({emit:false}),box=s=>tab.playwright.locator(s).evaluate(e=>e.getBoundingClientRect().toJSON());
  let contact=false;const touch=async(type,x,y)=>{if(type==='touchEnd'&&!contact)return;await cdp.send('Input.dispatchTouchEvent',{type,touchPoints:type==='touchEnd'?[]:[{x,y,id:1}]});contact=type!=='touchEnd'};

@@ -33,3 +33,10 @@ test('existing three custom floating actions survive and receive a fourth keyboa
  const dom=client({floatingFunctions:['key:Ctrl-C','frequent','paste']}),w=dom.window;
  try{assert.deepEqual([...w.fixture.floatingChoices()],['key:Ctrl-C','recent','paste','keyboard']);w.fixture.displaySettings();assert.equal(w.document.querySelectorAll('[data-function-setting]').length,4);assert.equal(w.document.querySelectorAll('#floatingFunctions [data-function]').length,4)}finally{w.close()}
 });
+test('returning to custom input releases native keyboard focus without immediately focusing another terminal',()=>{
+ const dom=client({keyboardMode:'native',keyboardLanguage:'system'}),w=dom.window,d=w.document,focused=[];
+ try{d.querySelector('.terminal').focus();const focus=w.HTMLElement.prototype.focus;w.HTMLElement.prototype.focus=function(...args){focused.push(this);return focus.apply(this,args)};
+ d.querySelector('#floatingHandle').click();d.querySelector('#floatingFunctions [data-function="3"]').click();
+ assert.equal(w.fixture.preferences.keyboardMode,'custom');assert.equal(focused.filter(e=>e.classList.contains('terminal')).length,0);assert.notEqual(d.activeElement,d.querySelector('.terminal'));
+ }finally{w.close()}
+});
