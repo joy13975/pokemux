@@ -1,6 +1,6 @@
 # Pokemux — review ledger
 
-This is the authoritative checklist of all 149 feedback entries. Repeated reports and superseded instructions remain visible. Pokemux uses its own passkeys and stock cmux's local API. This fork restored browser access at the same approved origin. Independent native Safari testing reproduced focus-induced page zoom, selected-paste frozen output and no-op deletion losing the insertion caret; fixes and their evidence are below. Browser touch checks cover actual input-engine gestures, not dispatched DOM events. The photographed tiny offset text remains open; no synthetic pass establishes that specific fix.
+This is the authoritative checklist of all 150 feedback entries. Repeated reports and superseded instructions remain visible. Pokemux uses its own passkeys and stock cmux's local API. This fork restored browser access at the same approved origin. Independent native Safari testing reproduced focus-induced page zoom, selected-paste frozen output and no-op deletion losing the insertion caret; fixes and their evidence are below. Browser touch checks cover actual input-engine gestures, not dispatched DOM events. The photographed tiny offset text remains open; no synthetic pass establishes that specific fix.
 
 1. Explain confusing controls.
    Delivered the previous screenshot’s control-by-control explanation. Current UI removes the redundant controls instead of adding more explanation.
@@ -338,7 +338,7 @@ Final native Safari replay on source7e5d80bf: empty Backspace→a, abc→five de
 |---|---|---|
 | 106 | Fast typing can get stuck with no further key reaction. | Reproduced against real cmux: a60-key burst stopped after13 burst characters because each input called rate-limited system.tree. Target validation now calls live surface.health, outside the snapshot bucket. Regression fails before/passes after; actual64-key burst at15.8chars/s reaches only the owned terminal exactly once and paints. Original physical-iPhone acceptance remains separate. |
 | 107 | Landscape should not force the sidebar to stay open. | Fixed layout: at926×428 the closed sidebar consumed292px before; now it is offscreen and content uses926px. CSS and gesture/inert breakpoints agree. Current actual touch replay passed twice at926×428: drawer remains closed until a gesture opens it. |
-| 108 | Remove default arrow shortcuts; add a separate draggable joystick with immediate directional keys, farther horizontal word jumps, vertical arrows and modifiers. | Verified twice through actual browser touch: distinct cursor control; hold to reposition without sending, deflect to send and repeat before release, center/release stops, farther horizontal sends Alt-b/f word navigation and vertical stays arrows. Modifiers persist throughout the gesture and clear after use. Native timed joystick movement remains unverified. |
+| 108 | Remove default arrow shortcuts; add a separate draggable joystick with immediate directional keys, farther horizontal word jumps, vertical arrows and modifiers. | Verified twice through actual browser touch: distinct cursor control; hold to reposition without sending, deflect to send and repeat before release, center/release stops, farther horizontal sends Alt-Left/Right word navigation and vertical stays arrows. Modifiers persist throughout the gesture and clear after use. Native timed joystick movement remains unverified. |
 | 109 | Remove Home through PageDown from default shortcuts. | Implemented and regression verified: removed both default navigation groups, including old saved default ordering; other ordering and custom Home/arrow shortcuts remain. Full shortcut panel retains deliberate access. |
 | 110 | Avoid constant zoom adjustment; research independently sized cmux rendering or make default/reset readable, with the best scroll UX when overflow is unavoidable. | Implemented and runtime verified: one saved readable Text size across reading/typing/reset. Native keyboard cycles retain it; browser pinch/reset/restore passed twice. Shared cmux PTY cannot independently reflow for mobile through the current API; native iOS also locally scales the common grid. Manual pan/pinch remains available. Supersedes earlier reset-to-full-grid target;111 removes horizontal following. |
 
@@ -377,24 +377,30 @@ Historical count correction: the synthetic keyboard runner used60 burst characte
 
 | # | Complaint / intent | Change / evidence |
 |---|---|---|
-| 131 | Keep tab controls open after Move left/right. | In progress: root tab control work. |
-| 132 | Add Close tab to the same control modal. | In progress: explicit targeted close, owned-tab E2E required. |
-| 133 | Prompt characters render as boxes although correct on Mac. | In progress: glyph/font producer investigation; screenshot1 retained. |
-| 134 | Floating functions handle must be a real unselectable icon. | In progress: SVG control, selection prevention; screenshot2 retained. |
-| 135 | Paste fails with browser permission/context error. | In progress: trusted gesture and explicit native paste-event path; screenshot3 retained. |
-| 136 | Last-used shortcut/function does not update in floating control. | In progress: recent successful action semantics. |
-| 137 | Separate modifiers and nonmodifier shortcuts into compact rows in strip and panel. | In progress: distinct compact rows, modifier-state clarity. |
-| 138 | Larger shortcut icons; remove keyboard duplicates; Home–Ins/arrows last. | In progress: displayed catalogue and icon sizing; screenshot4 retained. |
-| 139 | Finger-tracked cancellable pull-up expansion and downward stow at scroll top; control inertia. | In progress: no collapse merely from reaching scrollTop0; release/reversal acceptance required. |
-| 140 | Avoid stream interruption each time app is backgrounded. | In progress: lifecycle/reconnect investigation; iOS background suspension boundary must be explicit. |
-| 141 | Disconnected stream must not block UI scrolling, expansion or dismissal. | In progress: gate terminal actions separately from local navigation. |
-| 142 | Provide top-right menu switch from System to Pokemux keyboard. | Verified: actual touch restores visible custom keyboard and preserves Japanese; real cmux input/echo passes. Native iPhone acceptance remains. |
-| 143 | Add fourth floating function for switching to Pokemux keyboard. | Verified: fourth action restores visible custom keyboard; three saved actions preserved. Actual touch and real cmux input pass. |
-| 144 | Left/right swipes in expanded shortcut panel switch its tabs. | In progress: horizontal gesture separate from scroll/pull. |
+| 131 | Keep tab controls open after Move left/right. | Verified actual touch: Move left and Move right retain the same visible modal; modal ownership no longer changes during redraw. |
+| 132 | Add Close tab to the same control modal. | Verified actual touch: hold tab, Move left/right retains modal, Close removes only the owned second tab; first and shell tabs remain. |
+| 133 | Prompt characters render as boxes although correct on Mac. | Bundled terminal font supplies known Powerline private-use glyphs; cmap/asset tests and Chrome rendering pass. Native Powerline visual acceptance remains open. |
+| 134 | Floating functions handle must be a real unselectable icon. | SVG handle is unselectable and all floating control descendants disable text selection; actual touch function access passes. |
+| 135 | Paste fails with browser permission/context error. | Trusted browser Paste sends exact bracketed UTF-8 once. Native Safari denied-permission route opens explicit native paste field; actual native Paste delivers exact bracketed text without Return. |
+| 136 | Last-used shortcut/function does not update in floating control. | Verified actual touch: Ctrl-A then Ctrl-E updates the floating recent action; repeat delivers bytes01,05,05. |
+| 137 | Separate modifiers and nonmodifier shortcuts into compact rows in strip and panel. | Separate compact modifier and action rows implemented in strip and panel; actual native layout visible. |
+| 138 | Larger shortcut icons; remove keyboard duplicates; Home–Ins/arrows last. | Mac key icons enlarged; keyboard duplicates removed and navigation catalogue placed last. Official Shift/Caps artwork added under150. |
+| 139 | Finger-tracked cancellable pull-up expansion and downward stow at scroll top; control inertia. | Verified actual finger paths: intermediate100→186px expansion, reversal cancels, release expands, deliberate downward pull at scroll top stows. |
+| 140 | Avoid stream interruption each time app is backgrounded. | Hidden-page work pauses and visible/page-show re-establishes authoritative stream. iOS may suspend background web apps; browser cannot guarantee continuous background execution. |
+| 141 | Disconnected stream must not block UI scrolling, expansion or dismissal. | Verified actual offline UI: sidebar/menu/shortcut expansion and dismissal remain interactive while terminal input is blocked; reconnect restores action availability. |
+| 142 | Provide top-right menu switch from System to Pokemux keyboard. | Verified native Safari: System→menu restores Pokemux keys and removes native keyboard/accessory; exact deployed hotfix and combined build recorded separately. |
+| 143 | Add fourth floating function for switching to Pokemux keyboard. | Verified native Safari: System→fourth floating function restores Pokemux keys and removes native keyboard/accessory. |
+| 144 | Left/right swipes in expanded shortcut panel switch its tabs. | Verified actual touch: horizontal panel swipes traverse Keys→Snippets→Customize and back; first key sends once. |
 | 145 | Commit baseline and run parallel agents in isolated worktrees. | Done: verified baseline042be62 committed; three worker branches/worktrees plus root integration worktree. No push/publication. |
 
-| 146 | Replace default shortcut groups: Esc/Tab/Ctrl/Alt/Shift/Del; Ctrl+C/A/E/W/L/R; up to4 hard-to-find coding characters. Remove1/2/3/Enter group. | In progress: exact defaults, separate modifier row retained; group3 chosen pipe/backslash/backtick/tilde. |
-| 147 | Use Mac key icons wherever available. | In progress: familiar key symbols with accessible full names. |
+| 146 | Replace default shortcut groups: Esc/Tab/Ctrl/Alt/Shift/Del; Ctrl+C/A/E/W/L/R; up to4 hard-to-find coding characters. Remove1/2/3/Enter group. | Implemented exact defaults: Esc/Tab/Ctrl/Alt/Shift/Del; Ctrl+C/A/E/W/L/R; pipe/backslash/backtick/tilde. Number/Enter group removed. |
+| 147 | Use Mac key icons wherever available. | Mac key symbols used with full accessible names; shared official licensed Shift/Caps SVG source. |
 
-| 148 | Investigate replacing sidebar/menu buttons with linear cancellable left/right edge drawers and opacity curve. | In progress: isolated edge worktree; native Safari history boundary to verify before removing fallback controls. |
-| 149 | Prioritize keyboard return so the user can review keyboard UI. | Verified hotfix: 9997229;96 regressions pass, actual touch both return paths and real cmux delivery pass. Broader131–148 work remains separate. |
+| 148 | Investigate replacing sidebar/menu buttons with linear cancellable left/right edge drawers and opacity curve. | Actual Chrome edge paths pass partial preview/reversal/release/dismissal and preserve canceled shortcut panel. Native Safari edge arbitration remains unverified; browser launcher buttons retained. |
+| 149 | Prioritize keyboard return so the user can review keyboard UI. | Priority keyboard hotfix was deployed first; final combined build passes native and Chrome menu/fourth-function return routes. |
+
+| 150 | Replace distorted thin Shift/Caps arrow with a proper icon and distinct Caps Lock state. | Official licensed Lucide Shift/Caps SVG replaces thin hand-rolled arrow; actual native Shift/Caps screenshots pass. Regression verifies delivered uppercase/lowercase. |
+
+| 151 | Use a language popover beside the language key, keeping keyboard and terminal visible; dismiss outside. | Verified same-source Chrome and native Safari: compact language popover stays open after release, dismisses by second touch/outside/Escape and preserves terminal/keyboard geometry. Focused-terminal hardware input remains owned by the chooser. |
+
+| 152 | Joystick far-left inserts repeated b and highlights the opposite direction. Word movement must send navigation, and only the active direction may glow. | Verified actual finger drag and stock cmux: far left/right send repeated ESCb/ESCf with no bare letters, stop on release, highlight only active side and retain combined modifiers. Actual zsh insertion after word-left yields one two xthree. |
