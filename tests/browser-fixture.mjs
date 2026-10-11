@@ -18,8 +18,8 @@ async function cleanup(){
  if(server?.listening){server.closeAllConnections();await new Promise(r=>server.close(r));}
  bridge?.close();
  if(groupId)rpc('workspace.group.ungroup',{window_id:window.id,group_id:groupId});
- if(groupedWorkspaceId)rpc('workspace.close',{workspace_id:groupedWorkspaceId,force:true});
- if(workspaceId)rpc('workspace.close',{workspace_id:workspaceId,force:true});
+ const remaining=rpc('system.tree',{all_windows:true}).windows.flatMap(w=>w.workspaces).map(w=>w.id);
+ for(const id of [groupedWorkspaceId,workspaceId])if(remaining.includes(id))rpc('workspace.close',{workspace_id:id,force:true});
  let after;const deadline=Date.now()+10000;
  do{after=rpc('system.tree',{all_windows:true});if(!after.windows.some(w=>w.workspaces.some(ws=>ws.id===workspaceId)))break;assert.ok(Date.now()<deadline,'Owned workspace closes');await new Promise(r=>setTimeout(r,50));}while(true);
  const shape=t=>({active:t.active,windows:t.windows.map(w=>({id:w.id,selected:w.selected_workspace_id,workspaces:w.workspaces.map(ws=>({id:ws.id,title:ws.title,selected:ws.selected,panes:ws.panes.map(p=>({id:p.id,selected:p.selected_surface_id,surfaces:p.surfaces.map(s=>({id:s.id,title:s.title}))}))}))}))});

@@ -20,7 +20,7 @@ function client(){
  w.eval(script.slice(0,script.lastIndexOf('(async()=>{'))+`
  RenderGrid=window.__RenderGrid;KanaComposer=window.__KanaComposer;kana=new KanaComposer();
  const fixture=workspace('owned-workspace','Owned',null,'','',[pane('owned-pane',[surface('owned-surface','Owned')])],'owned-window');workspaces.push(fixture);current=fixture;selectedWindow=fixture.window;connected=true;terminalTyping=true;render();
- window.fixture={subscribeTerminal,sendTerminal,typingAction,syncDock,get connected(){return connected},frame(revision,text){return{format:'cmux.render-grid.v1',render_epoch:'owned',render_revision:revision,full:true,rows:2,columns:20,row_spans:[{row:0,column:0,text}],cursor:{row:0,column:text.length,visible:true,style:'block'}}}};
+ window.fixture={switchSurface(){const p=activePane();p.tabs.push(surface('other-surface','Other'));selectSurface(p.id,'other-surface')},subscribeTerminal,sendTerminal,typingAction,syncDock,get connected(){return connected},frame(revision,text){return{format:'cmux.render-grid.v1',render_epoch:'owned',render_revision:revision,full:true,rows:2,columns:20,row_spans:[{row:0,column:0,text}],cursor:{row:0,column:text.length,visible:true,style:'block'}}}};
  `);
  return dom;
 }
@@ -49,4 +49,9 @@ test('bundled Powerline font is served as a same-origin font asset',async()=>{
 
 test('fast stream recovery cannot release terminal actions queued before the interruption',async()=>{
  const dom=client(),w=dom.window;try{const Base=w.EventSource;w.EventSource=class extends Base{constructor(...args){super(...args);w.queueMicrotask(()=>{w.failInput=false;this.readyState=1;this.onopen()})}};w.failInput=true;w.fixture.sendTerminal('input','a');w.fixture.sendTerminal('input','b');await tick(w);assert.equal(w.fixture.connected,true);assert.equal(w.actions.length,1,'Unsent pre-interruption input must not leak across reconnection');w.fixture.sendTerminal('input','c');await tick(w);assert.deepEqual(w.actions.map(a=>a.text),['a','c'])}finally{w.close()}
+});
+
+test('reopening the stream clears a disconnected banner created during a tab/workspace render',async()=>{
+ const dom=client(),w=dom.window,d=w.document;
+ try{const stream=w.streams[0];stream.onerror();await tick(w);w.fixture.switchSurface();assert.equal(d.querySelector('.notice').hidden,false);const replacement=w.streams.at(-1);replacement.readyState=1;replacement.onopen();assert.equal(d.querySelector('.notice').hidden,true);assert.equal(d.querySelector('[data-key="Tab"]').disabled,false);w.fixture.sendTerminal('input','q');await tick(w);assert.equal(w.actions.at(-1).text,'q')}finally{w.close()}
 });

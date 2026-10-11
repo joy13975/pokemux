@@ -142,15 +142,15 @@ export class CmuxBridge extends EventEmitter {
   }
   async target(params) {
     if (!uuid.test(params.workspace_id || '') || !uuid.test(params.surface_id || '')) throw new RequestError(400, 'Explicit workspace and terminal IDs required');
-    const health = await this.rpc('surface.health', { workspace_id: params.workspace_id, surface_id: params.surface_id });
+    const health = await this.rpc('surface.health', { workspace_id: params.workspace_id, ...(params.action === 'close' ? {} : { surface_id: params.surface_id }) });
     const surface = health.surfaces.find(s => s.id === params.surface_id);
     if (health.workspace_id !== params.workspace_id || !surface || surface.type !== 'terminal') throw new RequestError(404, 'Terminal is no longer in this workspace');
-    return surface;
+    return health;
   }
   async action(body) {
     const prior = this.queues.get(body.surface_id) || Promise.resolve();
     const operation = prior.then(async () => {
-      await this.target(body);
+      const health = await this.target(body);
       const target = { workspace_id: body.workspace_id, surface_id: body.surface_id };
       if (body.action === 'input' || body.action === 'paste') {
         if (typeof body.text !== 'string' || Buffer.byteLength(body.text) > 65536) throw new RequestError(400, 'Input must be text of at most 64 KiB');
@@ -173,7 +173,11 @@ export class CmuxBridge extends EventEmitter {
         this.emit('input', target);
         return result;
       }
-      if (body.action === 'close') return this.rpc('surface.close', { ...target, force: true });
+      if (body.action === 'close') {
+        return health.surfaces.length === 1
+          ? this.rpc('workspace.close', { workspace_id: target.workspace_id, force: true })
+          : this.rpc('surface.close', { ...target, force: true });
+      }
       if (body.action === 'rename') {
         if (typeof body.name !== 'string' || !body.name.trim() || body.name.length > 120) throw new RequestError(400, 'A terminal name is required');
         return this.rpc('surface.action', { ...target, action: 'rename', title: body.name });

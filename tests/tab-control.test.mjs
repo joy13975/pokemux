@@ -24,7 +24,31 @@ test('tab controls provide explicit close and reject delivery while disconnected
 });
 test('close validates live target membership before the exact native surface close',async()=>{
  const workspace_id=randomUUID(),surface_id=randomUUID(),bridge=new CmuxBridge(),calls=[];let valid=true;
- bridge.rpc=async(method,params)=>{calls.push({method,params});if(method==='surface.health')return{workspace_id,surfaces:valid?[{id:surface_id,type:'terminal'}]:[]};return{surface_id}};
+ bridge.rpc=async(method,params)=>{calls.push({method,params});if(method==='surface.health'||method==='surface.list')return{workspace_id,surfaces:valid?[{id:surface_id,type:'terminal'},{id:randomUUID(),type:'terminal'}]:[]};return{surface_id}};
  await bridge.action({action:'close',workspace_id,surface_id});assert.deepEqual(calls[1],{method:'surface.close',params:{workspace_id,surface_id,force:true}});
  valid=false;await assert.rejects(bridge.action({action:'close',workspace_id,surface_id}),/no longer/);assert.equal(calls.length,3);
+});
+test('closing the only live surface closes its workspace, while another browser surface keeps it open',async()=>{
+ const workspace_id=randomUUID(),surface_id=randomUUID(),bridge=new CmuxBridge();let surfaces=[{id:surface_id,type:'terminal'}],workspaceOpen=true,closed=[];
+ bridge.rpc=async(method,params)=>{
+  if(method==='surface.health'||method==='surface.list')return {workspace_id,surfaces};
+  if(method==='surface.close'){if(surfaces.length===1)throw new Error('cmux surface.close rejected (invalid_state)');surfaces=surfaces.filter(s=>s.id!==params.surface_id);closed.push(params.surface_id);return {surface_id}}
+  if(method==='workspace.close'){assert.equal(params.workspace_id,workspace_id);workspaceOpen=false;surfaces=[];return {workspace_id}}
+  throw new Error(method);
+ };
+ try{
+  await bridge.action({action:'close',workspace_id,surface_id});assert.equal(workspaceOpen,false);assert.deepEqual(surfaces,[]);
+  workspaceOpen=true;surfaces=[{id:surface_id,type:'terminal'},{id:randomUUID(),type:'browser'}];
+  await bridge.action({action:'close',workspace_id,surface_id});assert.equal(workspaceOpen,true);assert.equal(surfaces.length,1);assert.equal(surfaces[0].type,'browser');assert.deepEqual(closed,[surface_id]);
+ }finally{bridge.close()}
+});
+test('a target removed before close inventory validation cannot close its remaining sibling workspace',async()=>{
+ const workspace_id=randomUUID(),surface_id=randomUUID(),sibling={id:randomUUID(),type:'terminal'},bridge=new CmuxBridge();let workspaceOpen=true;
+ bridge.rpc=async(method,params)=>{
+  if(method==='surface.health')return {workspace_id,surfaces:params.surface_id?[{id:surface_id,type:'terminal'}]:[sibling]};
+  if(method==='surface.list')return {workspace_id,surfaces:[sibling]};
+  if(method==='workspace.close'){workspaceOpen=false;return {workspace_id}}
+  throw new Error(method);
+ };
+ try{await assert.rejects(bridge.action({action:'close',workspace_id,surface_id}),/no longer/);assert.equal(workspaceOpen,true)}finally{bridge.close()}
 });

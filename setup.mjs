@@ -9,12 +9,16 @@ async function run(button, action) {
   try { await action(); } catch (error) { $('message').textContent = error.message; }
   finally { button.disabled = false; }
 }
+async function openTerminals() {
+  await api('connect', {}); location.replace('/');
+}
 async function refresh() {
-  const auth = await api('auth'); $('passkey').hidden = auth.authenticated;
+  const auth = await api('auth'); $('passkey').hidden = auth.authenticated; $('connect').hidden = true;
   $('unlock').textContent = auth.registered ? 'Unlock with passkey' : 'Create your passkey';
   if (!auth.authenticated) return;
-  const status = await api('status');
-  $('connect').hidden = !status.connected;
+  $('message').textContent = 'Opening terminals…';
+  try { await openTerminals(); }
+  catch (error) { $('connect').hidden = false; throw error; }
 }
 $('unlock').onclick = () => run($('unlock'), async () => {
   const auth = await api('auth'), kind = auth.registered ? 'login' : 'register';
@@ -22,5 +26,5 @@ $('unlock').onclick = () => run($('unlock'), async () => {
   const response = await (auth.registered ? startAuthentication : startRegistration)({ optionsJSON });
   await api(`passkey/${kind}-verify`, response); await refresh();
 });
-$('connectButton').onclick = () => run($('connectButton'), async () => { await api('connect', {}); location.replace('/'); });
+$('connectButton').onclick = () => run($('connectButton'), openTerminals);
 refresh().catch(error => $('message').textContent = error.message);
