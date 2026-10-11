@@ -31,5 +31,5 @@ test('language picker remembers custom Japanese mode across a system keyboard ro
 });
 test('existing three custom floating actions survive and receive a fourth keyboard action',()=>{
  const dom=client({floatingFunctions:['key:Ctrl-C','frequent','paste']}),w=dom.window;
- try{assert.deepEqual([...w.fixture.floatingChoices()],['key:Ctrl-C','frequent','paste','keyboard']);w.fixture.displaySettings();assert.equal(w.document.querySelectorAll('[data-function-setting]').length,4);assert.equal(w.document.querySelectorAll('#floatingFunctions [data-function]').length,4)}finally{w.close()}
+ try{assert.deepEqual([...w.fixture.floatingChoices()],['key:Ctrl-C','recent','paste','keyboard']);w.fixture.displaySettings();assert.equal(w.document.querySelectorAll('[data-function-setting]').length,4);assert.equal(w.document.querySelectorAll('#floatingFunctions [data-function]').length,4)}finally{w.close()}
 });
