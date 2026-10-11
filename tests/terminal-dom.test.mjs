@@ -237,7 +237,7 @@ test('Zoom Toggle retains full grid through updates then returns to the saved ty
  const center=()=>[parseFloat(handle.style.left)+22,parseFloat(handle.style.top)+22];let [x,y]=center();
  d.querySelector('[data-key="Ctrl"]').click();handle.onpointerdown(event(x,y));handle.onpointermove(event(x+25,y));await new Promise(r=>w.setTimeout(r,190));
  assert.ok(w.actions.length>=2,'A held deflection must repeat without release');assert.ok(w.actions.every(a=>a.key==='Ctrl-Right'));
- handle.onpointermove(event(x+80,y));await new Promise(r=>w.setTimeout(r,0));assert.equal(w.actions.at(-1).key,'Ctrl-Alt-f');
+ handle.onpointermove(event(x+80,y));await new Promise(r=>w.setTimeout(r,0));assert.equal(w.actions.at(-1).key,'Ctrl-Alt-Right');
  handle.onpointermove(event(x,y-80));await new Promise(r=>w.setTimeout(r,0));assert.equal(w.actions.at(-1).key,'Ctrl-Up','Far vertical drag stays an arrow');
  handle.onpointermove(event(x,y));const stopped=w.actions.length;await new Promise(r=>w.setTimeout(r,190));assert.equal(w.actions.length,stopped,'Center stops repeating');handle.onpointerup(event(x,y));assert.equal(d.querySelector('[data-key="Ctrl"]').getAttribute('aria-pressed'),'false');
  [x,y]=center();handle.onpointerdown(event(x,y));await new Promise(r=>w.setTimeout(r,375));handle.onpointermove(event(x+100,y-100));handle.onpointerup(event(x+100,y-100));assert.ok(parseFloat(handle.style.left)+22>x+90);assert.equal(w.actions.length,stopped,'Hold-to-move delivers no keys');
@@ -446,4 +446,27 @@ test('a retargeted compatibility click after keyboard dismissal cannot reuse an 
 
 test('Shift and Caps Lock use distinct shared SVG symbols while preserving accessible states',()=>{
  const dom=terminal({keyboardMode:'custom'}),w=dom.window,d=w.document;try{w.fixture.focusInput();const shift=d.querySelector('[data-typing-key="Shift"]'),shortcut=d.querySelector('[data-key="Shift"]'),symbol=button=>button.querySelector('svg use')?.getAttribute('href');assert.ok(symbol(shift),'Shift has a vector icon');assert.equal(symbol(shift),symbol(shortcut),'The keyboard and shortcuts share one Shift symbol');const normal=symbol(shift);assert.ok(d.querySelector(normal).querySelector('path'));assert.equal(shift.getAttribute('aria-label'),'Shift');keyboardTap(w,'Shift');assert.equal(shift.getAttribute('aria-pressed'),'true');assert.equal(symbol(shift),normal);keyboardTap(w,'Shift');assert.equal(shift.getAttribute('aria-label'),'Caps Lock');assert.equal(shift.getAttribute('aria-pressed'),'true');assert.notEqual(symbol(shift),normal);assert.ok(d.querySelector(symbol(shift)).querySelector('path'));keyboardTap(w,'Shift');assert.equal(shift.getAttribute('aria-label'),'Shift');assert.equal(shift.getAttribute('aria-pressed'),'false');assert.equal(symbol(shift),normal)}finally{w.close()}
+});
+
+test('far joystick deflection uses directional word navigation and highlights only its direction',async()=>{
+ const dom=terminal(),w=dom.window,d=w.document,handle=d.querySelector('#cursorJoystick');
+ const point=(x,y)=>({pointerId:7,button:0,isPrimary:true,clientX:x,clientY:y,preventDefault(){}});
+ try{
+  const x=parseFloat(handle.style.left)+22,y=parseFloat(handle.style.top)+22;
+  for(const [dx,direction] of [[-80,'Left'],[80,'Right']]){
+   handle.onpointerdown(point(x,y));handle.onpointermove(point(x+dx,y));await new Promise(r=>w.setTimeout(r,0));
+   assert.equal(w.actions.at(-1).key,'Alt-'+direction,'Word movement must remain a directional key, not a printable letter whose Alt encoding varies by Mac layout');
+   const active=[...handle.querySelectorAll('.word-ticks.active')];assert.equal(active.length,1);assert.equal(active[0].dataset.wordDirection,direction);
+   const inactive=handle.querySelector(`.word-ticks[data-word-direction="${direction==='Left'?'Right':'Left'}"]`);assert.equal(w.getComputedStyle(inactive).display,'none');
+   handle.onpointerup(point(x+dx,y));assert.equal(handle.querySelectorAll('.word-ticks.active').length,0);
+  }
+  d.querySelector('[data-key="Ctrl"]').click();d.querySelector('[data-key="Alt"]').click();d.querySelector('[data-key="Shift"]').click();
+  handle.onpointerdown(point(x,y));handle.onpointermove(point(x-80,y));await new Promise(r=>w.setTimeout(r,0));assert.equal(w.actions.at(-1).key,'Ctrl-Alt-Shift-Left');handle.onpointerup(point(x-80,y));
+ }finally{w.close()}
+});
+
+test('word navigation preview lights only the deflected side and resets on cancel',async()=>{
+ const dom=terminal(),w=dom.window,handle=w.document.querySelector('#cursorJoystick');
+ const x=parseFloat(handle.style.left)+22,y=parseFloat(handle.style.top)+22,point=(dx)=>({pointerId:8,button:0,isPrimary:true,clientX:x+dx,clientY:y,preventDefault(){}});
+ try{handle.onpointerdown(point(0));handle.onpointermove(point(-80));await new Promise(r=>w.setTimeout(r,0));const word=[...handle.querySelectorAll('.word-ticks.active')];assert.equal(word.length,1,'A word preview must identify one side');assert.equal(word[0].dataset.wordDirection,'Left');handle.onpointercancel();assert.equal(handle.querySelectorAll('.word-ticks.active').length,0)}finally{w.close()}
 });
