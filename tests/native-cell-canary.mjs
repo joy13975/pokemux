@@ -23,7 +23,7 @@ export async function verifyNativeEditing(simulator,inspector,points){
  for(const key of ['c','a','t','Space','f','l','o'])await tap(key);await hardware('w');for(const key of ['i','n','g'])await tap(key);
  const check=async name=>{const frame=replay(),line=frame.row_spans.filter(s=>s.row===frame.cursor.row).map(s=>s.text).join('').trimEnd();assert.ok(line.endsWith('cat flowing'),line);assert.equal(frame.cursor.column,base+'cat flowing'.length);const geometry=await verifyNativeCells(inspector);checks.push({name,cursor:frame.cursor,geometry:geometry.geometry})};
  await check('Styled command and argument typing');
- for(let n=0;n<3;n++)await hardware('Left');for(let n=0;n<3;n++)await hardware('Right');await check('Left then Right reaches the actual visual end');
+ for(let n=0;n<3;n++)await hardware('Left');assert.equal(replay().cursor.column,base+'cat flowing'.length-3,'Left must actually move before Right restores the end');for(let n=0;n<3;n++)await hardware('Right');await check('Left then Right reaches the actual visual end');
  await tap('Backspace');await tap('Backspace');await tap('n');await tap('g');await check('Delete then retype retains cursor alignment');
  await writeFile(new URL('../proof-native-cells-after.png',import.meta.url),await simulator.getScreenshot({emit:false}));
  const result={passed:true,time:new Date().toISOString(),scope:'Native iPhone Simulator custom key clicks and hardware w/Left/Right; no terminal execution',checks,steps,sourceSha256:{}};
