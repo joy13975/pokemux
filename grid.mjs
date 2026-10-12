@@ -59,7 +59,9 @@ export class RenderGrid {
         for (const { segment } of segments.segment(span.text)) {
           if (/^[\x00-\x7f]+$/.test(segment)) { ascii += segment; continue; }
           if (ascii) { node.append(doc.createTextNode(ascii)); ascii = ''; }
-          const cell = doc.createElement('span'); cell.textContent = segment;
+          const cell = doc.createElement('span'), glyph = doc.createElement('span'); glyph.textContent = segment;
+          glyph.style.fontFamily = 'PokemuxPowerline, monospace';
+          cell.append(glyph);
           Object.assign(cell.style, { display: 'inline-block', width: `${width(segment)}ch`, verticalAlign: 'top' }); node.append(cell);
         }
         if (ascii) node.append(doc.createTextNode(ascii));
