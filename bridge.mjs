@@ -70,16 +70,27 @@ export class CmuxBridge extends EventEmitter {
   observeMetadata() {
     if (this.metadata && !this.metadata.destroyed) return;
     const socket = this.metadata = createConnection(this.socketPath);
+    let timer, running = false, pending = false;
+    const publish = async () => {
+      timer = null; running = true; pending = false;
+      try {
+        const tree = await this.tree();
+        if (!socket.destroyed) this.emit('event', { topic: 'workspace.updated', payload: tree });
+      } catch (error) { socket.destroy(error); }
+      finally { running = false; if (pending && !socket.destroyed) schedule(); }
+    };
+    const schedule = () => { pending = true; if (!timer && !running) timer = setTimeout(publish, 75); };
+
     socket.on('connect', () => socket.write(JSON.stringify({ id: randomUUID(), method: 'events.stream', params: { categories: ['window', 'workspace', 'pane', 'surface', 'notification'] } }) + '\n'));
     createInterface({ input: socket }).on('error', error => socket.destroy(error)).on('line', line => {
       let event;
       try { event = JSON.parse(line); }
       catch (error) { socket.destroy(error); return; }
-      if (event.type === 'event' && !['surface.input_sent', 'surface.key_sent'].includes(event.name)) this.emit('event', { topic: 'workspace.updated', payload: {} });
+      if (event.type === 'event' && !['surface.input_sent', 'surface.key_sent'].includes(event.name)) schedule();
       else if (event.ok === false) socket.destroy(new Error('cmux metadata subscription rejected'));
     });
     socket.on('error', error => { console.error('cmux metadata subscription failed:', error.code || 'protocol error'); });
-    socket.on('close', () => this.emit('disconnected'));
+    socket.on('close', () => { clearTimeout(timer); this.emit('disconnected'); });
   }
   watch(target, onFrame, onError) {
     let stopped = false, timer, lastFrame, pending = false, running = false, lastChange = Date.now();
@@ -176,6 +187,13 @@ export class CmuxBridge extends EventEmitter {
     const operation = prior.then(async () => {
       const health = await this.target(body);
       const target = { workspace_id: body.workspace_id, surface_id: body.surface_id };
+      if (body.action === 'scroll') {
+        const { delta_lines, col, row } = body;
+        if (!Number.isFinite(delta_lines) || !delta_lines || Math.abs(delta_lines) > 100 || !Number.isInteger(col) || col < 0 || !Number.isInteger(row) || row < 0) throw new RequestError(400, 'Invalid scroll geometry');
+        const result = await this.rpc('terminal.scroll', { ...target, delta_lines, col, row });
+        this.emit('input', target);
+        return result;
+      }
       if (body.action === 'input' || body.action === 'paste') {
         if (typeof body.text !== 'string' || Buffer.byteLength(body.text) > 65536) throw new RequestError(400, 'Input must be text of at most 64 KiB');
         const result = await this.rpc(body.action === 'paste' ? 'terminal.paste' : 'terminal.input', { ...target, text: body.text, ...(body.action === 'paste' ? { submit_key: 'none' } : {}) });

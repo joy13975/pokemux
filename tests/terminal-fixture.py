@@ -1,4 +1,5 @@
 import os
+import subprocess
 import sys
 import tty
 
@@ -12,7 +13,11 @@ while True:
     data = os.read(sys.stdin.fileno(), 1024)
     if not data:
         break
-    if data == b'\x1d':
+    if data == b'\x13':
+        subprocess.run(['/usr/bin/less'], input=''.join(f'WHEEL_CANARY_{n:04d}\n' for n in range(1000)).encode(), check=True)
+    elif data == b'\x14':
+        sys.stdout.write('\x1b[?1049h\x1b[?1000h\x1b[?1006hMOUSE_WHEEL_READY\r\n')
+    elif data == b'\x1d':
         sys.stdout.write(''.join(f'POKEMUX_HISTORY_{row}:' + 'x' * 70 + '\r\n' for row in range(4005)))
     elif data == b'\x1f':
         sys.stdout.write('\x1b[3J\x1b[2J\x1b[H')

@@ -13,7 +13,7 @@ function terminal(saved) {
   installPopover(w);w.HTMLElement.prototype.setPointerCapture=()=>{};
   w.matchMedia = () => ({ matches: true });
   w.visualViewport = { width:390, height: 844, scale: 1, offsetTop: 0, offsetLeft:0, addEventListener() {} };
-  w.EventSource = class { constructor() { w.fixtureStream=this; } addEventListener() {} close() { this.closed=true; } };
+  w.EventSource = class { constructor() { w.fixtureStream=this; } addEventListener(type,fn) { (this.handlers??={})[type]=fn; } close() { this.closed=true; } };
   w.HTMLDialogElement.prototype.showModal=function(){this.open=true;};
   w.HTMLDialogElement.prototype.show=function(){this.open=true;};
   w.HTMLDialogElement.prototype.close=function(){this.open=false;this.dispatchEvent(new w.Event('close'));};
@@ -483,4 +483,42 @@ test('word navigation preview lights only the deflected side and resets on cance
 
 test('language activation stays open through release and compatibility click and toggles once per tap',()=>{
  const dom=terminal({keyboardMode:'custom'}),w=dom.window,d=w.document;try{w.fixture.focusInput();const button=d.querySelector('.typing-layout:not([hidden]) [data-typing-key="Language"]'),icon=button.querySelector('svg path'),popover=d.querySelector('#languagePopover');keyboardPointer(w,icon,'pointerdown');keyboardPointer(w,icon,'pointerup');button.dispatchEvent(new w.MouseEvent('click',{bubbles:true,cancelable:true,detail:1}));assert.equal(popover.dataset.testPopover,'open');keyboardTap(w,'Language');assert.equal(popover.dataset.testPopover,'closed');keyboardTap(w,'Language');assert.equal(popover.dataset.testPopover,'open');const output=d.querySelector('.terminal');keyboardPointer(w,output,'pointerdown');keyboardPointer(w,output,'pointerup');assert.equal(popover.dataset.testPopover,'closed')}finally{w.close()}
+});
+
+
+test('custom key contacts survive key gaps, retarget on another key, and cancel outside the keyboard',async()=>{
+ const dom=terminal({keyboardMode:'custom'}),w=dom.window,d=w.document;
+ try{
+  w.fixture.focusInput();const a=d.querySelector('[data-typing-key="a"]'),b=d.querySelector('[data-typing-key="b"]'),layout=a.closest('.typing-layout');
+  for(let n=0;n<10;n++){keyboardPointer(w,a,'pointerdown');if(n%5===4){d.elementFromPoint=()=>layout;keyboardPointer(w,a,'pointermove')}keyboardPointer(w,a,'pointerup')}
+  keyboardPointer(w,a,'pointerdown');d.elementFromPoint=()=>b;keyboardPointer(w,a,'pointermove');keyboardPointer(w,a,'pointerup');
+  keyboardPointer(w,a,'pointerdown');d.elementFromPoint=()=>d.body;keyboardPointer(w,a,'pointermove');keyboardPointer(w,a,'pointerup');
+  await new Promise(r=>w.setTimeout(r,0));assert.deepEqual(w.actions.map(a=>a.text),[...'aaaaaaaaaab']);
+ }finally{w.close()}
+});
+
+
+test('alternate-screen vertical gestures send native wheel events while horizontal reading and primary scroll stay local',async()=>{
+ const dom=terminal({keyboardMode:'custom'}),w=dom.window,d=w.document,wrap=d.querySelector('.terminalwrap'),output=d.querySelector('.terminal');
+ try{
+  const frame=(screen,on)=>{w.fixture.model.apply({format:'cmux.render-grid.v1',render_epoch:'owned-epoch',render_revision:w.fixture.model.revision+1,full:true,rows:3,columns:30,active_screen:screen,modes:[{code:1007,ansi:false,on}],row_spans:[]});w.fixture.paintTerminal();output.getBoundingClientRect=()=>({left:0,top:0,width:300,height:60})};
+  const touch=(type,x,y)=>{const e=new w.Event(type,{bubbles:true,cancelable:true});e.touches=type==='touchend'?[]:[{identifier:1,target:output,clientX:x,clientY:y}];wrap.dispatchEvent(e);return e};
+  frame('alternate',true);touch('touchstart',90,30);assert.equal(touch('touchmove',90,6).defaultPrevented,true);touch('touchend',90,6);await new Promise(r=>w.setTimeout(r,0));
+  assert.deepEqual(w.actions.map(a=>[a.action,a.delta_lines,a.col,a.row,a.surface_id]),[['scroll',-1,9,1,'owned-surface']]);
+  touch('touchstart',90,30);assert.equal(touch('touchmove',180,29).defaultPrevented,false);touch('touchend',180,29);
+  touch('touchstart',90,30);const held=new w.Event('touchmove',{cancelable:true});held.touches=[{identifier:1,target:output,clientX:90,clientY:6},{identifier:2,target:d.querySelector('#cursorJoystick'),clientX:20,clientY:800}];wrap.dispatchEvent(held);touch('touchend',90,6);await new Promise(r=>w.setTimeout(r,0));assert.equal(w.actions.length,1,'A second finger on the control switches to local pan, not remote wheel');assert.equal(wrap.scrollTop,24);
+
+  for(const [screen,on] of [['primary',true],['alternate',false]]){frame(screen,on);touch('touchstart',90,30);assert.equal(touch('touchmove',90,6).defaultPrevented,false);touch('touchend',90,6)}
+  await new Promise(r=>w.setTimeout(r,0));assert.equal(w.actions.length,1);
+ }finally{w.close()}
+});
+
+
+test('shared metadata updates render the received inventory without fetching it again',()=>{
+ const dom=terminal(),w=dom.window,d=w.document;
+ try{
+  let requests=0;w.fetch=()=>{requests++;throw new Error('Unexpected duplicate inventory request')};
+  w.fixtureStream.handlers['workspace.updated']({data:JSON.stringify({notifications:[],windows:[{id:'owned-window',groups:[],workspaces:[{id:'owned-workspace',title:'Native rename',panes:[{id:'owned-pane',selected_surface_id:'owned-surface',surfaces:[{id:'owned-surface',title:'Owned terminal',type:'terminal'}]}]}]}]})});
+  assert.equal(requests,0);assert.equal(d.querySelector('.workspacehead').getAttribute('aria-label'),'Native rename');
+ }finally{w.close()}
 });

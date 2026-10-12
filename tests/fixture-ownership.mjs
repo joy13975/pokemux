@@ -10,6 +10,6 @@ export function validateFixtureRPC(method,params,owned){
  if(method==='workspace.create'){assert.equal(params.window_id,owned.windowId);assert.equal(params.focus,false);return}
  if(method==='workspace.group.create'){assert.equal(params.window_id,owned.windowId);assert.ok(!params.anchor_workspace_id,'Fixture group cannot adopt an existing anchor');for(const id of params.child_workspace_ids||[])assert.ok(owned.workspaces.has(id),'Fixture group child must be owned');return}
  if(['workspace.group.rename','workspace.group.ungroup'].includes(method)){assert.ok(owned.groups.has(params.group_id));return}
- assert.ok(new Set(['workspace.reorder','workspace.group.add','workspace.group.remove','workspace.rename','workspace.close','surface.create','surface.health','surface.list','surface.send_key','surface.close','surface.action','terminal.replay','terminal.input','terminal.paste']).has(method),'Fixture RPC method is not allowed');
+ assert.ok(new Set(['workspace.reorder','workspace.group.add','workspace.group.remove','workspace.rename','workspace.close','surface.create','surface.health','surface.list','surface.send_key','surface.close','surface.action','terminal.replay','terminal.scroll','terminal.input','terminal.paste']).has(method),'Fixture RPC method is not allowed');
  assert.ok(owned.workspaces.has(params?.workspace_id),'Fixture RPC cannot mutate any existing workspace');
 }

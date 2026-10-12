@@ -83,3 +83,12 @@ test('removing membership refreshes the native inventory before computing end in
  const bridge=new CmuxBridge(),calls=[],window={id:'window',groups:[{id:'group',anchor_workspace_id:'anchor',member_workspace_ids:['anchor','one']}],workspaces:[{id:'outside'},{id:'anchor'},{id:'one'}]};bridge.tree=async()=>({windows:[structuredClone(window)]});bridge.rpc=async(method,params)=>{calls.push({method,params});if(method==='workspace.move')throw new Error('cmux workspace.move rejected (method_not_found)');if(method==='workspace.group.remove'){window.groups=[];window.workspaces=window.workspaces.filter(w=>w.id!=='anchor')}return{}};
  try{await bridge.manage({action:'move-workspace',window_id:'window',workspace_id:'one',group_id:null});assert.deepEqual(calls,[{method:'workspace.group.remove',params:{window_id:'window',workspace_id:'one'}},{method:'workspace.reorder',params:{window_id:'window',workspace_id:'one',index:1}}])}finally{bridge.close()}
 });
+
+
+test('group plus creates inside the clicked group without selecting or dragging its anchor',async()=>{
+ const f=sidebar();try{
+  const button=f.$('workspaceList').querySelector('[data-new-workspace="other-group"]');assert.ok(button);
+  f.pointer(button,'pointerdown',100,100);f.hold();assert.equal(f.$('workspaceList').classList.contains('workspace-dragging'),false);
+  await button.onclick();assert.deepEqual(f.calls,[{path:'manage',body:{action:'new-workspace',window_id:'window',group_id:'other-group'}},{selected:'created'}]);
+ }finally{f.dom.window.close()}
+});

@@ -5,6 +5,14 @@ import { createInterface } from 'node:readline';
 import { randomUUID } from 'node:crypto';
 import { CmuxBridge } from '../bridge.mjs';
 const until = async predicate => { const end = Date.now() + 3000; while (!predicate()) { assert.ok(Date.now() < end, 'local mirror made progress'); await new Promise(r => setTimeout(r, 10)); } };
+test('scroll reaches the explicit native terminal and rejects invalid wheel geometry',async()=>{
+ const workspace_id=randomUUID(),surface_id=randomUUID(),bridge=new CmuxBridge(),received=[];
+ bridge.rpc=async(method,params)=>{if(method==='surface.health')return {workspace_id,surfaces:[{id:surface_id,type:'terminal'}]};received.push({method,params});return {ok:true}};
+ await bridge.action({action:'scroll',workspace_id,surface_id,delta_lines:-3,col:8,row:12});
+ assert.deepEqual(received,[{method:'terminal.scroll',params:{workspace_id,surface_id,delta_lines:-3,col:8,row:12}}]);
+ for(const invalid of [{delta_lines:Infinity},{delta_lines:0},{col:-1},{row:1.5}])await assert.rejects(bridge.action({action:'scroll',workspace_id,surface_id,delta_lines:1,col:0,row:0,...invalid}),/Invalid scroll/);
+ assert.equal(received.length,1);
+});
 test('function-key shortcuts use terminal input because stock cmux named-key API rejects them',async()=>{
  const workspace_id=randomUUID(),surface_id=randomUUID(),bridge=new CmuxBridge(),received=[];
  bridge.rpc=async(method,params)=>{if(method==='surface.health')return {workspace_id,surfaces:[{id:surface_id,type:'terminal'}]};if(method==='surface.send_key')throw new Error('Unknown key');received.push({method,params});return {ok:true}};
@@ -174,4 +182,17 @@ test('rapid terminal input does not exhaust the native snapshot budget',async()=
  const text='thequickbrownfox'.repeat(4);
  for(const character of text)await bridge.action({action:'input',...target,text:character});
  assert.equal(received,text,'All characters must reach the native input handler');
+});
+
+test('a native metadata burst produces one shared authoritative inventory for browser subscribers',async()=>{
+ const path=new URL(`../state/metadata-${randomUUID()}.sock`,import.meta.url).pathname,sockets=new Set(),events=[];let reads=0;
+ const server=createServer(socket=>{sockets.add(socket);socket.on('close',()=>sockets.delete(socket));createInterface({input:socket}).on('line',line=>{const request=JSON.parse(line);assert.equal(request.method,'events.stream');socket.write(JSON.stringify({type:'ack'})+'\n');for(const name of ['workspace.created','pane.created','surface.created','workspace.updated'])socket.write(JSON.stringify({type:'event',name})+'\n')})});
+ await new Promise(r=>server.listen(path,r));const bridge=new CmuxBridge({socketPath:path});bridge.tree=async()=>{reads++;return{windows:[{id:'owned-window',workspaces:[]}],notifications:[]}};bridge.on('event',event=>events.push(event));
+ try{bridge.observeMetadata();await until(()=>events.length>0);assert.equal(events.length,1);assert.equal(reads,1);assert.equal(events[0].payload.windows[0].id,'owned-window');assert.deepEqual(events[0].payload.notifications,[]);
+  let release,started=false,active=0,maxActive=0;const held=new Promise(r=>release=r);
+  bridge.tree=async()=>{const revision=++reads;active++;maxActive=Math.max(maxActive,active);try{if(revision===2){started=true;await held}return{windows:[{id:'owned-window',workspaces:revision===2?[]:[{id:'new-workspace'}]}],notifications:[]}}finally{active--}};
+  const emit=()=>{for(const socket of sockets)socket.write(JSON.stringify({type:'event',name:'workspace.updated'})+'\n')};
+  emit();await until(()=>started);emit();await new Promise(r=>setTimeout(r,100));assert.equal(reads,2,'No concurrent inventory read');release();await until(()=>events.length===3);
+  assert.equal(maxActive,1);assert.deepEqual(events[1].payload.windows[0].workspaces,[]);assert.deepEqual(events[2].payload.windows[0].workspaces,[{id:'new-workspace'}]);
+ }finally{bridge.close();for(const socket of sockets)socket.destroy();await new Promise(r=>server.close(r))}
 });

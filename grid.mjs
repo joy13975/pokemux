@@ -35,6 +35,7 @@ export class RenderGrid {
     const screenRows = bucket(spans, frame.rows);
     for (const row of changed) this.screen[row] = screenRows[row].sort((a, b) => a.column - b.column);
     Object.assign(this, { epoch: frame.render_epoch, revision: frame.render_revision, rows: frame.rows, columns: frame.columns, cursor: frame.cursor, activeScreen: frame.active_screen || this.activeScreen || 'primary' });
+    if (frame.modes) this.modes = frame.modes;
     this.searchText = this.screen.map(spans => { let text = '', column = 0; for (const span of spans) { text += ' '.repeat(span.column - column) + span.text; column = span.column + span.cell_width; } return text; }).join('\n').toLowerCase();
     return true;
   }
