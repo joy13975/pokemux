@@ -74,7 +74,7 @@ server.on('request',(req,res)=>{
  else handler(req,res);
 });
 await new Promise((resolve,reject)=>server.once('error',reject).listen(4391,'127.0.0.1',resolve));
-metadata={origin:auth.origin,windowId:window.id,workspaceId,surfaceId,secondSurfaceId:second,shellSurfaceId,groupId,groupedWorkspaceId,groupedSurfaceId,log};await persistInfo();published=true;
+metadata={pid:process.pid,origin:auth.origin,windowId:window.id,workspaceId,surfaceId,secondSurfaceId:second,shellSurfaceId,groupId,groupedWorkspaceId,groupedSurfaceId,log};await persistInfo();published=true;
 console.log(JSON.stringify({origin:auth.origin,...owned(),second,ready:true}));
 }
 main().catch(error=>{console.error(error);finish(1);});
