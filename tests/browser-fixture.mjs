@@ -5,20 +5,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import { CmuxBridge, privateJSON } from '../bridge.mjs';
 import { Passkeys } from '../auth.mjs';
 import { application } from '../server.mjs';
-export function validateFixtureRPC(method,params,owned){
- const reads=new Set(['system.ping','system.tree','workspace.group.list','notification.list']);
- if(reads.has(method))return;
- assert.ok(!params?.window_id||params.window_id===owned.windowId,'Fixture window must be owned');
- for(const key of ['workspace_id','before_workspace_id'])if(params?.[key])assert.ok(owned.workspaces.has(params[key]),'Fixture workspace reference must be owned: '+key);
- if(params?.group_id)assert.ok(owned.groups.has(params.group_id),'Fixture group reference must be owned');
- if(params?.surface_id)assert.ok(owned.surfaces.has(params.surface_id),'Fixture surface reference must be owned');
- if(params?.pane_id)assert.ok(owned.panes.has(params.pane_id),'Fixture pane reference must be owned');
- if(method==='workspace.create'){assert.equal(params.window_id,owned.windowId);assert.equal(params.focus,false);return}
- if(method==='workspace.group.create'){assert.equal(params.window_id,owned.windowId);assert.ok(!params.anchor_workspace_id,'Fixture group cannot adopt an existing anchor');for(const id of params.child_workspace_ids||[])assert.ok(owned.workspaces.has(id),'Fixture group child must be owned');return}
- if(['workspace.group.rename','workspace.group.ungroup'].includes(method)){assert.ok(owned.groups.has(params.group_id));return}
- assert.ok(new Set(['workspace.move','workspace.rename','workspace.close','surface.create','surface.health','surface.list','surface.send_key','surface.close','surface.action','terminal.replay','terminal.input','terminal.paste']).has(method),'Fixture RPC method is not allowed');
- assert.ok(owned.workspaces.has(params?.workspace_id),'Fixture RPC cannot mutate any existing workspace');
-}
+import { validateFixtureRPC } from './fixture-ownership.mjs';
 const cli='/Applications/cmux.app/Contents/Resources/bin/cmux';
 const rpc=(method,params)=>JSON.parse(execFileSync(cli,['--socket','/Users/USER/.local/state/cmux/cmux.sock','--json','--id-format','both','rpc',method,JSON.stringify(params)],{encoding:'utf8',stdio:['ignore','pipe','pipe']}));
 const before=rpc('system.tree',{all_windows:true}),window=before.windows[0],beforeWorkspaceIds=new Set(before.windows.flatMap(w=>w.workspaces.map(ws=>ws.id))),beforeGroups=rpc('workspace.group.list',{window_id:window.id}).groups;
@@ -76,6 +63,7 @@ bridge.rpc=async(method,params)=>{validateFixtureRPC(method,params,ownership);co
  return result};
 await bridge.initialize();
 const inventory=bridge.tree.bind(bridge);
+bridge.manage=CmuxBridge.prototype.manage.bind({tree:inventory,rpc:bridge.rpc.bind(bridge)});
 bridge.tree=async()=>{const t=await inventory();return {...t,notifications:t.notifications.filter(n=>ownership.workspaces.has(n.workspace_id)),windows:t.windows.filter(w=>w.id===window.id).map(w=>({...w,groups:w.groups.filter(g=>ownership.groups.has(g.id)),workspaces:w.workspaces.filter(ws=>ownership.workspaces.has(ws.id))}))};};
 const authFile=new URL('../state/browser-fixture-passkeys.json',import.meta.url);
 auth=new Passkeys({origin:'http://localhost:4391',ownerLogin:'fixture@example.invalid',file:authFile});await auth.initialize();

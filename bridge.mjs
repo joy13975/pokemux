@@ -141,7 +141,20 @@ export class CmuxBridge extends EventEmitter {
       if (body.before_workspace_id && !window.workspaces.some(w => w.id === body.before_workspace_id)) throw new RequestError(404, 'Destination workspace no longer exists');
       if (body.move_group === true && !window.groups.some(g => g.anchor_workspace_id === workspace.id)) throw new RequestError(400, 'Only a group anchor can move its group');
       if (body.move_group === true && body.group_id) throw new RequestError(400, 'A group cannot be moved into another group');
-      return this.rpc('workspace.move', { window_id: window.id, workspace_id: workspace.id, group_id: body.group_id || null, before_workspace_id: body.before_workspace_id || null, move_group: body.move_group === true });
+      const sourceGroup = window.groups.find(g => g.anchor_workspace_id === workspace.id || g.member_workspace_ids?.includes(workspace.id));
+      let inventory = window;
+      if (body.move_group !== true && sourceGroup?.id !== group?.id) {
+        if (group) await this.rpc('workspace.group.add', { window_id: window.id, workspace_id: workspace.id, group_id: group.id, placement: 'end' });
+        else await this.rpc('workspace.group.remove', { window_id: window.id, workspace_id: workspace.id });
+        inventory = (await this.tree()).windows.find(w => w.id === window.id);
+        if (!inventory) throw new RequestError(404, 'cmux window no longer exists');
+      }
+      const target = { window_id: window.id, workspace_id: workspace.id };
+      if (body.before_workspace_id) return this.rpc('workspace.reorder', { ...target, before_workspace_id: body.before_workspace_id });
+      const destination = group && inventory.groups.find(g => g.id === group.id);
+      const index = group ? inventory.workspaces.findLastIndex(w => destination?.anchor_workspace_id === w.id || destination?.member_workspace_ids?.includes(w.id)) : inventory.workspaces.length - 1;
+      if (index < 0) throw new RequestError(404, 'Destination group no longer contains this workspace');
+      return this.rpc('workspace.reorder', { ...target, index });
     }
     if (body.action === 'new-tab') return this.rpc('surface.create', { workspace_id: workspace.id, type: 'terminal', focus: false });
     if (body.action === 'rename-workspace') {
