@@ -44,6 +44,11 @@ test('implicit child capture loss does not cancel a held drag, and its release c
 test('metadata replacement cancels a pending hold and moving over the source never reorders it',async()=>{
  const f=sidebar();try{let one=f.$('workspaceList').querySelector('[data-workspace="one"]');f.pointer(one,'pointerdown',60,80);f.ctx.renderSidebar();f.hold();assert.equal(f.$('workspaceList').classList.contains('workspace-dragging'),false);one=f.$('workspaceList').querySelector('[data-workspace="one"]');f.ctx.document.elementFromPoint=()=>one;f.pointer(one,'pointerdown',60,80);f.hold();f.pointer(one,'pointermove',60,85);f.pointer(one,'pointerup',60,85);await new Promise(resolve=>setImmediate(resolve));assert.equal(f.calls.length,0)}finally{f.dom.window.close()}
 });
+for(const sourceId of ['outside-b','anchor'])test('drop after a top-level workspace excludes the moving '+sourceId+' and inserts before the next group block',async()=>{
+ const f=sidebar();try{f.workspaces.push({...f.workspaces[0],id:'outside-b',name:'Outside B'});f.ctx.renderSidebar();const source=f.$('workspaceList').querySelector('[data-workspace="'+sourceId+'"]'),outside=f.$('workspaceList').querySelector('[data-workspace="outside"]');outside.closest('.workspacerow').getBoundingClientRect=()=>({top:100,bottom:150});f.ctx.document.elementFromPoint=()=>outside;
+ f.pointer(source,'pointerdown',60,80);f.hold();f.pointer(source,'pointermove',60,140);f.pointer(source,'pointerup',60,140);await new Promise(resolve=>setImmediate(resolve));assert.equal(f.calls[0].body.before_workspace_id,sourceId==='anchor'?'other-anchor':'anchor');assert.equal(f.calls[0].body.group_id,null);assert.equal(f.calls[0].body.move_group,sourceId==='anchor');
+ }finally{f.dom.window.close()}
+});
 test('manage validates native group creation and exact workspace move membership',async()=>{
  const bridge=new CmuxBridge(),calls=[];bridge.tree=async()=>({windows:[{id:'window',groups:[{id:'group',anchor_workspace_id:'anchor'},{id:'other'}],workspaces:[{id:'anchor'},{id:'one'},{id:'two'}]}]});bridge.rpc=async(method,params)=>{calls.push({method,params});return{}};
  try{await bridge.manage({action:'new-group',window_id:'window',name:'New group'});assert.deepEqual(calls.shift(),{method:'workspace.group.create',params:{window_id:'window',name:'New group'}});
