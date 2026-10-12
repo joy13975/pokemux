@@ -122,6 +122,10 @@ export class CmuxBridge extends EventEmitter {
     const tree = await this.tree(), window = tree.windows.find(w => w.id === body.window_id);
     if (!window) throw new RequestError(404, 'cmux window no longer exists');
     const workspace = window.workspaces.find(w => w.id === body.workspace_id), group = window.groups.find(g => g.id === body.group_id);
+    if (body.action === 'new-group') {
+      if (typeof body.name !== 'string' || !body.name.trim() || body.name.length > 120) throw new RequestError(400, 'Group name required');
+      return this.rpc('workspace.group.create', { window_id: window.id, name: body.name });
+    }
     if (body.action === 'new-workspace') {
       if (body.group_id && !group) throw new RequestError(404, 'Workspace group no longer exists');
       return this.rpc('workspace.create', { window_id: window.id, ...(group ? { group_id: group.id } : {}), title: 'New workspace', focus: false });
@@ -132,6 +136,13 @@ export class CmuxBridge extends EventEmitter {
       return this.rpc('workspace.group.rename', { window_id: window.id, group_id: group.id, name: body.name });
     }
     if (!workspace) throw new RequestError(404, 'Workspace no longer exists');
+    if (body.action === 'move-workspace') {
+      if (body.group_id && !group) throw new RequestError(404, 'Workspace group no longer exists');
+      if (body.before_workspace_id && !window.workspaces.some(w => w.id === body.before_workspace_id)) throw new RequestError(404, 'Destination workspace no longer exists');
+      if (body.move_group === true && !window.groups.some(g => g.anchor_workspace_id === workspace.id)) throw new RequestError(400, 'Only a group anchor can move its group');
+      if (body.move_group === true && body.group_id) throw new RequestError(400, 'A group cannot be moved into another group');
+      return this.rpc('workspace.move', { window_id: window.id, workspace_id: workspace.id, group_id: body.group_id || null, before_workspace_id: body.before_workspace_id || null, move_group: body.move_group === true });
+    }
     if (body.action === 'new-tab') return this.rpc('surface.create', { workspace_id: workspace.id, type: 'terminal', focus: false });
     if (body.action === 'rename-workspace') {
       if (typeof body.name !== 'string' || !body.name.trim() || body.name.length > 120) throw new RequestError(400, 'Workspace name required');
