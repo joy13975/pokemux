@@ -46,7 +46,7 @@ const owned=()=>({workspace_id:workspaceId,surface_id:surfaceId});
 let ws;const deadline=Date.now()+10000;
 while(!ws){ws=rpc('system.tree',{all_windows:true}).windows.flatMap(w=>w.workspaces).find(w=>w.id===workspaceId);if(!ws){assert.ok(Date.now()<deadline);await new Promise(r=>setTimeout(r,50));}}
 const second=rpc('surface.create',{workspace_id:workspaceId,pane_id:ws.panes[0].id,type:'terminal',initial_command:command+'-second',focus:false}).surface_id;
-const shellSurfaceId=process.env.POKEMUX_CANARY_SHELL==='1'?rpc('surface.create',{workspace_id:workspaceId,pane_id:ws.panes[0].id,type:'terminal',initial_command:process.env.POKEMUX_CANARY_TUI==='1'?'/Users/USER/.local/bin/claude --bare':process.env.POKEMUX_CANARY_GLYPHS==='1'?`/bin/zsh -f -c 'printf "\\ue0a0 \\ue0b0 \\ue0b1 \\ue0b2 \\ue0b3\\n"; exec /bin/zsh -f'`:process.env.POKEMUX_CANARY_STYLED==='1'?`/bin/zsh -i -c '/usr/bin/python3 ${new URL('styled-output-fixture.py',import.meta.url).pathname}; exec /bin/zsh -i'`:'/bin/zsh -f',focus:false}).surface_id:undefined;
+const shellSurfaceId=process.env.POKEMUX_CANARY_SHELL==='1'?rpc('surface.create',{workspace_id:workspaceId,pane_id:ws.panes[0].id,type:'terminal',initial_command:process.env.POKEMUX_CANARY_TUI==='1'?'/Users/USER/.local/bin/claude --bare':process.env.POKEMUX_CANARY_GLYPHS==='1'?`/bin/zsh -f -c 'printf "\\ue0a0 \\ue0b0 \\ue0b1 \\ue0b2 \\ue0b3\\n\\u23fa Writing \\u23fa\\ufe0e Text \\u23fa\\ufe0f Emoji\\n"; exec /bin/zsh -f'`:process.env.POKEMUX_CANARY_STYLED==='1'?`/bin/zsh -i -c '/usr/bin/python3 ${new URL('styled-output-fixture.py',import.meta.url).pathname}; exec /bin/zsh -i'`:'/bin/zsh -f',focus:false}).surface_id:undefined;
 let groupedSurfaceId;
 if(process.env.POKEMUX_CANARY_GROUP==='1'){
  const child=rpc('workspace.create',{window_id:window.id,title:'Pokemux grouped child',initial_command:'/bin/zsh -f',focus:false});groupedWorkspaceId=child.workspace_id;ownership.workspaces.add(groupedWorkspaceId);groupedSurfaceId=child.surface_id;
@@ -70,6 +70,10 @@ auth=new Passkeys({origin:'http://localhost:4391',ownerLogin:'fixture@example.in
 const id=randomBytes(32).toString('hex');auth.sessions.set(id,{authenticated:true,expires:Date.now()+3600000});
 server=application({bridge,auth});const handler=server.listeners('request')[0];server.removeAllListeners('request');
 server.on('request',(req,res)=>{
+ if(process.env.POKEMUX_CANARY_TRACE==='1'&&req.url==='/__input-trace'){let body='';req.on('data',chunk=>body+=chunk);req.on('end',()=>{console.log('Input trace: '+body);res.end('{}')});return}
+ if(process.env.POKEMUX_CANARY_TRACE==='1'&&req.url==='/'){
+  const end=res.end.bind(res);res.end=(body,...args)=>end(String(body).replace('</head>',`<script>for(const type of ['pointerdown','pointerup','click','focusin','focusout'])document.addEventListener(type,e=>{const target=e.target.id||e.target.dataset?.typingKey||e.target.tagName,detail=e.detail;setTimeout(()=>fetch('/__input-trace',{method:'POST',body:JSON.stringify({type,target,detail,hidden:document.querySelector('#softwareKeyboard')?.hidden,focus:document.activeElement.className})}),0)},true)</script></head>`),...args);
+ }
  if(req.url==='/fixture'){res.writeHead(302,{'Set-Cookie':auth.cookie(id),Location:`/#${window.id}/${workspaceId}/${surfaceId}`});res.end();}
  else {
   if(req.url==='/?clipboard=denied'){

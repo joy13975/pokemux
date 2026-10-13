@@ -55,3 +55,15 @@ test('reopening the stream clears a disconnected banner created during a tab/wor
  const dom=client(),w=dom.window,d=w.document;
  try{const stream=w.streams[0];stream.onerror();await tick(w);w.fixture.switchSurface();assert.equal(d.querySelector('.notice').hidden,false);const replacement=w.streams.at(-1);replacement.readyState=1;replacement.onopen();assert.equal(d.querySelector('.notice').hidden,true);assert.equal(d.querySelector('[data-key="Tab"]').disabled,false);w.fixture.sendTerminal('input','q');await tick(w);assert.equal(w.actions.at(-1).text,'q')}finally{w.close()}
 });
+
+test('terminal symbol font is served and contains monochrome record, stop and pause glyphs',async()=>{
+ const auth={origin:'http://127.0.0.1',session(){return{authenticated:true}}},server=application({bridge:new EventEmitter(),auth});await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));auth.origin=`http://127.0.0.1:${server.address().port}`;
+ try{
+  const response=await fetch(auth.origin+'/vendor/symbols/NotoSansSymbols2-Regular.ttf');assert.equal(response.status,200);
+  const font=Buffer.from(await response.arrayBuffer()),tables=new Map(Array.from({length:font.readUInt16BE(4)},(_,i)=>{const at=12+i*16;return[font.toString('ascii',at,at+4),font.readUInt32BE(at+8)]}));
+  for(const table of ['COLR','CBDT','sbix','SVG '])assert.equal(tables.has(table),false,'Terminal symbols must not use color glyphs');
+  const cmap=tables.get('cmap'),offsets=Array.from({length:font.readUInt16BE(cmap+2)},(_,i)=>cmap+font.readUInt32BE(cmap+4+i*8+4)),sub=offsets.find(at=>font.readUInt16BE(at)===12);assert.notEqual(sub,undefined);
+  const groups=Array.from({length:font.readUInt32BE(sub+12)},(_,i)=>{const at=sub+16+i*12;return[font.readUInt32BE(at),font.readUInt32BE(at+4),font.readUInt32BE(at+8)]});
+  for(const cp of [0x23fa,0x23f8,0x23f9,0x26a0]){const group=groups.find(([start,end])=>cp>=start&&cp<=end);assert.ok(group,`Missing terminal symbol ${cp.toString(16)}`);assert.ok(group[2]+cp-group[0]>0)}
+ }finally{await new Promise(resolve=>server.close(resolve))}
+});
