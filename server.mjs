@@ -52,6 +52,14 @@ export function application({ bridge, auth }) {
       }
       if (path.startsWith('/api/')) {
         const session = auth.require(req);
+        if (req.method === 'POST' && path === '/api/client-diagnostic') {
+          const data = await body(req);
+          const enums = {event:['tab-switch','workspace-switch','terminal-replaced','contacts-cancelled','hide','engage','terminal-focus','keyboard-state','pointerdown','pointerup','pointermove','pointercancel','click','focusin','focusout','paste','beforeinput','input','paste-request','paste-fallback','paste-field-event','paste-read','paste-denied','paste-send','paste-delivered','paste-delivery-failed'],mode:['custom','native'],focus:['hide','keyboard','terminal','paste-field','floating','other'],target:['hide','keyboard','terminal','paste-field','floating','other'],hit:['hide','keyboard','terminal','paste-field','floating','other'],error:['NotAllowedError','SecurityError','other']};
+          const numbers = ['order','at','width','height','scale','detail','x','y','contacts'], flags = ['typing','native','hidden','connected','secure','activation','selected','trusted','hasClipboard','nonempty'];
+          if (!data || Array.isArray(data) || !/^[a-f0-9-]{36}$/.test(data.page) || !enums.event.includes(data.event) || !Object.entries(data).every(([key,value]) => key === 'page' || (Object.hasOwn(enums,key) ? enums[key].includes(value) : numbers.includes(key) ? Number.isFinite(value) : flags.includes(key) ? typeof value === 'boolean' : key === 'callsite' && Array.isArray(value) && value.length <= 4 && value.every(Number.isInteger)))) throw new RequestError(400, 'Invalid content-free diagnostic');
+          console.info('Pokemux client diagnostic', JSON.stringify({receivedAt:new Date().toISOString(),...data}));
+          return json({recorded:true});
+        }
         if (req.method === 'POST' && path === '/api/logout') { auth.sessions.delete(session.id); res.setHeader('Set-Cookie', 'pokemux=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0'); return json({ loggedOut: true }); }
         if (req.method === 'GET' && path === '/api/status') return json(await bridge.status());
         if (req.method === 'POST' && path === '/api/connect') { await bridge.connect(); return json({ connected: true }); }

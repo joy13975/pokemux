@@ -61,3 +61,21 @@ test('HTTP authentication verifies signed passkeys, one-use challenge, origin, o
     assert.equal(auth.credentials[0].counter, 1);
   } finally { app.closeAllConnections(); await new Promise(resolve => app.close(resolve)); await unlink(file); }
 });
+
+test('client diagnostics require authentication and origin and reject content-bearing fields',async t=>{
+ const bridge=new EventEmitter();bridge.connected=false;
+ const auth=new Passkeys({origin:'http://localhost',ownerLogin:'fixture',file:new URL('../state/unused-diagnostic-fixture.json',import.meta.url)});auth.credentials=[];
+ const session='a'.repeat(64);auth.sessions.set(session,{authenticated:true,expires:Date.now()+60000});
+ const app=application({bridge,auth});await new Promise(resolve=>app.listen(0,'127.0.0.1',resolve));auth.origin=`http://localhost:${app.address().port}`;
+ const logged=[];t.mock.method(console,'info',(...values)=>logged.push(values));
+ const data={page:'12345678-1234-1234-1234-123456789abc',event:'hide',mode:'custom',focus:'terminal',hidden:false,typing:true,order:1,at:3,callsite:[73,187]};
+ const post=(value,headers={})=>fetch(auth.origin+'/api/client-diagnostic',{method:'POST',headers:{Origin:auth.origin,Cookie:'pokemux='+session,'Content-Type':'application/json',...headers},body:JSON.stringify(value)});
+ try{
+  assert.equal((await post(data,{Cookie:''})).status,401);assert.equal(logged.length,0);
+  assert.equal((await post(data,{Origin:'https://other.invalid'})).status,403);assert.equal(logged.length,0);
+  for(const bad of [{...data,text:'PRIVATE_CLIPBOARD'}, {...data,event:'PRIVATE_TERMINAL'}, {...data,focus:'PRIVATE_TEXT'}, {...data,toString:'PRIVATE_TEXT'}])assert.equal((await post(bad)).status,400);
+  assert.equal(logged.length,0);
+  const response=await post(data);assert.equal(response.status,200);assert.equal((await response.json()).recorded,true);
+  assert.equal(logged.length,1);assert.deepEqual(JSON.parse(logged[0][1]).callsite,data.callsite);assert.equal(JSON.stringify(logged).includes('PRIVATE_'),false);
+ }finally{app.closeAllConnections();await new Promise(resolve=>app.close(resolve))}
+});

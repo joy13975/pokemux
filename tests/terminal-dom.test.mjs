@@ -9,6 +9,7 @@ const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 function terminal(saved) {
   const dom = new JSDOM(html, { url: 'https://pokemux-test.invalid', runScripts: 'outside-only', pretendToBeVisual: true }), w = dom.window;
   w.localStorage.setItem("cmux-pocket-customizations",JSON.stringify({shortcuts:[],snippets:[],keyboardMode:"native",...saved}));
+  w.isSecureContext=true;w.diagnostics=[];
   w.resizeObservers=[];w.ResizeObserver = class { constructor(callback){this.callback=callback;this.targets=new Set();w.resizeObservers.push(this)} observe(target){this.targets.add(target)} disconnect(){this.targets.clear()} };
   installPopover(w);w.HTMLElement.prototype.setPointerCapture=()=>{};
   w.matchMedia = () => ({ matches: true });
@@ -18,7 +19,7 @@ function terminal(saved) {
   w.HTMLDialogElement.prototype.show=function(){this.open=true;};
   w.HTMLDialogElement.prototype.close=function(){this.open=false;this.dispatchEvent(new w.Event('close'));};
   w.__RenderGrid = RenderGrid;w.__KanaComposer=KanaComposer;
-  w.actions=[];w.fetch=async(path,options)=>{if(path==='/api/action')w.actions.push(JSON.parse(options.body));return {ok:true,status:200,json:async()=>({})};};
+  w.actions=[];w.fetch=async(path,options)=>{if(path==='/api/action')w.actions.push(JSON.parse(options.body));if(path==='/api/client-diagnostic')w.diagnostics.push(JSON.parse(options.body));return {ok:true,status:200,json:async()=>({})};};
   const script = html.split('<script type="module">\n')[1].split('</script>')[0];
   w.eval(script.slice(0, script.lastIndexOf('(async()=>{')) + `
     RenderGrid=window.__RenderGrid;KanaComposer=window.__KanaComposer;kana=new KanaComposer();
@@ -532,5 +533,49 @@ test('shortcut dock hides, restores and cancels pulls without sending keys',()=>
   pointer('pointerdown',100,100);pointer('pointermove',100,40);pointer('pointermove',100,98);pointer('pointerup',100,98);assert.ok(rail.classList.contains('strip-hidden'),'Reversal cancels showing');
   pointer('pointerdown',100,100);pointer('pointermove',100,40);pointer('pointerup',100,40);assert.equal(rail.classList.contains('strip-hidden'),false);assert.equal(d.querySelector('#dialog').open,false,'Hidden pull restores strip first');
   pointer('pointerdown',100,100);pointer('pointermove',100,0);pointer('pointerup',100,0);assert.equal(d.querySelector('#dialog').open,true,'Next pull expands panel');pointer('pointerdown',100,100);pointer('pointermove',100,200);pointer('pointerup',100,200);assert.equal(d.querySelector('#dialog').open,false,'Grip stows open panel first');assert.equal(rail.classList.contains('strip-hidden'),false,'Expanded dock cannot hide its strip separately');assert.equal(w.actions.length,0);
+ }finally{w.close()}
+});
+
+
+test('requested Hide diagnostics capture touch, focus and reopening without input contents',async()=>{
+ const dom=terminal({keyboardMode:'custom'}),w=dom.window,d=w.document;
+ try{
+  w.fixture.focusInput();const output=d.querySelector('.terminal');output.textContent='PRIVATE_TERMINAL_TEXT';
+  keyboardTap(w,'Dismiss');output.focus();await new Promise(r=>w.setTimeout(r,0));
+  const trace=w.diagnostics;
+  assert.ok(trace.some(e=>e.event==='pointerdown'&&e.target==='hide'));
+  assert.ok(trace.some(e=>e.event==='hide'&&e.typing));
+  assert.ok(trace.some(e=>e.event==='keyboard-state'&&e.hidden));
+  assert.ok(trace.some(e=>e.event==='terminal-focus'&&!e.typing));
+  assert.ok(trace.some(e=>e.event==='keyboard-state'&&!e.hidden));
+  assert.equal(JSON.stringify(trace).includes('PRIVATE_TERMINAL_TEXT'),false);
+  assert.equal(trace.every((e,i)=>e.order===i+1),true);
+ }finally{w.close()}
+});
+
+test('paste diagnostics identify denied clipboard and native field delivery without clipboard data',async()=>{
+ const dom=terminal({keyboardMode:'custom'}),w=dom.window,d=w.document;
+ try{
+  Object.defineProperty(w.navigator,'clipboard',{value:{readText:async()=>{throw new w.DOMException('PRIVATE_ERROR_TEXT','NotAllowedError')}}});
+  d.querySelector('[data-function="2"]').click();await new Promise(r=>w.setTimeout(r,0));
+  assert.ok(w.diagnostics.some(e=>e.event==='paste-request'&&e.hasClipboard));
+  assert.ok(w.diagnostics.some(e=>e.event==='paste-denied'&&e.error==='NotAllowedError'));
+  const field=d.querySelector('#nativePaste'),event=new w.Event('paste',{bubbles:true,cancelable:true});event.clipboardData={getData:()=> 'PRIVATE_CLIPBOARD_TEXT'};field.dispatchEvent(event);await new Promise(r=>w.setTimeout(r,0));
+  assert.ok(w.diagnostics.some(e=>e.event==='paste-field-event'));
+  assert.equal(w.actions.at(-1).text,'PRIVATE_CLIPBOARD_TEXT');
+  assert.equal(JSON.stringify(w.diagnostics).includes('PRIVATE_'),false);
+ }finally{w.close()}
+});
+
+
+test('insecure HTTP startup still shows HTTPS guidance when randomUUID is unavailable',async()=>{
+ const dom=new JSDOM(html,{url:'http://pokemux-test.invalid',runScripts:'outside-only',pretendToBeVisual:true}),w=dom.window;
+ try{
+  w.isSecureContext=false;w.crypto.randomUUID=undefined;w.matchMedia=()=>({matches:true});
+  w.visualViewport={width:390,height:844,scale:1,offsetTop:0,offsetLeft:0,addEventListener(){}};
+  w.ResizeObserver=class{observe(){}};
+  const script=html.split('<script type="module">\n')[1].split('</script>')[0];w.eval(script);await new Promise(r=>w.setTimeout(r,0));
+  assert.equal(w.document.querySelector('#shell').hidden,true);
+  assert.equal(w.document.querySelector('main a').textContent,'Open Pokemux over HTTPS');
  }finally{w.close()}
 });
