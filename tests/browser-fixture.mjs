@@ -71,7 +71,13 @@ const id=randomBytes(32).toString('hex');auth.sessions.set(id,{authenticated:tru
 server=application({bridge,auth});const handler=server.listeners('request')[0];server.removeAllListeners('request');
 server.on('request',(req,res)=>{
  if(req.url==='/fixture'){res.writeHead(302,{'Set-Cookie':auth.cookie(id),Location:`/#${window.id}/${workspaceId}/${surfaceId}`});res.end();}
- else handler(req,res);
+ else {
+  if(req.url==='/?clipboard=denied'){
+   const end=res.end.bind(res);res.end=(body,...args)=>end(String(body).replace('</head>',`<script>Object.defineProperty(navigator,'clipboard',{value:{readText:()=>Promise.reject(new DOMException('Fixture clipboard denial','NotAllowedError'))}})</script></head>`),...args);
+  }
+  handler(req,res);
+ }
+
 });
 await new Promise((resolve,reject)=>server.once('error',reject).listen(4391,'127.0.0.1',resolve));
 metadata={pid:process.pid,origin:auth.origin,windowId:window.id,workspaceId,surfaceId,secondSurfaceId:second,shellSurfaceId,groupId,groupedWorkspaceId,groupedSurfaceId,log};await persistInfo();published=true;

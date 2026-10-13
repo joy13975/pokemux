@@ -522,3 +522,15 @@ test('shared metadata updates render the received inventory without fetching it 
   assert.equal(requests,0);assert.equal(d.querySelector('.workspacehead').getAttribute('aria-label'),'Native rename');
  }finally{w.close()}
 });
+
+test('shortcut dock hides, restores and cancels pulls without sending keys',()=>{
+ const dom=terminal(),w=dom.window,d=w.document;try{
+  const rail=d.querySelector('.inputdock'),grip=rail.querySelector('.shortcut-grip');assert.ok(grip);
+  const pointer=(type,x,y)=>{const e=new w.Event(type,{bubbles:true,cancelable:true});Object.assign(e,{pointerId:3,button:0,isPrimary:true,clientX:x,clientY:y});grip.dispatchEvent(e)};
+  pointer('pointerdown',100,100);pointer('pointermove',100,155);assert.ok(rail.classList.contains('rail-pulling'));pointer('pointermove',100,105);pointer('pointerup',100,105);assert.equal(rail.classList.contains('strip-hidden'),false,'Reversal cancels hiding');
+  pointer('pointerdown',100,100);pointer('pointermove',100,160);pointer('pointerup',100,160);assert.ok(rail.classList.contains('strip-hidden'));assert.equal(d.querySelector('#dialog').open,false);
+  pointer('pointerdown',100,100);pointer('pointermove',100,40);pointer('pointermove',100,98);pointer('pointerup',100,98);assert.ok(rail.classList.contains('strip-hidden'),'Reversal cancels showing');
+  pointer('pointerdown',100,100);pointer('pointermove',100,40);pointer('pointerup',100,40);assert.equal(rail.classList.contains('strip-hidden'),false);assert.equal(d.querySelector('#dialog').open,false,'Hidden pull restores strip first');
+  pointer('pointerdown',100,100);pointer('pointermove',100,0);pointer('pointerup',100,0);assert.equal(d.querySelector('#dialog').open,true,'Next pull expands panel');pointer('pointerdown',100,100);pointer('pointermove',100,200);pointer('pointerup',100,200);assert.equal(d.querySelector('#dialog').open,false,'Grip stows open panel first');assert.equal(rail.classList.contains('strip-hidden'),false,'Expanded dock cannot hide its strip separately');assert.equal(w.actions.length,0);
+ }finally{w.close()}
+});
