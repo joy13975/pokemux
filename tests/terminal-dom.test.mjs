@@ -681,3 +681,37 @@ test('terminal selection adjustment starts a content-free gesture trace without 
   assert.equal(w.diagnostics.some(e=>['text','value','data'].some(field=>field in e)),false);
  }finally{w.close()}
 });
+
+
+test('overlapping contacts retain key glow until the last finger releases or moves',async()=>{
+ const dom=terminal({keyboardMode:'custom'}),w=dom.window,d=w.document,a=d.querySelector('[data-typing-key="a"]'),b=d.querySelector('[data-typing-key="b"]');
+ try{
+  keyboardPointer(w,a,'pointerdown',1);keyboardPointer(w,a,'pointerdown',2);keyboardPointer(w,a,'pointerup',1);
+  assert.equal(a.classList.contains('pressed'),true,'The second contact still holds this key');
+  keyboardPointer(w,a,'pointerup',2);assert.equal(a.classList.contains('pressed'),false);
+  keyboardPointer(w,a,'pointerdown',1);keyboardPointer(w,a,'pointerdown',2);d.elementFromPoint=()=>b;
+  keyboardPointer(w,a,'pointermove',1);assert.equal(a.classList.contains('pressed'),true);assert.equal(b.classList.contains('pressed'),true);
+  keyboardPointer(w,a,'pointerup',2);keyboardPointer(w,b,'pointerup',1);
+  assert.equal(a.classList.contains('pressed'),false);assert.equal(b.classList.contains('pressed'),false);
+  await new Promise(r=>w.setTimeout(r,0));assert.deepEqual(w.actions.map(action=>action.text),['a','a','a','b']);
+ }finally{w.close()}
+});
+
+test('native terminal selection has visible handles without exposing a second insertion caret',()=>{
+ const dom=terminal({keyboardMode:'custom'}),w=dom.window,d=w.document,output=d.querySelector('.terminal'),selection=w.getSelection();
+ try{
+  const text=output.querySelector('.terminal-row span').firstChild,range=d.createRange(),insertionCaret=w.getComputedStyle(output).caretColor;
+  range.setStart(text,0);range.setEnd(text,5);selection.removeAllRanges();selection.addRange(range);d.dispatchEvent(new w.Event('selectionchange'));
+  const selectedCaret=w.getComputedStyle(output).caretColor;
+  assert.notEqual(selectedCaret,insertionCaret,'WebKit derives native selection handles from caret-color');
+  assert.equal(selection.toString(),'hello','Selection styling must preserve the copied characters');
+  range.setStart(text,1);range.setEnd(text,4);selection.removeAllRanges();selection.addRange(range);d.dispatchEvent(new w.Event('selectionchange'));
+  assert.equal(w.getComputedStyle(output).caretColor,selectedCaret);assert.equal(selection.toString(),'ell');
+  selection.collapse(text,4);d.dispatchEvent(new w.Event('selectionchange'));
+  assert.equal(w.getComputedStyle(output).caretColor,insertionCaret,'The remote grid must own the insertion cursor');
+  range.setStart(text,0);range.setEnd(text,5);selection.removeAllRanges();selection.addRange(range);d.dispatchEvent(new w.Event('selectionchange'));
+  const other=d.querySelector('#dialogTitle');other.textContent='Other control';range.selectNodeContents(other);selection.removeAllRanges();selection.addRange(range);d.dispatchEvent(new w.Event('selectionchange'));
+  assert.equal(w.getComputedStyle(output).caretColor,insertionCaret,'A selection outside the terminal must clear its selection tint');
+  assert.equal(selection.toString(),'Other control');assert.equal(w.actions.length,0);
+ }finally{w.close()}
+});

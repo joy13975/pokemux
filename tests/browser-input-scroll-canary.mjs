@@ -14,7 +14,7 @@ export async function* verifyInputScroll(tab, cdp) {
  const bytes=async()=>Buffer.concat((await readFile(info.log,'utf8')).split('\n').filter(l=>l.startsWith('RECV:')).map(l=>Buffer.from(l.slice(5),'hex')));
  const screen=()=>tab.playwright.locator('.terminal').textContent();
  try {
-  const before=(await bytes()).length,a=await box('[data-typing-key="a"]'),b=await box('[data-typing-key="b"]');
+  const before=(await bytes()).length,a=await box('[data-typing-key="a"] .typing-keycap'),b=await box('[data-typing-key="b"] .typing-keycap');
   const pa={id:1,x:a.x+a.width/2,y:a.bottom-3},pb={id:2,x:b.x+b.width/2,y:b.y+b.height/2};
   for(let n=0;n<10;n++){await touch('touchStart',[pa]);if(n%5===4)await touch('touchMove',[{...pa,y:a.bottom+2}]);await touch('touchEnd')}
   for(let n=0;n<20;n++){await touch('touchStart',[pa]);await touch('touchStart',[pa,pb]);await touch('touchMove',[{...pa,y:a.bottom+2},pb]);await touch('touchEnd',[pb]);await touch('touchEnd')}
