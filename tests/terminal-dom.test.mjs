@@ -649,3 +649,35 @@ test('long floating Paste drag offers a fresh button tap without a rejected clip
   assert.equal(reads,1);assert.deepEqual(w.actions.map(a=>[a.action,a.text]),[['paste','PHONE_PASTE_PROBE']]);assert.equal(control.classList.contains('expanded'),false);
  }finally{w.close()}
 });
+
+test('rapid custom typing starts a fresh contact trace after the earlier diagnostic window expires',async()=>{
+ const dom=terminal({keyboardMode:'custom'}),w=dom.window,d=w.document;
+ try{
+  w.performance.now=()=>60000;w.diagnostics.length=0;
+  const q=d.querySelector('.typing-layout:not([hidden]) [data-typing-key="q"]');
+  keyboardPointer(w,q,'pointerdown');keyboardPointer(w,q,'pointerup');
+  await new Promise(r=>w.setTimeout(r,150));
+  assert.deepEqual(w.actions.map(a=>a.text),['q']);
+  const down=w.diagnostics.find(e=>e.event==='key-down'),up=w.diagnostics.find(e=>e.event==='key-up');
+  assert.ok(down?.accepted,'First custom key starts logging even without preceding Hide or Paste');
+  assert.equal(down.hit,'keyboard');assert.ok(Number.isFinite(down.x)&&Number.isFinite(down.y));
+  assert.ok(up?.accepted&&up.contact&&up.hasKey&&up.matched);
+  assert.ok(w.diagnostics.some(e=>e.event==='input-counts'&&e.inputQueued===1&&e.inputDelivered===1));
+ }finally{w.close()}
+});
+
+test('terminal selection adjustment starts a content-free gesture trace without sending input',()=>{
+ const dom=terminal({keyboardMode:'custom'}),w=dom.window,d=w.document;
+ try{
+  w.performance.now=()=>60000;w.diagnostics.length=0;
+  const output=d.querySelector('.terminal'),text=output.querySelector('.terminal-row span').firstChild,range=d.createRange();
+  range.setStart(text,0);range.setEnd(text,5);w.getSelection().addRange(range);
+  d.elementFromPoint=()=>output;
+  keyboardPointer(w,output,'pointerdown');keyboardPointer(w,output,'pointermove');keyboardPointer(w,output,'pointerup');
+  const move=w.diagnostics.find(e=>e.event==='pointermove');
+  assert.ok(move?.selected&&move.target==='terminal'&&move.hit==='terminal');
+  assert.ok(Number.isFinite(move.x)&&Number.isFinite(move.y));
+  assert.equal(w.getSelection().toString(),'hello');assert.equal(w.actions.length,0);
+  assert.equal(w.diagnostics.some(e=>['text','value','data'].some(field=>field in e)),false);
+ }finally{w.close()}
+});

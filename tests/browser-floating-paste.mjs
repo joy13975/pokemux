@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import {readFile,writeFile} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
-export async function verifyFloatingPaste(tab,cdp){
- const root=new URL('../',import.meta.url),info=JSON.parse(await readFile(new URL('state/browser-fixture-info.json',root),'utf8')),log=new URL('state/paste-final-fixture.log',root),offset=(await readFile(log,'utf8')).length;
+export async function verifyFloatingPaste(tab,cdp,{diagnosticLog}){
+ const root=new URL('../',import.meta.url),info=JSON.parse(await readFile(new URL('state/browser-fixture-info.json',root),'utf8')),log=diagnosticLog,offset=(await readFile(log,'utf8')).length;
  const records=async()=>(await readFile(log,'utf8')).slice(offset).split('\n').filter(l=>l.startsWith('Pokemux client diagnostic ')).map(l=>JSON.parse(l.slice('Pokemux client diagnostic '.length)));
  const wait=async check=>{const until=Date.now()+7000;while(!await check()){assert.ok(Date.now()<until,'Expected paste outcome');await new Promise(r=>setTimeout(r,25))}};
  const box=selector=>tab.playwright.locator(selector).evaluate(e=>e.getBoundingClientRect().toJSON());
@@ -20,11 +20,12 @@ export async function verifyFloatingPaste(tab,cdp){
   await wait(async()=>(await records()).some(e=>e.event==='floating-release'&&e.choice===2));const page=(await records()).find(e=>e.event==='floating-release'&&e.choice===2).page;
   assert.equal((await records()).filter(e=>e.page===page&&e.event==='paste-request').length,0);assert.equal((await readFile(info.log,'utf8')).length,before);
   const exposed=await tab.playwright.locator('[data-function]').evaluateAll(bs=>bs.every(b=>{const r=b.getBoundingClientRect();return [r.left+12,r.right-12].every(x=>document.elementFromPoint(x,r.top+r.height/2)?.closest('[data-function]')===b)}));assert.ok(exposed,'Expanded floating actions stay above the joystick');
+  const presentation=await tab.playwright.locator('[data-function="2"]').evaluate(b=>{const r=b.getBoundingClientRect(),s=getComputedStyle(b);return {width:r.width,height:r.height,left:r.left,top:r.top,right:r.right,bottom:r.bottom,background:s.backgroundColor,color:s.color,screenWidth:window.visualViewport.width,screenHeight:window.visualViewport.height}});assert.ok(presentation.width>=120&&presentation.height>=52,'Armed Paste is a larger touch target');assert.ok(presentation.left>=0&&presentation.top>=0&&presentation.right<=presentation.screenWidth&&presentation.bottom<=presentation.screenHeight,'Armed Paste stays within the view');const rgb=presentation.background.match(/\d+/g).map(Number);assert.ok(rgb[0]>rgb[1]&&rgb[1]>rgb[2],'Armed Paste uses the requested orange highlight');
   const ready=await cdp.send('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});await writeFile(new URL('proof-floating-paste-ready.png',root),Buffer.from(ready.data,'base64'));
   await tap('[data-function="2"]');await wait(async()=>(await records()).some(e=>e.page===page&&e.event==='paste-delivered'));
   const fresh=(await records()).filter(e=>e.page===page);assert.equal(fresh.filter(e=>e.event==='paste-request').length,1);assert.equal(fresh.filter(e=>e.event==='paste-denied').length,0);
   const hex=[...(await readFile(info.log,'utf8')).slice(before).matchAll(/RECV:([0-9a-f]+)/g)].map(m=>m[1]).join('');assert.equal(Buffer.from(hex,'hex').toString(),'\x1b[200~POKEMUX_FRESH_TAP\x1b[201~');assert.equal(await tab.playwright.locator('#floatingHandle').getAttribute('aria-expanded'),'false');
   const sourceSha256={};for(const f of ['index.html','server.mjs'])sourceSha256[f]=createHash('sha256').update(await readFile(new URL(f,root))).digest('hex');
-  const result={passed:true,time:new Date().toISOString(),scope:'Chrome actual touch428x926, real clipboard and isolated stock cmux; physical-phone before trace separate',checks:['1141ms drag preserves highlighted Paste without requesting clipboard','one fresh tap sends exact clipboard bytes once without fallback','panel closes after paste; no separate hint'],sourceSha256};await writeFile(new URL('BROWSER_FLOATING_PASTE_RESULT.json',root),JSON.stringify(result,null,2)+'\n');return result;
+  const result={passed:true,time:new Date().toISOString(),scope:'Chrome actual touch428x926, real clipboard and isolated stock cmux; physical-phone before trace separate',checks:['1141ms drag preserves highlighted Paste without requesting clipboard','one fresh tap sends exact clipboard bytes once without fallback','panel closes after paste; no separate hint'],sourceSha256,presentation};await writeFile(new URL('BROWSER_FLOATING_PASTE_RESULT.json',root),JSON.stringify(result,null,2)+'\n');return result;
  }finally{if(clipboard.length)await tab.clipboard.write(clipboard);else await tab.clipboard.writeText('')}
 }
