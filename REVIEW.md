@@ -483,3 +483,12 @@ Historical count correction: the synthetic keyboard runner used60 burst characte
 
 199 clarification: native start/end handle dragging WORKS. The bug is poor visibility/discoverability of the selection and handles. Screenshot22808B81 shows edit menu but selected text/handles blend into the dark terminal. Fix contrast without replacing native selection gestures.
 183 actual phone page1738... now captures186contacts and11unaccepted down events; every queued input delivered. Some rejected coordinates are keyboard gaps, others bottom padding. User observes subsequent fast touches do not light keys. Reproduce exact rapid/multi-contact sequence before fixing hit-test producer; do not call all blank keyboard padding a key.
+
+
+## Native tab ordering — 2026-10-15
+
+| # | Complaint / intent | Change / evidence |
+|---|---|---|
+| 201 | Pokemux tab order contradicts the Mac's native cmux order. | Fixed: native cmux pane metadata defines tab order; obsolete phone ranking is removed. Phone Move left/right and held drag use scoped native reorder, reject cross-pane targets, follow native selected tab, and keep controls open. Actual finger before reproduced phone-only order; after native Move left/right, held drag, desktop reorder and refresh passed. BROWSER_TAB_ORDER_BEFORE.json, BROWSER_TAB_ORDER_RESULT.json, BROWSER_TAB_DRAG_RESULT.json. Independent test audit passed. |
+
+183 OPEN: user reports rapid emulated typing still misses, more frequently inside Claude Code TUI than a shell. Latest physical trace a900... has174 raw contacts and172 accepted key contacts;206 queued inputs all acknowledged. That trace lacks expected TUI echo and cannot establish which layer loses characters. A disposable Claude TUI is awaiting approval of its empty folder trust prompt. No new input-handler fix is claimed.

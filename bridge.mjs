@@ -177,9 +177,9 @@ export class CmuxBridge extends EventEmitter {
   }
   async target(params) {
     if (!uuid.test(params.workspace_id || '') || !uuid.test(params.surface_id || '')) throw new RequestError(400, 'Explicit workspace and terminal IDs required');
-    const health = await this.rpc('surface.health', { workspace_id: params.workspace_id, ...(params.action === 'close' ? {} : { surface_id: params.surface_id }) });
+    const health = await this.rpc(params.action === 'reorder' ? 'surface.list' : 'surface.health', { workspace_id: params.workspace_id, ...(params.action === 'close' ? {} : { surface_id: params.surface_id }) });
     const surface = health.surfaces.find(s => s.id === params.surface_id);
-    if (health.workspace_id !== params.workspace_id || !surface || surface.type !== 'terminal') throw new RequestError(404, 'Terminal is no longer in this workspace');
+    if (health.workspace_id !== params.workspace_id || !surface || params.action !== 'reorder' && surface.type !== 'terminal') throw new RequestError(404, 'Terminal is no longer in this workspace');
     return health;
   }
   async action(body) {
@@ -187,6 +187,13 @@ export class CmuxBridge extends EventEmitter {
     const operation = prior.then(async () => {
       const health = await this.target(body);
       const target = { workspace_id: body.workspace_id, surface_id: body.surface_id };
+      if (body.action === 'reorder') {
+        if (!uuid.test(body.reference_surface_id || '') || body.reference_surface_id === body.surface_id || typeof body.after !== 'boolean') throw new RequestError(400, 'A sibling tab and reorder direction are required');
+        const source = health.surfaces.find(s => s.id === body.surface_id), sibling = health.surfaces.find(s => s.id === body.reference_surface_id);
+        if (!sibling) throw new RequestError(404, 'Reference tab is no longer in this workspace');
+        if (source.pane_id !== sibling.pane_id) throw new RequestError(400, 'Tabs must be in the same pane');
+        return this.rpc('surface.reorder', { ...target, [body.after ? 'after_surface_id' : 'before_surface_id']: body.reference_surface_id, focus: false });
+      }
       if (body.action === 'scroll') {
         const { delta_lines, col, row } = body;
         if (!Number.isFinite(delta_lines) || !delta_lines || Math.abs(delta_lines) > 100 || !Number.isInteger(col) || col < 0 || !Number.isInteger(row) || row < 0) throw new RequestError(400, 'Invalid scroll geometry');

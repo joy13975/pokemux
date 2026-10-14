@@ -7,15 +7,19 @@ import {CmuxBridge} from '../bridge.mjs';
 const html=readFileSync(new URL('../index.html',import.meta.url),'utf8');
 function fixture(){
  const nodes=new Map(),node=id=>{if(!nodes.has(id))nodes.set(id,{disabled:false,close(){this.closed=true}});return nodes.get(id)};
- const surfaces=['one','two','three'].map(id=>({id,name:id})),current={id:'workspace',window:'window',activePane:'pane',panes:[{id:'pane',active:'two',tabs:surfaces}]},preferences={};
- const ctx=vm.createContext({current,preferences,$:node,esc:String,connected:true,orderedTabs:()=>{const order=preferences.tabOrder?.workspace||surfaces.map(s=>s.id);return order.map(id=>({pane:current.panes[0],surface:surfaces.find(s=>s.id===id)}))},openDialog(title,body){node('dialog').closed=false;node('dialogTitle').textContent=title;node('dialogBody').innerHTML=body;for(const id of ['tabLeft','tabRight','tabClose'])node(id).disabled=new RegExp(`id="${id}"[^>]*disabled`).test(body)},persistPreferences(){},mods:{clear(){}},render(){},activeSurface:()=>surfaces[1],history:{replaceState(){}},renameTab(){},api:async()=>({}),loadTree:async()=>{},say(){}});
- vm.runInContext(html.slice(html.indexOf('function reorderTab('),html.indexOf('function selectSurface(')),ctx);
- return {ctx,node,current,preferences};
+ const surfaces=['one','two','three'].map(id=>({id,name:id})),current={id:'workspace',window:'window',activePane:'pane',panes:[{id:'pane',active:'two',tabs:surfaces}]},nextOrders=[],actions=[];
+ const ctx=vm.createContext({current,$:node,esc:String,connected:true,openDialog(title,body){node('dialog').closed=false;node('dialogTitle').textContent=title;node('dialogBody').innerHTML=body;for(const id of ['tabLeft','tabRight','tabClose'])node(id).disabled=new RegExp(`id="${id}"[^>]*disabled`).test(body)},orderedTabs:()=>current.panes.flatMap(pane=>pane.tabs.map(surface=>({pane,surface}))),activeSurface:()=>current.panes.find(p=>p.id===current.activePane).tabs.find(s=>s.id===current.panes.find(p=>p.id===current.activePane).active),history:{replaceState(){}},mods:{clear(){}},renameTab(){},api:async(path,body)=>actions.push(body),loadTree:async()=>{const order=nextOrders.shift();if(order)current.panes[0].tabs=order.map(id=>surfaces.find(s=>s.id===id))},say(){}});
+ vm.runInContext(html.slice(html.indexOf('async function reorderTab('),html.indexOf('function selectSurface(')),ctx);
+ return {ctx,node,current,nextOrders,actions};
 }
-test('moving a tab keeps controls open and updates both directional boundaries after repeated moves',()=>{
- const {ctx,node,preferences}=fixture();ctx.tabActions('pane','two');node('tabLeft').onclick();
- assert.notEqual(node('dialog').closed,true);assert.deepEqual(Array.from(preferences.tabOrder.workspace),['two','one','three']);assert.equal(node('tabLeft').disabled,true);assert.equal(node('tabRight').disabled,false);
- node('tabRight').onclick();node('tabRight').onclick();assert.deepEqual(Array.from(preferences.tabOrder.workspace),['one','three','two']);assert.equal(node('tabRight').disabled,true);assert.notEqual(node('dialog').closed,true);
+test('moving a tab keeps controls open and reads native order after each repeated move',async()=>{
+ const {ctx,node,current,nextOrders,actions}=fixture(),order=()=>current.panes[0].tabs.map(s=>s.id);
+ nextOrders.push(['two','one','three'],['one','two','three'],['one','three','two']);
+ ctx.tabActions('pane','two');await node('tabLeft').onclick();
+ assert.notEqual(node('dialog').closed,true);assert.deepEqual(order(),['two','one','three']);assert.equal(node('tabLeft').disabled,true);assert.equal(node('tabRight').disabled,false);
+ await node('tabRight').onclick();await node('tabRight').onclick();assert.deepEqual(order(),['one','three','two']);assert.equal(node('tabRight').disabled,true);assert.notEqual(node('dialog').closed,true);
+ assert.deepEqual(actions.map(a=>({action:a.action,source:a.surface_id,anchor:a.reference_surface_id,after:a.after})),[{action:'reorder',source:'two',anchor:'one',after:false},{action:'reorder',source:'two',anchor:'one',after:true},{action:'reorder',source:'two',anchor:'three',after:true}]);
+ ctx.connected=false;ctx.tabActions('pane','two');assert.equal(node('tabLeft').disabled,true);assert.equal(node('tabRight').disabled,true);assert.equal(current.panes[0].active,'two');
 });
 test('tab controls provide explicit close and reject delivery while disconnected',async()=>{
  const {ctx,node}=fixture();const calls=[];ctx.api=async(path,body)=>calls.push({path,body});ctx.tabActions('pane','two');
@@ -51,4 +55,20 @@ test('a target removed before close inventory validation cannot close its remain
   throw new Error(method);
  };
  try{await assert.rejects(bridge.action({action:'close',workspace_id,surface_id}),/no longer/);assert.equal(workspaceOpen,true)}finally{bridge.close()}
+});
+
+
+test('native reorder validates sibling pane membership and supports nonterminal tabs with scoped native anchors',async()=>{
+ const workspace_id=randomUUID(),surface_id=randomUUID(),reference_surface_id=randomUUID(),pane_id=randomUUID(),other_pane=randomUUID(),bridge=new CmuxBridge(),calls=[];
+ let siblings=[{id:surface_id,type:'browser',pane_id},{id:reference_surface_id,type:'terminal',pane_id}];
+ bridge.rpc=async(method,params)=>{calls.push({method,params});if(['surface.list','surface.health'].includes(method))return {workspace_id,surfaces:siblings};if(method==='surface.reorder')return {surface_id};throw new Error(method)};
+ try{
+  await bridge.action({action:'reorder',workspace_id,surface_id,reference_surface_id,after:false});
+  assert.deepEqual(calls.at(-1),{method:'surface.reorder',params:{workspace_id,surface_id,before_surface_id:reference_surface_id,focus:false}});
+  await bridge.action({action:'reorder',workspace_id,surface_id,reference_surface_id,after:true});
+  assert.deepEqual(calls.at(-1),{method:'surface.reorder',params:{workspace_id,surface_id,after_surface_id:reference_surface_id,focus:false}});
+  siblings[1].pane_id=other_pane;await assert.rejects(bridge.action({action:'reorder',workspace_id,surface_id,reference_surface_id,after:false}),/same pane/);
+  siblings=[siblings[0]];await assert.rejects(bridge.action({action:'reorder',workspace_id,surface_id,reference_surface_id,after:false}),/no longer/);
+  assert.equal(calls.filter(c=>c.method==='surface.reorder').length,2,'Invalid or moved anchors never reach a native mutation');
+ }finally{bridge.close()}
 });

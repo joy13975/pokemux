@@ -1,13 +1,14 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { readFileSync } from 'node:fs';
-import { JSDOM } from 'jsdom';
+import { JSDOM, VirtualConsole } from 'jsdom';
 import { RenderGrid } from '../grid.mjs';
 import { KanaComposer } from '../kana.mjs';
 import { installPopover } from './popover-fixture.mjs';
 const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 function terminal(saved) {
-  const dom = new JSDOM(html, { url: 'https://pokemux-test.invalid', runScripts: 'outside-only', pretendToBeVisual: true }), w = dom.window;
+  const virtualConsole=new VirtualConsole();virtualConsole.on('jsdomError',error=>{if(error.type==='unhandled-exception')throw error});
+  const dom = new JSDOM(html, { virtualConsole, url: 'https://pokemux-test.invalid', runScripts: 'outside-only', pretendToBeVisual: true }), w = dom.window;
   w.localStorage.setItem("cmux-pocket-customizations",JSON.stringify({shortcuts:[],snippets:[],keyboardMode:"native",...saved}));
   w.isSecureContext=true;w.diagnostics=[];
   w.resizeObservers=[];w.ResizeObserver = class { constructor(callback){this.callback=callback;this.targets=new Set();w.resizeObservers.push(this)} observe(target){this.targets.add(target)} disconnect(){this.targets.clear()} };
@@ -26,7 +27,7 @@ function terminal(saved) {
     const fixture=workspace('owned-workspace','Owned workspace',null,'','',[pane('owned-pane',[surface('owned-surface','Owned terminal')])],'owned-window');
     workspaces.push(fixture);current=fixture;selectedWindow=fixture.window;connected=true;
     const initialFrame={format:'cmux.render-grid.v1',render_epoch:'owned-epoch',render_revision:1,full:true,rows:3,columns:30,row_spans:[{row:0,column:0,text:'hello 日本語',cell_width:12}],cursor:{row:0,column:12,visible:true,style:'bar'}};const model=new RenderGrid();model.apply(initialFrame);grids.set('owned-surface',model);
-    render();window.fixture={otherTerminal(){fixture.panes[0].tabs.push(surface('owned-surface-two','Other terminal'));const other=new RenderGrid();other.apply(initialFrame);grids.set('owned-surface-two',other);selectSurface('owned-pane','owned-surface-two')},metadata(name){fixture.name='Directory changed';if(name)fixture.panes[0].tabs[0].name=name;render()},model,paintTerminal,syncViewport,caretToEnd,focusInput};
+    render();window.fixture={otherTerminal(){fixture.panes[0].tabs.push(surface('owned-surface-two','Other terminal'));const other=new RenderGrid();other.apply(initialFrame);grids.set('owned-surface-two',other);selectSurface('owned-pane','owned-surface-two')},metadata(name){fixture.name='Directory changed';if(name)fixture.panes[0].tabs[0].name=name;render()},model,paintTerminal,syncViewport,caretToEnd,focusInput,applyTree};
   `);
   return dom;
 }
@@ -205,7 +206,7 @@ test('terminal pinch is local and Zoom Toggle switches full grid and readable ty
   Object.defineProperty(wrap,'clientWidth',{value:390});wrap.style.padding='0';output.style.width='960px';
   const computed=w.getComputedStyle.bind(w);w.getComputedStyle=e=>e===output?{width:'960px'}:computed(e);
   output.focus();
-  const touch=(type,points)=>{const e=new w.Event(type,{bubbles:true,cancelable:true});Object.assign(e,{touches:points.map(([clientX,clientY])=>({clientX,clientY,target:wrap}))});wrap.dispatchEvent(e)};
+  let lastTouches=[];const touch=(type,points)=>{const contacts=points.map(([clientX,clientY],i)=>({identifier:i+1,clientX,clientY,target:wrap})),e=new w.TouchEvent(type,{bubbles:true,cancelable:true,touches:contacts,changedTouches:type==='touchend'?lastTouches:contacts});lastTouches=contacts;wrap.dispatchEvent(e)};
   touch('touchstart',[[100,200],[300,200]]);touch('touchmove',[[0,200],[400,200]]);touch('touchend',[]);
   assert.equal(parseFloat(output.parentElement.style.width),1320,'Pinch must enlarge terminal content, rather than the browser page');
   d.querySelector('[data-function="0"]').click();assert.equal(parseFloat(output.parentElement.style.width),390);d.querySelector('[data-function="0"]').click();assert.equal(parseFloat(output.parentElement.style.width),720);assert.equal(w.visualViewport.scale,1);
@@ -217,10 +218,10 @@ test('a finger on a floating control cannot join the terminal pinch and a termin
  const dom=terminal(),w=dom.window,d=w.document,output=d.querySelector('.terminal'),wrap=d.querySelector('.terminalwrap');
  try{Object.defineProperty(wrap,'clientWidth',{value:390});wrap.style.padding='0';output.style.width='960px';const computed=w.getComputedStyle.bind(w);w.getComputedStyle=e=>e===output?{width:'960px'}:computed(e);output.focus();const width=output.parentElement.style.width;wrap.scrollLeft=100;wrap.scrollTop=100;
  const held={identifier:1,target:d.querySelector('#cursorJoystick'),clientX:60,clientY:888};
- const touch=(type,x,y)=>{const e=new w.Event(type,{bubbles:true,cancelable:true});e.touches=[held,{identifier:2,target:output,clientX:x,clientY:y}];wrap.dispatchEvent(e)};
+ let moving;const touch=(type,x,y)=>{moving={identifier:2,target:output,clientX:x,clientY:y};wrap.dispatchEvent(new w.TouchEvent(type,{bubbles:true,cancelable:true,touches:[held,moving],changedTouches:[moving]}))};
  touch('touchstart',250,400);touch('touchmove',150,100);assert.equal(output.parentElement.style.width,width,'Separate control contact must not change terminal scale');assert.equal(wrap.scrollLeft,200);assert.equal(wrap.scrollTop,400);
- const end=new w.Event('touchend',{cancelable:true});end.touches=[held];wrap.dispatchEvent(end);
- const controlOnly=new w.Event('touchmove',{cancelable:true});controlOnly.touches=[held];wrap.dispatchEvent(controlOnly);assert.equal(wrap.scrollLeft,200,'Released terminal finger has no remaining pan ownership');
+ const end=new w.TouchEvent('touchend',{cancelable:true,touches:[held],changedTouches:[moving]});wrap.dispatchEvent(end);
+ const controlOnly=new w.TouchEvent('touchmove',{cancelable:true,touches:[held],changedTouches:[held]});wrap.dispatchEvent(controlOnly);assert.equal(wrap.scrollLeft,200,'Released terminal finger has no remaining pan ownership');
  }finally{w.close()}
 });
 
@@ -341,7 +342,7 @@ test('custom keyboard reopens with one terminal tap after pinch without stale ge
  const dom=terminal({keyboardMode:'custom'}),w=dom.window,d=w.document;
  try{
   w.HTMLElement.prototype.setPointerCapture=()=>{};w.fixture.focusInput();keyboardTap(w,'Dismiss');const wrap=d.querySelector('.terminalwrap');Object.defineProperty(wrap,'clientWidth',{value:390});
-  const pinch=new w.Event('touchstart',{cancelable:true});pinch.touches=[{clientX:80,clientY:120,target:wrap},{clientX:200,clientY:120,target:wrap}];wrap.dispatchEvent(pinch);const end=new w.Event('touchend',{cancelable:true});end.touches=[];wrap.dispatchEvent(end);
+  const points=[{identifier:1,clientX:80,clientY:120,target:wrap},{identifier:2,clientX:200,clientY:120,target:wrap}],pinch=new w.TouchEvent('touchstart',{cancelable:true,touches:points,changedTouches:points});wrap.dispatchEvent(pinch);const end=new w.TouchEvent('touchend',{cancelable:true,touches:[],changedTouches:points});wrap.dispatchEvent(end);
   keyboardPointer(w,wrap,'pointerdown');keyboardPointer(w,wrap,'pointerup');assert.equal(d.querySelector('#softwareKeyboard').hidden,false);
  }finally{w.close()}
 });
@@ -369,8 +370,8 @@ test('tabs slide both ways without selecting; names truncate and hold exposes re
   const drag=(from,to)=>{for(const [type,x] of [['pointerdown',from],['pointermove',to],['pointerup',to]]){const e=new w.Event(type,{bubbles:true,cancelable:true});Object.assign(e,{pointerId:1,button:0,isPrimary:true,clientX:x,clientY:22});tabs[0].dispatchEvent(e)}};
   drag(250,100);assert.equal(rail.scrollLeft,150);drag(100,200);assert.equal(rail.scrollLeft,50);assert.equal(d.querySelector('#shell').classList.contains('sidebar-open'),false);assert.equal(d.querySelector('.surfacetab.active').dataset.surface,'owned-surface-two');
   const event=new w.Event('pointerdown',{bubbles:true,cancelable:true});Object.assign(event,{pointerId:1,button:0,isPrimary:true,clientX:100,clientY:22});tabs[0].dispatchEvent(event);await new Promise(r=>w.setTimeout(r,570));const release=new w.Event('pointerup',{bubbles:true,cancelable:true});Object.assign(release,{pointerId:1,button:0,isPrimary:true,clientX:100,clientY:22});tabs[0].dispatchEvent(release);await new Promise(r=>w.requestAnimationFrame(r));
-  assert.equal(d.querySelector('#dialog').open,true);assert.ok(d.querySelector('#tabRename'));assert.equal(d.querySelector('#tabLeft').disabled,true);assert.equal(d.querySelector('#tabRight').disabled,false);d.querySelector('#tabRight').click();
-  assert.deepEqual([...d.querySelectorAll('.surfacetab')].map(b=>b.dataset.surface),['owned-surface-two','owned-surface']);assert.equal(d.querySelector('.surfacetab.active').dataset.surface,'owned-surface-two');
+  assert.equal(d.querySelector('#dialog').open,true);assert.ok(d.querySelector('#tabRename'));assert.equal(d.querySelector('#tabLeft').disabled,true);assert.equal(d.querySelector('#tabRight').disabled,false);let resolveTree;const previousFetch=w.fetch;w.fetch=async(path,options)=>path==='/api/tree'?{ok:true,json:()=>new Promise(resolve=>resolveTree=resolve)}:previousFetch(path,options);d.querySelector('#tabRight').click();await new Promise(r=>w.setTimeout(r,0));assert.deepEqual([...d.querySelectorAll('.surfacetab')].map(b=>b.dataset.surface),['owned-surface','owned-surface-two']);resolveTree({notifications:[],windows:[{id:'owned-window',groups:[],workspaces:[{id:'owned-workspace',title:'Owned workspace',panes:[{id:'owned-pane',selected_surface_id:'owned-surface',surfaces:[{id:'owned-surface-two',title:'Other terminal',type:'terminal'},{id:'owned-surface',title:'Owned terminal',type:'terminal'}]}]}]}]});await new Promise(r=>w.setTimeout(r,0));
+  assert.deepEqual([...d.querySelectorAll('.surfacetab')].map(b=>b.dataset.surface),['owned-surface-two','owned-surface']);assert.equal(d.querySelector('.surfacetab.active').dataset.surface,'owned-surface');
  }finally{w.close()}
 });
 
@@ -503,11 +504,11 @@ test('alternate-screen vertical gestures send native wheel events while horizont
  const dom=terminal({keyboardMode:'custom'}),w=dom.window,d=w.document,wrap=d.querySelector('.terminalwrap'),output=d.querySelector('.terminal');
  try{
   const frame=(screen,on)=>{w.fixture.model.apply({format:'cmux.render-grid.v1',render_epoch:'owned-epoch',render_revision:w.fixture.model.revision+1,full:true,rows:3,columns:30,active_screen:screen,modes:[{code:1007,ansi:false,on}],row_spans:[]});w.fixture.paintTerminal();output.getBoundingClientRect=()=>({left:0,top:0,width:300,height:60})};
-  const touch=(type,x,y)=>{const e=new w.Event(type,{bubbles:true,cancelable:true});e.touches=type==='touchend'?[]:[{identifier:1,target:output,clientX:x,clientY:y}];wrap.dispatchEvent(e);return e};
+  const touch=(type,x,y)=>{const point={identifier:1,target:output,clientX:x,clientY:y},e=new w.TouchEvent(type,{bubbles:true,cancelable:true,touches:type==='touchend'?[]:[point],changedTouches:[point]});wrap.dispatchEvent(e);return e};
   frame('alternate',true);touch('touchstart',90,30);assert.equal(touch('touchmove',90,6).defaultPrevented,true);touch('touchend',90,6);await new Promise(r=>w.setTimeout(r,0));
   assert.deepEqual(w.actions.map(a=>[a.action,a.delta_lines,a.col,a.row,a.surface_id]),[['scroll',-1,9,1,'owned-surface']]);
   touch('touchstart',90,30);assert.equal(touch('touchmove',180,29).defaultPrevented,false);touch('touchend',180,29);
-  touch('touchstart',90,30);const held=new w.Event('touchmove',{cancelable:true});held.touches=[{identifier:1,target:output,clientX:90,clientY:6},{identifier:2,target:d.querySelector('#cursorJoystick'),clientX:20,clientY:800}];wrap.dispatchEvent(held);touch('touchend',90,6);await new Promise(r=>w.setTimeout(r,0));assert.equal(w.actions.length,1,'A second finger on the control switches to local pan, not remote wheel');assert.equal(wrap.scrollTop,24);
+  touch('touchstart',90,30);const points=[{identifier:1,target:output,clientX:90,clientY:6},{identifier:2,target:d.querySelector('#cursorJoystick'),clientX:20,clientY:800}],held=new w.TouchEvent('touchmove',{cancelable:true,touches:points,changedTouches:[points[0]]});wrap.dispatchEvent(held);touch('touchend',90,6);await new Promise(r=>w.setTimeout(r,0));assert.equal(w.actions.length,1,'A second finger on the control switches to local pan, not remote wheel');assert.equal(wrap.scrollTop,24);
 
   for(const [screen,on] of [['primary',true],['alternate',false]]){frame(screen,on);touch('touchstart',90,30);assert.equal(touch('touchmove',90,6).defaultPrevented,false);touch('touchend',90,6)}
   await new Promise(r=>w.setTimeout(r,0));assert.equal(w.actions.length,1);
@@ -722,13 +723,26 @@ test('raw keyboard touches are traced before delegated pointer handling without 
  try{
   w.performance.now=()=>60000;w.diagnostics.length=0;d.elementFromPoint=()=>key;
   for(let id=1;id<=4;id++){
-   const point={identifier:id,target:key,clientX:192,clientY:602},down=new w.Event('touchstart',{bubbles:true,cancelable:true}),up=new w.Event('touchend',{bubbles:true,cancelable:true});
-   Object.assign(down,{changedTouches:[point],touches:[point]});Object.assign(up,{changedTouches:[point],touches:[]});key.dispatchEvent(down);key.dispatchEvent(up);
+   const point={identifier:id,target:key,clientX:192,clientY:602},down=new w.TouchEvent('touchstart',{bubbles:true,cancelable:true,changedTouches:[point],touches:[point]}),up=new w.TouchEvent('touchend',{bubbles:true,cancelable:true,changedTouches:[point],touches:[]});
+   key.dispatchEvent(down);key.dispatchEvent(up);
   }
   const starts=w.diagnostics.filter(e=>e.event==='touchstart'),ends=w.diagnostics.filter(e=>e.event==='touchend');
   assert.equal(starts.length,4);assert.equal(ends.length,4);assert.deepEqual(starts.map(e=>e.touch),[1,2,3,4]);
   assert.ok(starts.every(e=>e.hasKey&&e.target==='keyboard'&&e.hit==='keyboard'&&e.contacts===1&&Number.isFinite(e.eventAt)));
   assert.ok(ends.every(e=>e.contacts===0));assert.equal(w.actions.length,0);
   assert.equal(w.diagnostics.some(e=>['text','value','data','key'].some(field=>field in e)),false);
+ }finally{w.close()}
+});
+
+
+test('native tab order wins over saved phone order and follows desktop metadata changes',()=>{
+ const dom=terminal({tabOrder:{'owned-workspace':['owned-surface-two','owned-surface']}}),w=dom.window,d=w.document;
+ try{
+  w.fixture.otherTerminal();const order=()=>[...d.querySelectorAll('.surfacetab')].map(b=>b.dataset.surface);
+  assert.deepEqual(order(),['owned-surface','owned-surface-two'],'Persisted phone ranking cannot contradict the native pane order');
+  w.fixture.applyTree({notifications:[],windows:[{id:'owned-window',groups:[],workspaces:[{id:'owned-workspace',title:'Owned workspace',panes:[{id:'owned-pane',selected_surface_id:'owned-surface-two',surfaces:[{id:'owned-surface-two',title:'Other terminal',type:'terminal'},{id:'owned-surface',title:'Owned terminal',type:'terminal'}]}]}]}]});
+  assert.deepEqual(order(),['owned-surface-two','owned-surface']);
+  assert.equal(d.querySelector('.surfacetab.active').dataset.surface,'owned-surface-two');
+  assert.equal(Object.hasOwn(JSON.parse(w.localStorage.getItem('cmux-pocket-customizations')),'tabOrder'),false);
  }finally{w.close()}
 });
