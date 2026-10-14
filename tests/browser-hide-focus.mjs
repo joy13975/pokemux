@@ -1,0 +1,38 @@
+import assert from 'node:assert/strict';
+import {readFile,writeFile} from 'node:fs/promises';
+import {createHash} from 'node:crypto';
+export async function verifyHideFocus(tab,cdp){
+ const root=new URL('../',import.meta.url),info=JSON.parse(await readFile(new URL('state/browser-fixture-info.json',root),'utf8'));
+ const touch=async(selector,hold=0)=>{const r=await tab.playwright.locator(selector).evaluate(e=>e.getBoundingClientRect().toJSON());assert.ok(r.width&&r.height&&r.top>=0&&r.top<926);await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{id:1,x:r.x+Math.min(r.width/2,100),y:r.y+r.height/2}]});if(hold)await new Promise(r=>setTimeout(r,hold));await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});await tab.getAXState({emit:false})};
+ const wait=async predicate=>{const until=Date.now()+7000;while(!await predicate()){assert.ok(Date.now()<until,'Expected live touch/terminal outcome');await new Promise(r=>setTimeout(r,25))}};
+ await cdp.send('Emulation.setDeviceMetricsOverride',{width:428,height:926,deviceScaleFactor:3,mobile:true});await cdp.send('Emulation.setTouchEmulationEnabled',{enabled:true,maxTouchPoints:5});
+ const diagnosticLog=new URL('state/hide-final-fixture.log',root),offset=(await readFile(diagnosticLog,'utf8')).length;
+ await tab.goto(info.origin+'/fixture');await tab.getAXState({emit:false});
+ const freshDiagnostics=async()=>(await readFile(diagnosticLog,'utf8')).slice(offset).split('\n').filter(l=>l.startsWith('Pokemux client diagnostic ')).map(l=>JSON.parse(l.slice('Pokemux client diagnostic '.length)));
+ await touch(`.surfacetab[data-surface="${info.secondSurfaceId}"]`);await touch('.typing-layout:not([hidden]) [data-typing-key="Dismiss"]');
+ await wait(async()=>(await freshDiagnostics()).some(e=>e.event==='tab-switch'&&e.order===1));
+ const page=(await freshDiagnostics()).find(e=>e.event==='tab-switch'&&e.order===1).page;
+ assert.equal(await tab.playwright.locator('#softwareKeyboard').evaluate(e=>e.hidden),true);
+ await touch('.terminal-row:first-child',600);
+ const state=await tab.playwright.locator('#softwareKeyboard').evaluate(e=>({hidden:e.hidden,terminalFocused:document.activeElement.classList.contains('terminal')}));
+ assert.equal(state.terminalFocused,true,'Real long touch must produce browser terminal focus');
+ const screenshot=await cdp.send('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});await writeFile(new URL(state.hidden?'proof-hide-focus-after.png':'proof-hide-focus-before.png',root),Buffer.from(screenshot.data,'base64'));
+ assert.equal(state.hidden,true,'Browser terminal focus must not reopen custom keyboard after Hide');
+ await touch('.terminalwrap');assert.equal(await tab.playwright.locator('#softwareKeyboard').evaluate(e=>e.hidden),false,'Intentional terminal tap engages custom input');
+ const before=await readFile(info.log+'-second','utf8');await touch('.typing-layout:not([hidden]) [data-typing-key="q"]');
+ await wait(async()=>Buffer.from([...((await readFile(info.log+'-second','utf8')).slice(before.length)).matchAll(/RECV:([0-9a-f]+)/g)].map(m=>m[1]).join(''),'hex').toString()==='q');
+ await wait(async()=> (await freshDiagnostics()).some(e=>e.page===page&&e.event==='input-counts'));
+ const diagnostics=(await freshDiagnostics()).filter(e=>e.page===page);
+ assert.ok(diagnostics.some(e=>e.event==='key-up'&&e.accepted&&e.contact&&e.hasKey&&e.matched));assert.ok(diagnostics.some(e=>e.event==='input-counts'&&e.inputQueued===e.inputDelivered&&e.inputDelivered>0));
+ const handle=await tab.playwright.locator('#floatingHandle').evaluate(e=>e.getBoundingClientRect().toJSON()),cx=handle.x+handle.width/2,cy=handle.y+handle.height/2;
+ const contact=async(type,x=cx,y=cy)=>cdp.send('Input.dispatchTouchEvent',{type,touchPoints:type==='touchEnd'?[]:[{id:1,x,y}]});
+ await contact('touchStart');await contact('touchMove',cx-32,cy);await contact('touchMove');await contact('touchEnd');await tab.getAXState({emit:false});
+ await contact('touchStart');await contact('touchMove',cx-32,cy);await tab.getAXState({emit:false});
+ const branch=await tab.playwright.locator('[data-function="3"]').evaluate(e=>e.getBoundingClientRect().toJSON());
+ await contact('touchMove',branch.x+branch.width/2,branch.y+branch.height/2);await contact('touchEnd');await tab.getAXState({emit:false});
+ await wait(async()=>(await freshDiagnostics()).some(e=>e.page===page&&e.event==='floating-action'&&e.functionKind==='keyboard'));
+ const floating=(await freshDiagnostics()).filter(e=>e.page===page);
+ assert.ok(floating.some(e=>e.event==='floating-release'&&e.selecting&&e.choice===-1));assert.ok(floating.some(e=>e.event==='floating-release'&&e.selecting&&e.choice===3));
+ const sourceSha256={};for(const f of ['index.html','server.mjs'])sourceSha256[f]=createHash('sha256').update(await readFile(new URL(f,root))).digest('hex');
+ const result={passed:true,time:new Date().toISOString(),scope:'Chrome real touch428x926 and owned stock cmux; phone before trace independently captured',checks:['tab switch then Hide stays hidden','600ms terminal hold produces browser focus while keyboard stays hidden','explicit terminal tap engages','q delivered exactly once','content-free key acceptance and delivery counters reach server','floating drag cancellation and chosen function reach current-page trace'],sourceSha256};await writeFile(new URL('BROWSER_HIDE_FOCUS_RESULT.json',root),JSON.stringify(result,null,2)+'\n');return result;
+}

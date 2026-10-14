@@ -537,7 +537,7 @@ test('shortcut dock hides, restores and cancels pulls without sending keys',()=>
 });
 
 
-test('requested Hide diagnostics capture touch, focus and reopening without input contents',async()=>{
+test('requested Hide diagnostics capture browser focus without reopening or input contents',async()=>{
  const dom=terminal({keyboardMode:'custom'}),w=dom.window,d=w.document;
  try{
   w.fixture.focusInput();const output=d.querySelector('.terminal');output.textContent='PRIVATE_TERMINAL_TEXT';
@@ -547,7 +547,7 @@ test('requested Hide diagnostics capture touch, focus and reopening without inpu
   assert.ok(trace.some(e=>e.event==='hide'&&e.typing));
   assert.ok(trace.some(e=>e.event==='keyboard-state'&&e.hidden));
   assert.ok(trace.some(e=>e.event==='terminal-focus'&&!e.typing));
-  assert.ok(trace.some(e=>e.event==='keyboard-state'&&!e.hidden));
+  assert.equal(trace.filter(e=>e.event==='keyboard-state').every(e=>e.hidden),true);
   assert.equal(JSON.stringify(trace).includes('PRIVATE_TERMINAL_TEXT'),false);
   assert.equal(trace.every((e,i)=>e.order===i+1),true);
  }finally{w.close()}
@@ -577,5 +577,57 @@ test('insecure HTTP startup still shows HTTPS guidance when randomUUID is unavai
   const script=html.split('<script type="module">\n')[1].split('</script>')[0];w.eval(script);await new Promise(r=>w.setTimeout(r,0));
   assert.equal(w.document.querySelector('#shell').hidden,true);
   assert.equal(w.document.querySelector('main a').textContent,'Open Pokemux over HTTPS');
+ }finally{w.close()}
+});
+
+
+test('phone tab-switch Hide trace cannot reopen custom input through browser focus',()=>{
+ const dom=terminal({keyboardMode:'custom'}),w=dom.window,d=w.document;
+ try{
+  w.fixture.otherTerminal();const output=d.querySelector('.terminal'),wrap=d.querySelector('.terminalwrap');
+  for(let i=0;i<2;i++){
+   keyboardTap(w,'Dismiss');assert.equal(d.querySelector('#softwareKeyboard').hidden,true);
+   output.focus();d.body.dispatchEvent(new w.MouseEvent('click',{bubbles:true,detail:1}));
+   assert.equal(d.querySelector('#softwareKeyboard').hidden,true,'Phone trace: delayed terminal focus after Hide must not request the custom keyboard');
+   if(i===0){keyboardPointer(w,wrap,'pointerdown');keyboardPointer(w,wrap,'pointerup');assert.equal(d.querySelector('#softwareKeyboard').hidden,false,'An explicit terminal tap still opens custom input')}
+  }
+ }finally{w.close()}
+});
+
+test('keyboard contact diagnostics distinguish accepted, canceled and abandoned releases without characters',async()=>{
+ const dom=terminal({keyboardMode:'custom'}),w=dom.window,d=w.document;
+ try{
+  w.fixture.otherTerminal();const q=d.querySelector('.typing-layout:not([hidden]) [data-typing-key="q"]');
+  keyboardPointer(w,q,'pointerdown');keyboardPointer(w,q,'pointerup');
+  keyboardPointer(w,q,'pointerdown');keyboardPointer(w,q,'pointercancel');
+  keyboardPointer(w,q,'pointerup');
+  keyboardPointer(w,q,'pointerdown');d.elementFromPoint=()=>d.body;keyboardPointer(w,q,'pointermove');keyboardPointer(w,q,'pointerup');
+  await new Promise(r=>w.setTimeout(r,150));
+  assert.deepEqual(w.actions.map(a=>a.text),['q']);
+  assert.ok(w.diagnostics.some(e=>e.event==='key-up'&&e.accepted&&e.hasKey&&e.matched));
+  assert.ok(w.diagnostics.some(e=>e.event==='key-cancel'&&!e.accepted));
+  assert.ok(w.diagnostics.some(e=>e.event==='key-up'&&!e.contact&&!e.accepted));
+  assert.ok(w.diagnostics.some(e=>e.event==='key-up'&&e.contact&&!e.hasKey&&!e.accepted));
+  assert.ok(w.diagnostics.some(e=>e.event==='input-counts'&&e.inputQueued===1&&e.inputDelivered===1));
+  assert.equal(w.diagnostics.some(e=>['key','text','value','data'].some(field=>field in e)),false);
+ }finally{w.close()}
+});
+
+
+test('floating gesture diagnostics start before an action and classify configured functions without contents',async()=>{
+ const dom=terminal({keyboardMode:'custom',floatingFunctions:['key:PRIVATE_KEY','recent','paste','keyboard']}),w=dom.window,d=w.document;
+ try{
+  const handle=d.querySelector('#floatingHandle'),control=d.querySelector('#floatingFunctions');
+  const pointer=(type,x,y)=>{const e=new w.Event(type,{bubbles:true,cancelable:true});Object.assign(e,{pointerId:11,button:0,isPrimary:true,clientX:x,clientY:y});handle.dispatchEvent(e)};
+  const cx=parseFloat(control.style.left)+22,cy=parseFloat(control.style.top)+22;
+  pointer('pointerdown',cx,cy);assert.ok(w.diagnostics.some(e=>e.event==='pointerdown'&&e.target==='floating'));
+  pointer('pointermove',cx-30,cy);pointer('pointermove',cx,cy);pointer('pointerup',cx,cy);
+  assert.ok(w.diagnostics.some(e=>e.event==='floating-release'&&e.selecting&&e.choice===-1));assert.equal(w.actions.length,0);
+  pointer('pointerdown',cx,cy);pointer('pointermove',cx-30,cy);
+  const branch=d.querySelector('[data-function="0"]'),bx=cx+parseFloat(branch.style.left),by=cy+parseFloat(branch.style.top);
+  pointer('pointermove',bx,by);pointer('pointerup',bx,by);await new Promise(r=>w.setTimeout(r,0));
+  assert.ok(w.diagnostics.some(e=>e.event==='floating-release'&&e.selecting&&e.choice===0));
+  assert.ok(w.diagnostics.some(e=>e.event==='floating-action'&&e.functionKind==='key'));
+  assert.equal(w.actions.length,1);assert.equal(JSON.stringify(w.diagnostics).includes('PRIVATE_KEY'),false);
  }finally{w.close()}
 });
