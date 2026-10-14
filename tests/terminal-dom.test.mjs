@@ -715,3 +715,20 @@ test('native terminal selection has visible handles without exposing a second in
   assert.equal(selection.toString(),'Other control');assert.equal(w.actions.length,0);
  }finally{w.close()}
 });
+
+
+test('raw keyboard touches are traced before delegated pointer handling without sending keys',()=>{
+ const dom=terminal({keyboardMode:'custom'}),w=dom.window,d=w.document,key=d.querySelector('[data-typing-key="t"]');
+ try{
+  w.performance.now=()=>60000;w.diagnostics.length=0;d.elementFromPoint=()=>key;
+  for(let id=1;id<=4;id++){
+   const point={identifier:id,target:key,clientX:192,clientY:602},down=new w.Event('touchstart',{bubbles:true,cancelable:true}),up=new w.Event('touchend',{bubbles:true,cancelable:true});
+   Object.assign(down,{changedTouches:[point],touches:[point]});Object.assign(up,{changedTouches:[point],touches:[]});key.dispatchEvent(down);key.dispatchEvent(up);
+  }
+  const starts=w.diagnostics.filter(e=>e.event==='touchstart'),ends=w.diagnostics.filter(e=>e.event==='touchend');
+  assert.equal(starts.length,4);assert.equal(ends.length,4);assert.deepEqual(starts.map(e=>e.touch),[1,2,3,4]);
+  assert.ok(starts.every(e=>e.hasKey&&e.target==='keyboard'&&e.hit==='keyboard'&&e.contacts===1&&Number.isFinite(e.eventAt)));
+  assert.ok(ends.every(e=>e.contacts===0));assert.equal(w.actions.length,0);
+  assert.equal(w.diagnostics.some(e=>['text','value','data','key'].some(field=>field in e)),false);
+ }finally{w.close()}
+});
