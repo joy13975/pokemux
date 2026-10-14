@@ -631,3 +631,21 @@ test('floating gesture diagnostics start before an action and classify configure
   assert.equal(w.actions.length,1);assert.equal(JSON.stringify(w.diagnostics).includes('PRIVATE_KEY'),false);
  }finally{w.close()}
 });
+
+
+test('long floating Paste drag offers a fresh button tap without a rejected clipboard request',async()=>{
+ const dom=terminal({keyboardMode:'custom'}),w=dom.window,d=w.document;let tapping=false,reads=0;
+ try{
+  Object.defineProperty(w.navigator,'clipboard',{value:{readText:async()=>{reads++;if(!tapping)throw new w.DOMException('Gesture rejected','NotAllowedError');return 'PHONE_PASTE_PROBE'}}});
+  const handle=d.querySelector('#floatingHandle'),control=d.querySelector('#floatingFunctions'),paste=d.querySelector('[data-function="2"]');
+  const pointer=(type,x,y)=>{const e=new w.Event(type,{bubbles:true,cancelable:true});Object.assign(e,{pointerId:12,button:0,isPrimary:true,pointerType:'touch',clientX:x,clientY:y});handle.dispatchEvent(e)};
+  const cx=parseFloat(control.style.left)+22,cy=parseFloat(control.style.top)+22;
+  pointer('pointerdown',cx,cy);pointer('pointermove',cx-30,cy);
+  const bx=cx+parseFloat(paste.style.left),by=cy+parseFloat(paste.style.top);pointer('pointermove',bx,by);
+  await new Promise(r=>w.setTimeout(r,1141));pointer('pointerup',bx,by);await new Promise(r=>w.setTimeout(r,0));
+  assert.equal(reads,0,'Drag release cannot request clipboard through the rejected WebKit gesture');assert.equal(d.querySelector('#nativePaste'),null);assert.equal(control.classList.contains('expanded'),true);assert.equal(paste.getAttribute('aria-pressed'),'true');
+  w.fixture.metadata();assert.equal(paste.textContent,'Tap to paste');assert.equal(paste.getAttribute('aria-label'),'Tap to paste');assert.equal(paste.getAttribute('aria-pressed'),'true');
+  tapping=true;paste.click();tapping=false;await new Promise(r=>w.setTimeout(r,0));
+  assert.equal(reads,1);assert.deepEqual(w.actions.map(a=>[a.action,a.text]),[['paste','PHONE_PASTE_PROBE']]);assert.equal(control.classList.contains('expanded'),false);
+ }finally{w.close()}
+});
