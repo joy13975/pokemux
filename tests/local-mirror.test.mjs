@@ -204,3 +204,13 @@ test('mobile Alt character shortcuts encode Meta independently of desktop Option
  assert.deepEqual(received.map(r=>[r.method,r.params.text]),[['terminal.input','\x1bx'],['terminal.input','\x1by'],['terminal.input','\x1bX'],['terminal.input','\x1b\x0b'],['terminal.input','\x1b-'],['terminal.input','\x1b\x1b'],['terminal.input','\x1b ']]);
  assert.ok(received.every(r=>r.params.workspace_id===workspace_id&&r.params.surface_id===surface_id));
 });
+
+test('literal shortcut characters use terminal text input instead of the native named-key parser',async()=>{
+ const workspace_id=randomUUID(),surface_id=randomUUID(),bridge=new CmuxBridge(),received=[];
+ bridge.rpc=async(method,params)=>{if(method==='surface.health')return {workspace_id,surfaces:[{id:surface_id,type:'terminal'}]};received.push({method,params});return {ok:true}};
+ const characters=['\\','|','~','`','-','+',';',"'",'"','[',']','{','}','/','?','a','A','7','日','😀'];
+ for(const key of characters)await bridge.action({action:'key',key,workspace_id,surface_id});
+ assert.deepEqual(received,characters.map(text=>({method:'terminal.input',params:{workspace_id,surface_id,text}})));
+ received.length=0;for(const key of ['Ctrl-C','Shift-Left','Alt-Right','Enter','Tab','Escape','Backspace'])await bridge.action({action:'key',key,workspace_id,surface_id});
+ assert.deepEqual(received.map(r=>[r.method,r.params.key]),['Ctrl-C','Shift-Left','Alt-Right','Enter','Tab','Escape','Backspace'].map(key=>['surface.send_key',key]));
+});
