@@ -746,3 +746,47 @@ test('native tab order wins over saved phone order and follows desktop metadata 
   assert.equal(Object.hasOwn(JSON.parse(w.localStorage.getItem('cmux-pocket-customizations')),'tabOrder'),false);
  }finally{w.close()}
 });
+
+test('second modifier tap locks repeated input and shortcuts until third tap, with context reset',async()=>{
+ const dom=terminal({keyboardMode:'custom'}),w=dom.window,d=w.document;
+ try{
+  w.fixture.focusInput();const ctrl=d.querySelector('.inputdock [data-key="Ctrl"]');ctrl.click();ctrl.click();
+  assert.equal(ctrl.classList.contains('locked'),true,'Second tap locks instead of switching off');assert.equal(ctrl.getAttribute('aria-pressed'),'true');
+  for(const key of ['c','d','k','c'])keyboardTap(w,key);d.querySelector('[data-key="Ctrl-C"]').click();
+  await new Promise(r=>w.setTimeout(r,0));assert.deepEqual(w.actions.map(a=>a.key),['Ctrl-C','Ctrl-d','Ctrl-k','Ctrl-C','Ctrl-C']);assert.equal(ctrl.classList.contains('locked'),true);
+  ctrl.click();keyboardTap(w,'x');await new Promise(r=>w.setTimeout(r,0));assert.equal(w.actions.at(-1).text,'x');assert.equal(ctrl.getAttribute('aria-pressed'),'false');
+  const alt=d.querySelector('.inputdock [data-key="Alt"]');alt.click();alt.click();keyboardTap(w,'x');keyboardTap(w,'y');await new Promise(r=>w.setTimeout(r,0));assert.deepEqual(w.actions.slice(-2).map(a=>a.key),['Alt-x','Alt-y']);
+  w.fixture.metadata();assert.equal(d.querySelector('[data-key="Alt"]').classList.contains('locked'),true,'Metadata repaint retains lock');w.fixture.otherTerminal();assert.equal(d.querySelector('[data-key="Alt"]').getAttribute('aria-pressed'),'false','Switching terminal releases locks');
+ }finally{w.close()}
+});
+
+test('locked Shift combines with transient Ctrl and releases only the one-shot modifier',async()=>{
+ const dom=terminal({keyboardMode:'custom'}),w=dom.window,d=w.document;
+ try{
+  w.fixture.focusInput();const shift=d.querySelector('.inputdock [data-key="Shift"]');shift.click();shift.click();d.querySelector('.inputdock [data-key="Ctrl"]').click();keyboardTap(w,'a');keyboardTap(w,'b');
+  await new Promise(r=>w.setTimeout(r,0));assert.deepEqual(w.actions.map(a=>a.key),['Shift-Ctrl+A','Shift+B'].map(k=>k.replaceAll('+','-')));assert.equal(shift.classList.contains('locked'),true);assert.equal(d.querySelector('[data-key="Ctrl"]').getAttribute('aria-pressed'),'false');
+  keyboardTap(w,'Dismiss');assert.equal(d.querySelector('[data-key="Shift"]').getAttribute('aria-pressed'),'false','Hide releases locks');
+ }finally{w.close()}
+});
+
+test('locked Ctrl survives Backspace hold and joystick repeats without requiring another tap',async()=>{
+ const dom=terminal({keyboardMode:'custom'}),w=dom.window,d=w.document;
+ try{
+  w.fixture.focusInput();const ctrl=d.querySelector('[data-key="Ctrl"]');ctrl.click();ctrl.click();const backspace=d.querySelector('[data-typing-key="Backspace"]');keyboardPointer(w,backspace,'pointerdown');await new Promise(r=>w.setTimeout(r,440));keyboardPointer(w,backspace,'pointerup');
+  assert.ok(w.actions.length>=2);assert.ok(w.actions.every(a=>a.key==='Ctrl-Backspace'));keyboardTap(w,'k');
+  const joy=d.querySelector('#cursorJoystick'),x=parseFloat(joy.style.left)+22,y=parseFloat(joy.style.top)+22,event=(px,py)=>({pointerId:9,button:0,isPrimary:true,clientX:px,clientY:py,preventDefault(){}});joy.onpointerdown(event(x,y));joy.onpointermove(event(x-25,y));await new Promise(r=>w.setTimeout(r,190));joy.onpointerup(event(x-25,y));keyboardTap(w,'d');await new Promise(r=>w.setTimeout(r,0));
+  assert.ok(w.actions.filter(a=>a.key==='Ctrl-Left').length>=2);assert.equal(w.actions.at(-1).key,'Ctrl-d');assert.equal(ctrl.classList.contains('locked'),true);assert.ok(w.actions.some(a=>a.key==='Ctrl-k'));
+ }finally{w.close()}
+});
+
+test('modifier lock survives native typing and both paste entry points, then disconnect releases it',async()=>{
+ const dom=terminal(),w=dom.window,d=w.document,output=d.querySelector('.terminal');
+ try{
+  output.focus();const ctrl=d.querySelector('.inputdock [data-key="Ctrl"]');ctrl.click();ctrl.click();
+  const type=key=>output.dispatchEvent(new w.InputEvent('beforeinput',{bubbles:true,cancelable:true,inputType:'insertText',data:key}));type('d');type('k');
+  const paste=new w.Event('paste',{bubbles:true,cancelable:true});paste.clipboardData={getData:()=> 'native paste'};output.dispatchEvent(paste);
+  Object.defineProperty(w.navigator,'clipboard',{value:{readText:async()=> 'floating paste'}});d.querySelector('#floatingFunctions [data-function="2"]').click();await new Promise(r=>w.setTimeout(r,0));type('a');await new Promise(r=>w.setTimeout(r,0));
+  assert.deepEqual(w.actions.map(a=>a.key??a.text),['Ctrl-d','Ctrl-k','native paste','floating paste','Ctrl-a']);assert.equal(ctrl.classList.contains('locked'),true);
+  w.eval('setConnection(false)');assert.equal(d.querySelector('[data-key="Ctrl"]').getAttribute('aria-pressed'),'false');
+ }finally{w.close()}
+});

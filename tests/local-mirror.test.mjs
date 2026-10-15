@@ -196,3 +196,11 @@ test('a native metadata burst produces one shared authoritative inventory for br
   assert.equal(maxActive,1);assert.deepEqual(events[1].payload.windows[0].workspaces,[]);assert.deepEqual(events[2].payload.windows[0].workspaces,[{id:'new-workspace'}]);
  }finally{bridge.close();for(const socket of sockets)socket.destroy();await new Promise(r=>server.close(r))}
 });
+
+test('mobile Alt character shortcuts encode Meta independently of desktop Option settings',async()=>{
+ const workspace_id=randomUUID(),surface_id=randomUUID(),bridge=new CmuxBridge(),received=[];
+ bridge.rpc=async(method,params)=>{if(method==='surface.health')return {workspace_id,surfaces:[{id:surface_id,type:'terminal'}]};received.push({method,params});return {ok:true}};
+ for(const key of ['Alt-x','Alt-y','Shift-Alt-x','Ctrl-Alt-k','Alt--','Ctrl-Alt-[','Alt-Space'])await bridge.action({action:'key',key,workspace_id,surface_id});
+ assert.deepEqual(received.map(r=>[r.method,r.params.text]),[['terminal.input','\x1bx'],['terminal.input','\x1by'],['terminal.input','\x1bX'],['terminal.input','\x1b\x0b'],['terminal.input','\x1b-'],['terminal.input','\x1b\x1b'],['terminal.input','\x1b ']]);
+ assert.ok(received.every(r=>r.params.workspace_id===workspace_id&&r.params.surface_id===surface_id));
+});

@@ -5,11 +5,11 @@ import vm from 'node:vm';
 const html = readFileSync(new URL('../index.html',import.meta.url),'utf8');
 const source = html.slice(html.indexOf('function bindKeys('),html.indexOf('function normalizedKey('));
 function fixture() {
-  const buttons = Array.from({length:2},()=>({dataset:{key:'Ctrl'},pressed:'false',active:false,classList:{toggle(name,on){this.owner.active=on},remove(){this.owner.active=false}},setAttribute(name,value){this.pressed=value}}));
+  const buttons = Array.from({length:2},()=>({dataset:{key:'Ctrl'},pressed:'false',active:false,classList:{toggle(name,on){this.owner[name]=on},remove(){this.owner.active=false}},setAttribute(name,value){if(name==='aria-pressed')this.pressed=value}}));
   buttons.forEach(b=>b.classList.owner=b);
   const roots=buttons.map(b=>({querySelectorAll: selector=>selector==='[data-key]'?[b]:[]}));
-  const status={textContent:''},mods=new Set(),sent=[];let interrupts=0;
-  const context=vm.createContext({mods,kanaActive:()=>false,updateKeyboardLabels(){},connected:true,preferences:{shortcuts:[]},document:{querySelectorAll:()=>buttons},$:()=>status,interruptDialog(){interrupts++},sendTerminal(kind,value){sent.push({kind,value})}});
+  const status={textContent:''},mods=new Map(),sent=[];let interrupts=0;
+  const context=vm.createContext({mods,kanaActive:()=>false,updateKeyboardLabels(){},connected:true,modifierKeys:['Ctrl','Alt','Shift'],preferences:{shortcuts:[]},document:{querySelectorAll:()=>buttons},$:()=>status,interruptDialog(){interrupts++},sendTerminal(kind,value){sent.push({kind,value})}});
   vm.runInContext(source,context); roots.forEach(root=>context.bindKeys(root));
   return {buttons,mods,sent,context,get interrupts(){return interrupts}};
 }

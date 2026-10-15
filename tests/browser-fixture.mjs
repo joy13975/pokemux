@@ -18,7 +18,8 @@ const log=prefix+'terminal.log';
 const command=`/usr/bin/python3 -u ${new URL('terminal-fixture.py',import.meta.url).pathname} ${log}`;
 let workspaceId, groupedWorkspaceId, groupId, bridge, server, auth, closing=false, published=false;
 async function cleanup(){
- if(closing)return;closing=true;
+ if(closing)return;closing=true;let passed=false,unchanged=false;
+ try{
  if(server?.listening){server.closeAllConnections();await new Promise(r=>server.close(r));}
  bridge?.close();
  const liveGroups=rpc('workspace.group.list',{window_id:window.id}).groups;for(const group of liveGroups)if(ownership.groups.has(group.id)){assert.ok(group.member_workspace_ids.every(id=>ownership.workspaces.has(id)),'Owned cleanup group contains only owned workspaces');rpc('workspace.group.ungroup',{window_id:window.id,group_id:group.id})}
@@ -28,9 +29,10 @@ async function cleanup(){
  do{after=rpc('system.tree',{all_windows:true});if(!after.windows.some(w=>w.workspaces.some(ws=>ownership.workspaces.has(ws.id))))break;assert.ok(Date.now()<deadline,'Owned workspace closes');await new Promise(r=>setTimeout(r,50));}while(true);
  const shape=t=>({active:t.active,windows:t.windows.map(w=>({id:w.id,selected:w.selected_workspace_id,workspaces:w.workspaces.map(ws=>({id:ws.id,title:ws.title,selected:ws.selected,panes:ws.panes.map(p=>({id:p.id,selected:p.selected_surface_id,surfaces:p.surfaces.map(s=>({id:s.id,title:s.title}))}))}))}))});
  assert.deepEqual(shape(after),shape(before));assert.deepEqual(rpc('workspace.group.list',{window_id:window.id}).groups,beforeGroups);
- await writeFile(new URL('../BROWSER_FIXTURE_CLEANUP.json',import.meta.url),JSON.stringify({passed:true,time:new Date().toISOString(),existingWorkspaceStateUnchanged:true},null,2)+'\n');
+ unchanged=true;
  for(const path of [log,log+'-second',...(published?[info]:[])])try{await unlink(path);}catch(error){if(error.code!=='ENOENT')throw error;}
- console.log('Owned browser fixtures removed; existing workspace state unchanged.');
+ passed=true;console.log('Owned browser fixtures removed; existing workspace state unchanged.');
+ }finally{await writeFile(new URL('../BROWSER_FIXTURE_CLEANUP.json',import.meta.url),JSON.stringify({passed,time:new Date().toISOString(),existingWorkspaceStateUnchanged:unchanged},null,2)+'\n');}
 }
 function finish(code){cleanup().then(()=>process.exit(code),error=>{console.error(error);process.exit(1);});}
 process.on('uncaughtException',error=>{console.error(error);finish(1);});
