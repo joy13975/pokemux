@@ -9,7 +9,7 @@ const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 function terminal(saved) {
   const virtualConsole=new VirtualConsole();virtualConsole.on('jsdomError',error=>{if(error.type==='unhandled-exception')throw error});
   const dom = new JSDOM(html, { virtualConsole, url: 'https://pokemux-test.invalid', runScripts: 'outside-only', pretendToBeVisual: true }), w = dom.window;
-  w.localStorage.setItem("cmux-pocket-customizations",JSON.stringify({shortcuts:[],snippets:[],keyboardMode:"native",...saved}));
+  w.localStorage.setItem("cmux-pocket-customizations",JSON.stringify({shortcuts:[],snippets:[],keyboardMode:"native",keyboardDefaultVersion:1,...saved}));
   w.isSecureContext=true;w.diagnostics=[];
   w.resizeObservers=[];w.ResizeObserver = class { constructor(callback){this.callback=callback;this.targets=new Set();w.resizeObservers.push(this)} observe(target){this.targets.add(target)} disconnect(){this.targets.clear()} };
   installPopover(w);w.HTMLElement.prototype.setPointerCapture=()=>{};
@@ -501,18 +501,67 @@ test('custom key contacts survive key gaps, retarget on another key, and cancel 
 
 
 test('alternate-screen vertical gestures send native wheel events while horizontal reading and primary scroll stay local',async()=>{
- const dom=terminal({keyboardMode:'custom'}),w=dom.window,d=w.document,wrap=d.querySelector('.terminalwrap'),output=d.querySelector('.terminal');
+ const dom=terminal({keyboardMode:'custom',scrollInertia:0}),w=dom.window,d=w.document,wrap=d.querySelector('.terminalwrap'),output=d.querySelector('.terminal');
  try{
   const frame=(screen,on)=>{w.fixture.model.apply({format:'cmux.render-grid.v1',render_epoch:'owned-epoch',render_revision:w.fixture.model.revision+1,full:true,rows:3,columns:30,active_screen:screen,modes:[{code:1007,ansi:false,on}],row_spans:[]});w.fixture.paintTerminal();output.getBoundingClientRect=()=>({left:0,top:0,width:300,height:60})};
   const touch=(type,x,y)=>{const point={identifier:1,target:output,clientX:x,clientY:y},e=new w.TouchEvent(type,{bubbles:true,cancelable:true,touches:type==='touchend'?[]:[point],changedTouches:[point]});wrap.dispatchEvent(e);return e};
   frame('alternate',true);touch('touchstart',90,30);assert.equal(touch('touchmove',90,6).defaultPrevented,true);touch('touchend',90,6);await new Promise(r=>w.setTimeout(r,0));
-  assert.deepEqual(w.actions.map(a=>[a.action,a.delta_lines,a.col,a.row,a.surface_id]),[['scroll',-1,9,1,'owned-surface']]);
+  assert.deepEqual(w.actions.map(a=>[a.action,a.delta_lines,a.col,a.row,a.surface_id]),[['scroll',-2,9,1,'owned-surface']]);
   touch('touchstart',90,30);assert.equal(touch('touchmove',180,29).defaultPrevented,false);touch('touchend',180,29);
   touch('touchstart',90,30);const points=[{identifier:1,target:output,clientX:90,clientY:6},{identifier:2,target:d.querySelector('#cursorJoystick'),clientX:20,clientY:800}],held=new w.TouchEvent('touchmove',{cancelable:true,touches:points,changedTouches:[points[0]]});wrap.dispatchEvent(held);touch('touchend',90,6);await new Promise(r=>w.setTimeout(r,0));assert.equal(w.actions.length,1,'A second finger on the control switches to local pan, not remote wheel');assert.equal(wrap.scrollTop,24);
 
   for(const [screen,on] of [['primary',true],['alternate',false]]){frame(screen,on);touch('touchstart',90,30);assert.equal(touch('touchmove',90,6).defaultPrevented,false);touch('touchend',90,6)}
   await new Promise(r=>w.setTimeout(r,0));assert.equal(w.actions.length,1);
  }finally{w.close()}
+});
+
+test('system keyboard becomes the default once, preserving an explicit later emulated-keyboard choice',()=>{
+ for(const keyboardMode of [undefined,'custom','native']){
+  const dom=terminal({keyboardMode,keyboardDefaultVersion:undefined,keyboardLanguage:'hiragana'}),w=dom.window,d=w.document;
+  try{
+   w.fixture.focusInput();assert.equal(d.querySelector('#softwareKeyboard').hidden,true);
+   let saved=JSON.parse(w.localStorage.getItem('cmux-pocket-customizations'));assert.equal(saved.keyboardMode,'native');assert.equal(saved.customKeyboardLanguage,'hiragana');
+   d.querySelector('#appActions').click();d.querySelector('#menuPokemuxKeyboard').click();assert.equal(d.querySelector('#softwareKeyboard').hidden,false);
+   saved=JSON.parse(w.localStorage.getItem('cmux-pocket-customizations'));const reloaded=terminal(saved);
+   try{reloaded.window.fixture.focusInput();assert.equal(reloaded.window.document.querySelector('#softwareKeyboard').hidden,false)}finally{reloaded.window.close()}
+  }finally{w.close()}
+ }
+});
+
+function scrollFixture(saved={}){
+ const dom=terminal(saved),w=dom.window,d=w.document,wrap=d.querySelector('.terminalwrap'),output=d.querySelector('.terminal');
+ w.fixture.model.apply({format:'cmux.render-grid.v1',render_epoch:'owned-epoch',render_revision:2,full:true,rows:3,columns:30,active_screen:'alternate',modes:[{code:1007,ansi:false,on:true}],row_spans:[]});w.fixture.paintTerminal();output.getBoundingClientRect=()=>({left:0,top:0,width:300,height:60});
+ const touch=(type,y,at)=>{const point={identifier:1,target:output,clientX:90,clientY:y},e=new w.TouchEvent(type,{bubbles:true,cancelable:true,touches:['touchend','touchcancel'].includes(type)?[]:[point],changedTouches:[point]});Object.defineProperty(e,'timeStamp',{value:at});wrap.dispatchEvent(e)};
+ return {dom,w,d,wrap,touch};
+}
+
+test('TUI scrolling doubles its default displacement and persists both motion settings',async()=>{
+ const {w,d,touch}=scrollFixture({scrollInertia:0});try{
+  touch('touchstart',60,0);touch('touchmove',36,16);touch('touchend',36,16);await new Promise(r=>w.setTimeout(r,0));assert.equal(w.actions.reduce((n,a)=>n+a.delta_lines,0),-2);
+  d.querySelector('#appActions').click();d.querySelector('#menuSettings').click();assert.equal(d.querySelector('#scrollSensitivity').value,'2');assert.equal(d.querySelector('#scrollInertia').value,'0');
+  const sensitivity=d.querySelector('#scrollSensitivity');sensitivity.value='4';sensitivity.dispatchEvent(new w.Event('input'));const inertia=d.querySelector('#scrollInertia');inertia.value='75';inertia.dispatchEvent(new w.Event('input'));
+  const saved=JSON.parse(w.localStorage.getItem('cmux-pocket-customizations'));assert.equal(saved.scrollSensitivity,4);assert.equal(saved.scrollInertia,75);assert.match(d.querySelector('#scrollSensitivityValue').textContent,/4/);assert.match(d.querySelector('#scrollInertiaValue').textContent,/75/);
+ }finally{w.close()}
+});
+
+test('TUI release coasts, and a new touch cancels the remaining motion',async()=>{
+ const {w,d,touch}=scrollFixture();try{
+  const frames=new Map();let next=0,clock=32;w.performance.now=()=>clock;w.requestAnimationFrame=fn=>{frames.set(++next,fn);return next};w.cancelAnimationFrame=id=>frames.delete(id);
+  touch('touchstart',60,0);touch('touchmove',36,16);touch('touchend',36,32);await new Promise(r=>w.setTimeout(r,0));const dragged=w.actions.reduce((n,a)=>n+a.delta_lines,0);
+  for(let i=0;i<4;i++){clock+=16;const batch=[...frames.values()];frames.clear();for(const frame of batch)frame(clock);await new Promise(r=>w.setTimeout(r,0))}
+  assert.ok(w.actions.reduce((n,a)=>n+a.delta_lines,0)<dragged,'A released flick continues through the native wheel path');
+  d.body.dispatchEvent(new w.Event('pointerdown',{bubbles:true}));const stopped=w.actions.length;clock+=500;for(const frame of frames.values())frame(clock);await new Promise(r=>w.setTimeout(r,0));assert.equal(w.actions.length,stopped);
+ }finally{w.close()}
+});
+
+test('cancelled TUI motion cannot dispatch behind an in-flight scroll request',async()=>{
+ const {w,d,touch}=scrollFixture();let release;
+ try{
+  const fetch=w.fetch,frames=[];let clock=32;w.performance.now=()=>clock;w.requestAnimationFrame=fn=>{frames.push(fn);return frames.length};w.cancelAnimationFrame=()=>{};
+  w.fetch=async(path,options)=>{const response=await fetch(path,options);if(path==='/api/action'&&w.actions.length===1)await new Promise(resolve=>release=resolve);return response};
+  touch('touchstart',60,0);touch('touchmove',36,16);touch('touchend',36,32);await new Promise(r=>w.setTimeout(r,0));assert.deepEqual(w.actions.map(a=>a.delta_lines),[-2]);
+  clock+=16;for(const frame of frames.splice(0))frame(clock);d.body.dispatchEvent(new w.Event('pointerdown',{bubbles:true}));release();await new Promise(r=>w.setTimeout(r,0));assert.deepEqual(w.actions.map(a=>a.delta_lines),[-2],'A queued coast must not outlive its touch context');
+ }finally{release?.();w.close()}
 });
 
 

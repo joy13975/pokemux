@@ -9,6 +9,7 @@ import { KanaComposer } from '../kana.mjs';
 const html=readFileSync(new URL('../index.html',import.meta.url),'utf8');
 function client(){
  const dom=new JSDOM(html,{url:'https://pokemux-test.invalid',runScripts:'outside-only',pretendToBeVisual:true}),w=dom.window;
+ w.localStorage.setItem("cmux-pocket-customizations",JSON.stringify({shortcuts:[],snippets:[],keyboardMode:"custom",keyboardDefaultVersion:1}));
  w.ResizeObserver=class{observe(){}disconnect(){}};w.HTMLElement.prototype.setPointerCapture=()=>{};w.matchMedia=()=>({matches:true});
  w.visualViewport={width:428,height:926,scale:1,offsetTop:0,offsetLeft:0,addEventListener(){}};
  w.HTMLDialogElement.prototype.showModal=w.HTMLDialogElement.prototype.show=function(){this.open=true};

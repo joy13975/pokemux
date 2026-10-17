@@ -7,7 +7,7 @@ import { KanaComposer } from '../kana.mjs';
 const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 function terminal(saved) {
   const dom = new JSDOM(html, { url: 'https://pokemux-test.invalid', runScripts: 'outside-only', pretendToBeVisual: true }), w = dom.window;
-  w.localStorage.setItem("cmux-pocket-customizations",JSON.stringify({shortcuts:[],snippets:[],keyboardMode:"custom",...saved}));
+  w.localStorage.setItem("cmux-pocket-customizations",JSON.stringify({shortcuts:[],snippets:[],keyboardMode:"custom",keyboardDefaultVersion:1,...saved}));
   w.resizeObservers=[];w.ResizeObserver = class { constructor(callback){this.callback=callback;this.targets=new Set();w.resizeObservers.push(this)} observe(target){this.targets.add(target)} disconnect(){this.targets.clear()} };
   w.captureHost=null;w.HTMLElement.prototype.setPointerCapture=function(){w.captureHost=this};
   w.matchMedia = () => ({ matches: true });
