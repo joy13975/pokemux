@@ -1,0 +1,20 @@
+import assert from 'node:assert/strict';
+import {test} from 'node:test';
+import {readFileSync} from 'node:fs';
+import {execFileSync} from 'node:child_process';
+import {JSDOM,VirtualConsole} from 'jsdom';
+import {RenderGrid} from '../grid.mjs';
+import {KanaComposer} from '../kana.mjs';
+import {installPopover} from './popover-fixture.mjs';
+import {keyboardIsolationHTML} from './keyboard-isolation.mjs';
+const source=readFileSync(new URL('../index.html',import.meta.url),'utf8');
+for(const mode of ['quiet','bare','blocked'])test(`isolated ${mode} keyboard uses actual producer without remote terminal actions`,async()=>{
+ const html=keyboardIsolationHTML(source,mode),script=html.split('<script type="module">')[1].split('</script>')[0];execFileSync(process.execPath,['--check','--input-type=module'],{input:script});const vc=new VirtualConsole();vc.on('jsdomError',error=>{if(error.type==='unhandled-exception')throw error});const dom=new JSDOM(html,{url:'http://localhost:4393/fixture?mode='+mode,runScripts:'outside-only',pretendToBeVisual:true,virtualConsole:vc}),w=dom.window;
+ try{w.ResizeObserver=class{observe(){}disconnect(){}};w.HTMLElement.prototype.setPointerCapture=()=>{};w.matchMedia=()=>({matches:true});w.visualViewport={width:428,height:879,scale:1,offsetLeft:0,offsetTop:0,addEventListener(){}};installPopover(w);w.HTMLDialogElement.prototype.close=function(){this.open=false};w.__RenderGrid=RenderGrid;w.__KanaComposer=KanaComposer;const requests=[];w.fetch=async(url,options)=>{requests.push({url,body:options?.body});return {ok:true,json:async()=>({authenticated:true})}};w.EventSource=class{constructor(){assert.fail('Isolated comparison must not open a terminal stream')}};
+ const runnable=script.replace("({RenderGrid}=await import('/grid.mjs'));({KanaComposer}=await import('/kana.mjs'));",'RenderGrid=window.__RenderGrid;KanaComposer=window.__KanaComposer;');w.eval(runnable);const root=w.document.getElementById('softwareKeyboard');assert.ok(!root.hidden);let id=1;const phrase='can i type very fast now';for(const value of phrase){const button=root.querySelector(`.typing-layout:not([hidden]) [data-typing-key="${value===' '?'Space':value}"]`),event={target:button,button:0,isPrimary:true,pointerId:id++,preventDefault(){},type:'pointerdown'};root.onpointerdown(event);root.onpointerup({...event,type:'pointerup'})}await new Promise(resolve=>setTimeout(resolve,150));assert.equal(w.document.getElementById('labEcho').textContent,phrase);assert.equal(w.document.getElementById('labCount').textContent,'24 accepted keys');assert.ok(requests.length&&requests.every(r=>['/api/auth','/api/client-diagnostic'].includes(r.url)));assert.ok(!JSON.stringify(requests).includes(phrase));const touch=new w.Event('touchstart',{bubbles:true,cancelable:true});Object.defineProperty(touch,'changedTouches',{value:[]});Object.defineProperty(touch,'touches',{value:[]});root.dispatchEvent(touch);assert.equal(touch.defaultPrevented,mode==='blocked');assert.equal(w.localStorage.getItem('cmux-pocket-customizations'),null);
+ }finally{w.close()}
+});
+for(const failure of ['http','json'])test(`comparison closes keyboard when auth ${failure} check fails`,async()=>{
+ const html=keyboardIsolationHTML(source,'bare'),dom=new JSDOM(html,{url:'http://localhost:4393/',runScripts:'outside-only',pretendToBeVisual:true}),w=dom.window;
+ try{w.visualViewport={width:428,height:879,scale:1};w.HTMLElement.prototype.setPointerCapture=()=>{};w.fetch=async path=>path==='/api/auth'?{ok:failure!=='http',json:async()=>{throw new SyntaxError('Malformed auth JSON')}}:{ok:true};w.eval(html.split('<script type="module">')[1].split('</script>')[0]+';window.authCheck=labAuthCheck;');await assert.rejects(w.authCheck);assert.equal(w.document.getElementById('softwareKeyboard').hidden,true);assert.match(w.document.getElementById('labCount').textContent,/Authentication check failed/)}finally{w.close()}
+});

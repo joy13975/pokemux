@@ -871,3 +871,14 @@ test('contact diagnostics batch off the input path and flush pending events on p
   assert.equal(w.diagnostics.filter(e=>e.event==='key-down').length,1);assert.equal(w.diagnostics.filter(e=>e.event==='key-up').length,1);
  }finally{w.close()}
 });
+test('unsaved floating controls use the keyboard footer instead of covering letter keys',()=>{
+ const dom=terminal({keyboardMode:'custom',keyboardDefaultVersion:1}),w=dom.window,d=w.document;
+ try{w.fixture.focusInput();const footer=d.querySelector('.typing-layout:not([hidden]) .typing-row:last-child');footer.getBoundingClientRect=()=>({bottom:700});w.fixture.syncViewport();for(const selector of ['#floatingFunctions','#cursorJoystick'])assert.equal(parseFloat(d.querySelector(selector).style.top)+22,724,'Default control center is below the last key row');
+ Object.assign(w.visualViewport,{width:195,height:422,scale:2});footer.getBoundingClientRect=()=>({bottom:300});w.fixture.syncViewport();for(const selector of ['#floatingFunctions','#cursorJoystick'])assert.equal(parseFloat(d.querySelector(selector).style.top)+22,624,'Footer position uses view coordinates under page zoom');
+ }finally{w.close()}
+});
+
+test('keyboard-footer defaults preserve positions explicitly dragged by the user',()=>{
+ const dom=terminal({keyboardMode:'custom',keyboardDefaultVersion:1,floatingPosition:[.25,.35],joystickPosition:[.75,.55]}),w=dom.window,d=w.document;
+ try{w.fixture.focusInput();d.querySelector('.typing-layout:not([hidden]) .typing-row:last-child').getBoundingClientRect=()=>({bottom:700});w.fixture.syncViewport();assert.equal(parseFloat(d.querySelector('#floatingFunctions').style.top)+22,.35*844);assert.equal(parseFloat(d.querySelector('#cursorJoystick').style.top)+22,.55*844)}finally{w.close()}
+});
