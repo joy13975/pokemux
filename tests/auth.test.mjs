@@ -82,5 +82,10 @@ test('client diagnostics require authentication and origin and reject content-be
    assert.equal((await post(raw)).status,200);assert.equal((await post({...raw,key:'PRIVATE_TYPED_KEY'})).status,400);
   }
   assert.equal(logged.length,4);assert.equal(JSON.stringify(logged).includes('PRIVATE_'),false);
+  const layout={...data,event:'keyboard-layout',rects:[[0,550,428,329],[1,556,42,58]]},move={...data,event:'touchmove',touch:2,x:22,y:583,eventAt:140};
+  for(const bad of [[],Array(65).fill(data),[data,{...move,text:'PRIVATE_TYPED_TEXT'}],[{...layout,rects:[['PRIVATE_TEXT',0,1,1]]}],[{...layout,rects:[[0,1,2]]}],[{...layout,rects:Array(65).fill([0,0,1,1])}]])assert.equal((await post(bad)).status,400);
+  assert.equal(logged.length,4,'Reject the entire batch before recording any valid prefix');
+  assert.equal((await post([layout,move])).status,200);assert.equal(logged.length,6);assert.deepEqual(JSON.parse(logged[4][1]).rects,layout.rects);assert.equal(JSON.parse(logged[5][1]).touch,2);assert.equal(JSON.stringify(logged).includes('PRIVATE_'),false);
+
  }finally{app.closeAllConnections();await new Promise(resolve=>app.close(resolve))}
 });

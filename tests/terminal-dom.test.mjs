@@ -10,7 +10,7 @@ function terminal(saved) {
   const virtualConsole=new VirtualConsole();virtualConsole.on('jsdomError',error=>{if(error.type==='unhandled-exception')throw error});
   const dom = new JSDOM(html, { virtualConsole, url: 'https://pokemux-test.invalid', runScripts: 'outside-only', pretendToBeVisual: true }), w = dom.window;
   w.localStorage.setItem("cmux-pocket-customizations",JSON.stringify({shortcuts:[],snippets:[],keyboardMode:"native",keyboardDefaultVersion:1,...saved}));
-  w.isSecureContext=true;w.diagnostics=[];
+  w.isSecureContext=true;w.diagnostics=[];w.diagnosticRequests=[];
   w.resizeObservers=[];w.ResizeObserver = class { constructor(callback){this.callback=callback;this.targets=new Set();w.resizeObservers.push(this)} observe(target){this.targets.add(target)} disconnect(){this.targets.clear()} };
   installPopover(w);w.HTMLElement.prototype.setPointerCapture=()=>{};
   w.matchMedia = () => ({ matches: true });
@@ -20,17 +20,18 @@ function terminal(saved) {
   w.HTMLDialogElement.prototype.show=function(){this.open=true;};
   w.HTMLDialogElement.prototype.close=function(){this.open=false;this.dispatchEvent(new w.Event('close'));};
   w.__RenderGrid = RenderGrid;w.__KanaComposer=KanaComposer;
-  w.actions=[];w.fetch=async(path,options)=>{if(path==='/api/action')w.actions.push(JSON.parse(options.body));if(path==='/api/client-diagnostic')w.diagnostics.push(JSON.parse(options.body));return {ok:true,status:200,json:async()=>({})};};
+  w.actions=[];w.fetch=async(path,options)=>{if(path==='/api/action')w.actions.push(JSON.parse(options.body));if(path==='/api/client-diagnostic'){const payload=JSON.parse(options.body);w.diagnosticRequests.push({payload,keepalive:!!options.keepalive});w.diagnostics.push(...(Array.isArray(payload)?payload:[payload]))}return {ok:true,status:200,json:async()=>({})};};
   const script = html.split('<script type="module">\n')[1].split('</script>')[0];
   w.eval(script.slice(0, script.lastIndexOf('(async()=>{')) + `
     RenderGrid=window.__RenderGrid;KanaComposer=window.__KanaComposer;kana=new KanaComposer();
     const fixture=workspace('owned-workspace','Owned workspace',null,'','',[pane('owned-pane',[surface('owned-surface','Owned terminal')])],'owned-window');
     workspaces.push(fixture);current=fixture;selectedWindow=fixture.window;connected=true;
     const initialFrame={format:'cmux.render-grid.v1',render_epoch:'owned-epoch',render_revision:1,full:true,rows:3,columns:30,row_spans:[{row:0,column:0,text:'hello 日本語',cell_width:12}],cursor:{row:0,column:12,visible:true,style:'bar'}};const model=new RenderGrid();model.apply(initialFrame);grids.set('owned-surface',model);
-    render();window.fixture={otherTerminal(){fixture.panes[0].tabs.push(surface('owned-surface-two','Other terminal'));const other=new RenderGrid();other.apply(initialFrame);grids.set('owned-surface-two',other);selectSurface('owned-pane','owned-surface-two')},metadata(name){fixture.name='Directory changed';if(name)fixture.panes[0].tabs[0].name=name;render()},model,paintTerminal,syncViewport,caretToEnd,focusInput,applyTree};
+    render();window.fixture={flushInputDiagnostics:typeof flushInputDiagnostics==='function'?flushInputDiagnostics:undefined,otherTerminal(){fixture.panes[0].tabs.push(surface('owned-surface-two','Other terminal'));const other=new RenderGrid();other.apply(initialFrame);grids.set('owned-surface-two',other);selectSurface('owned-pane','owned-surface-two')},metadata(name){fixture.name='Directory changed';if(name)fixture.panes[0].tabs[0].name=name;render()},model,paintTerminal,syncViewport,caretToEnd,focusInput,applyTree};
   `);
   return dom;
 }
+function recordedDiagnostics(w){w.fixture.flushInputDiagnostics();return w.diagnostics}
 test('swipe without a follow-up click cannot swallow the next dialog action',async()=>{
   const dom=terminal(),w=dom.window,d=w.document;
   try {
@@ -592,7 +593,7 @@ test('requested Hide diagnostics capture browser focus without reopening or inpu
  try{
   w.fixture.focusInput();const output=d.querySelector('.terminal');output.textContent='PRIVATE_TERMINAL_TEXT';
   keyboardTap(w,'Dismiss');output.focus();await new Promise(r=>w.setTimeout(r,0));
-  const trace=w.diagnostics;
+  const trace=recordedDiagnostics(w);
   assert.ok(trace.some(e=>e.event==='pointerdown'&&e.target==='hide'));
   assert.ok(trace.some(e=>e.event==='hide'&&e.typing));
   assert.ok(trace.some(e=>e.event==='keyboard-state'&&e.hidden));
@@ -608,12 +609,12 @@ test('paste diagnostics identify denied clipboard and native field delivery with
  try{
   Object.defineProperty(w.navigator,'clipboard',{value:{readText:async()=>{throw new w.DOMException('PRIVATE_ERROR_TEXT','NotAllowedError')}}});
   d.querySelector('[data-function="2"]').click();await new Promise(r=>w.setTimeout(r,0));
-  assert.ok(w.diagnostics.some(e=>e.event==='paste-request'&&e.hasClipboard));
-  assert.ok(w.diagnostics.some(e=>e.event==='paste-denied'&&e.error==='NotAllowedError'));
+  assert.ok(recordedDiagnostics(w).some(e=>e.event==='paste-request'&&e.hasClipboard));
+  assert.ok(recordedDiagnostics(w).some(e=>e.event==='paste-denied'&&e.error==='NotAllowedError'));
   const field=d.querySelector('#nativePaste'),event=new w.Event('paste',{bubbles:true,cancelable:true});event.clipboardData={getData:()=> 'PRIVATE_CLIPBOARD_TEXT'};field.dispatchEvent(event);await new Promise(r=>w.setTimeout(r,0));
-  assert.ok(w.diagnostics.some(e=>e.event==='paste-field-event'));
+  assert.ok(recordedDiagnostics(w).some(e=>e.event==='paste-field-event'));
   assert.equal(w.actions.at(-1).text,'PRIVATE_CLIPBOARD_TEXT');
-  assert.equal(JSON.stringify(w.diagnostics).includes('PRIVATE_'),false);
+  assert.equal(JSON.stringify(recordedDiagnostics(w)).includes('PRIVATE_'),false);
  }finally{w.close()}
 });
 
@@ -654,12 +655,12 @@ test('keyboard contact diagnostics distinguish accepted, canceled and abandoned 
   keyboardPointer(w,q,'pointerdown');d.elementFromPoint=()=>d.body;keyboardPointer(w,q,'pointermove');keyboardPointer(w,q,'pointerup');
   await new Promise(r=>w.setTimeout(r,150));
   assert.deepEqual(w.actions.map(a=>a.text),['q']);
-  assert.ok(w.diagnostics.some(e=>e.event==='key-up'&&e.accepted&&e.hasKey&&e.matched));
-  assert.ok(w.diagnostics.some(e=>e.event==='key-cancel'&&!e.accepted));
-  assert.ok(w.diagnostics.some(e=>e.event==='key-up'&&!e.contact&&!e.accepted));
-  assert.ok(w.diagnostics.some(e=>e.event==='key-up'&&e.contact&&!e.hasKey&&!e.accepted));
-  assert.ok(w.diagnostics.some(e=>e.event==='input-counts'&&e.inputQueued===1&&e.inputDelivered===1));
-  assert.equal(w.diagnostics.some(e=>['key','text','value','data'].some(field=>field in e)),false);
+  assert.ok(recordedDiagnostics(w).some(e=>e.event==='key-up'&&e.accepted&&e.hasKey&&e.matched));
+  assert.ok(recordedDiagnostics(w).some(e=>e.event==='key-cancel'&&!e.accepted));
+  assert.ok(recordedDiagnostics(w).some(e=>e.event==='key-up'&&!e.contact&&!e.accepted));
+  assert.ok(recordedDiagnostics(w).some(e=>e.event==='key-up'&&e.contact&&!e.hasKey&&!e.accepted));
+  assert.ok(recordedDiagnostics(w).some(e=>e.event==='input-counts'&&e.inputQueued===1&&e.inputDelivered===1));
+  assert.equal(recordedDiagnostics(w).some(e=>['key','text','value','data'].some(field=>field in e)),false);
  }finally{w.close()}
 });
 
@@ -670,15 +671,15 @@ test('floating gesture diagnostics start before an action and classify configure
   const handle=d.querySelector('#floatingHandle'),control=d.querySelector('#floatingFunctions');
   const pointer=(type,x,y)=>{const e=new w.Event(type,{bubbles:true,cancelable:true});Object.assign(e,{pointerId:11,button:0,isPrimary:true,clientX:x,clientY:y});handle.dispatchEvent(e)};
   const cx=parseFloat(control.style.left)+22,cy=parseFloat(control.style.top)+22;
-  pointer('pointerdown',cx,cy);assert.ok(w.diagnostics.some(e=>e.event==='pointerdown'&&e.target==='floating'));
+  pointer('pointerdown',cx,cy);assert.ok(recordedDiagnostics(w).some(e=>e.event==='pointerdown'&&e.target==='floating'));
   pointer('pointermove',cx-30,cy);pointer('pointermove',cx,cy);pointer('pointerup',cx,cy);
-  assert.ok(w.diagnostics.some(e=>e.event==='floating-release'&&e.selecting&&e.choice===-1));assert.equal(w.actions.length,0);
+  assert.ok(recordedDiagnostics(w).some(e=>e.event==='floating-release'&&e.selecting&&e.choice===-1));assert.equal(w.actions.length,0);
   pointer('pointerdown',cx,cy);pointer('pointermove',cx-30,cy);
   const branch=d.querySelector('[data-function="0"]'),bx=cx+parseFloat(branch.style.left),by=cy+parseFloat(branch.style.top);
   pointer('pointermove',bx,by);pointer('pointerup',bx,by);await new Promise(r=>w.setTimeout(r,0));
-  assert.ok(w.diagnostics.some(e=>e.event==='floating-release'&&e.selecting&&e.choice===0));
-  assert.ok(w.diagnostics.some(e=>e.event==='floating-action'&&e.functionKind==='key'));
-  assert.equal(w.actions.length,1);assert.equal(JSON.stringify(w.diagnostics).includes('PRIVATE_KEY'),false);
+  assert.ok(recordedDiagnostics(w).some(e=>e.event==='floating-release'&&e.selecting&&e.choice===0));
+  assert.ok(recordedDiagnostics(w).some(e=>e.event==='floating-action'&&e.functionKind==='key'));
+  assert.equal(w.actions.length,1);assert.equal(JSON.stringify(recordedDiagnostics(w)).includes('PRIVATE_KEY'),false);
  }finally{w.close()}
 });
 
@@ -703,32 +704,32 @@ test('long floating Paste drag offers a fresh button tap without a rejected clip
 test('rapid custom typing starts a fresh contact trace after the earlier diagnostic window expires',async()=>{
  const dom=terminal({keyboardMode:'custom'}),w=dom.window,d=w.document;
  try{
-  w.performance.now=()=>60000;w.diagnostics.length=0;
+  w.performance.now=()=>60000;recordedDiagnostics(w).length=0;
   const q=d.querySelector('.typing-layout:not([hidden]) [data-typing-key="q"]');
   keyboardPointer(w,q,'pointerdown');keyboardPointer(w,q,'pointerup');
   await new Promise(r=>w.setTimeout(r,150));
   assert.deepEqual(w.actions.map(a=>a.text),['q']);
-  const down=w.diagnostics.find(e=>e.event==='key-down'),up=w.diagnostics.find(e=>e.event==='key-up');
+  const down=recordedDiagnostics(w).find(e=>e.event==='key-down'),up=recordedDiagnostics(w).find(e=>e.event==='key-up');
   assert.ok(down?.accepted,'First custom key starts logging even without preceding Hide or Paste');
   assert.equal(down.hit,'keyboard');assert.ok(Number.isFinite(down.x)&&Number.isFinite(down.y));
   assert.ok(up?.accepted&&up.contact&&up.hasKey&&up.matched);
-  assert.ok(w.diagnostics.some(e=>e.event==='input-counts'&&e.inputQueued===1&&e.inputDelivered===1));
+  assert.ok(recordedDiagnostics(w).some(e=>e.event==='input-counts'&&e.inputQueued===1&&e.inputDelivered===1));
  }finally{w.close()}
 });
 
 test('terminal selection adjustment starts a content-free gesture trace without sending input',()=>{
  const dom=terminal({keyboardMode:'custom'}),w=dom.window,d=w.document;
  try{
-  w.performance.now=()=>60000;w.diagnostics.length=0;
+  w.performance.now=()=>60000;recordedDiagnostics(w).length=0;
   const output=d.querySelector('.terminal'),text=output.querySelector('.terminal-row span').firstChild,range=d.createRange();
   range.setStart(text,0);range.setEnd(text,5);w.getSelection().addRange(range);
   d.elementFromPoint=()=>output;
   keyboardPointer(w,output,'pointerdown');keyboardPointer(w,output,'pointermove');keyboardPointer(w,output,'pointerup');
-  const move=w.diagnostics.find(e=>e.event==='pointermove');
+  const move=recordedDiagnostics(w).find(e=>e.event==='pointermove');
   assert.ok(move?.selected&&move.target==='terminal'&&move.hit==='terminal');
   assert.ok(Number.isFinite(move.x)&&Number.isFinite(move.y));
   assert.equal(w.getSelection().toString(),'hello');assert.equal(w.actions.length,0);
-  assert.equal(w.diagnostics.some(e=>['text','value','data'].some(field=>field in e)),false);
+  assert.equal(recordedDiagnostics(w).some(e=>['text','value','data'].some(field=>field in e)),false);
  }finally{w.close()}
 });
 
@@ -770,16 +771,16 @@ test('native terminal selection has visible handles without exposing a second in
 test('raw keyboard touches are traced before delegated pointer handling without sending keys',()=>{
  const dom=terminal({keyboardMode:'custom'}),w=dom.window,d=w.document,key=d.querySelector('[data-typing-key="t"]');
  try{
-  w.performance.now=()=>60000;w.diagnostics.length=0;d.elementFromPoint=()=>key;
+  w.performance.now=()=>60000;recordedDiagnostics(w).length=0;d.elementFromPoint=()=>key;
   for(let id=1;id<=4;id++){
    const point={identifier:id,target:key,clientX:192,clientY:602},down=new w.TouchEvent('touchstart',{bubbles:true,cancelable:true,changedTouches:[point],touches:[point]}),up=new w.TouchEvent('touchend',{bubbles:true,cancelable:true,changedTouches:[point],touches:[]});
    key.dispatchEvent(down);key.dispatchEvent(up);
   }
-  const starts=w.diagnostics.filter(e=>e.event==='touchstart'),ends=w.diagnostics.filter(e=>e.event==='touchend');
+  const starts=recordedDiagnostics(w).filter(e=>e.event==='touchstart'),ends=recordedDiagnostics(w).filter(e=>e.event==='touchend');
   assert.equal(starts.length,4);assert.equal(ends.length,4);assert.deepEqual(starts.map(e=>e.touch),[1,2,3,4]);
   assert.ok(starts.every(e=>e.hasKey&&e.target==='keyboard'&&e.hit==='keyboard'&&e.contacts===1&&Number.isFinite(e.eventAt)));
   assert.ok(ends.every(e=>e.contacts===0));assert.equal(w.actions.length,0);
-  assert.equal(w.diagnostics.some(e=>['text','value','data','key'].some(field=>field in e)),false);
+  assert.equal(recordedDiagnostics(w).some(e=>['text','value','data','key'].some(field=>field in e)),false);
  }finally{w.close()}
 });
 
@@ -837,5 +838,36 @@ test('modifier lock survives native typing and both paste entry points, then dis
   Object.defineProperty(w.navigator,'clipboard',{value:{readText:async()=> 'floating paste'}});d.querySelector('#floatingFunctions [data-function="2"]').click();await new Promise(r=>w.setTimeout(r,0));type('a');await new Promise(r=>w.setTimeout(r,0));
   assert.deepEqual(w.actions.map(a=>a.key??a.text),['Ctrl-d','Ctrl-k','native paste','floating paste','Ctrl-a']);assert.equal(ctrl.classList.contains('locked'),true);
   w.eval('setConnection(false)');assert.equal(d.querySelector('[data-key="Ctrl"]').getAttribute('aria-pressed'),'false');
+ }finally{w.close()}
+});
+
+
+test('raw custom-keyboard trace includes outside contacts, movement and numeric layout bounds',()=>{
+ const dom=terminal({keyboardMode:'custom'}),w=dom.window,d=w.document;
+ try{
+  w.fixture.focusInput();w.fixture.flushInputDiagnostics?.();w.diagnostics.length=0;
+  const root=d.querySelector('#softwareKeyboard'),q=d.querySelector('.typing-layout:not([hidden]) [data-typing-key="q"]');
+  root.getBoundingClientRect=()=>({left:0,top:550,width:428,height:329});q.getBoundingClientRect=()=>({left:1,top:556,width:42,height:58});d.elementFromPoint=()=>d.body;
+  const point=(id,target,x,y)=>({identifier:id,target,clientX:x,clientY:y});
+  const raw=(type,changed,touches,at)=>{const e=new w.TouchEvent(type,{bubbles:true,cancelable:true,changedTouches:changed,touches});Object.defineProperty(e,'timeStamp',{value:at});changed[0].target.dispatchEvent(e)};
+  const outside=point(1,d.body,290,540),inside=point(2,q,20,580);
+  raw('touchstart',[outside],[outside],100);raw('touchstart',[inside],[outside,inside],120);
+  raw('touchmove',[point(1,d.body,295,545)],[outside,inside],140);raw('touchmove',[point(2,q,22,583)],[outside,inside],140);
+  raw('touchend',[outside],[inside],160);raw('touchend',[inside],[],180);w.fixture.flushInputDiagnostics?.();
+  const starts=w.diagnostics.filter(e=>e.event==='touchstart'),moves=w.diagnostics.filter(e=>e.event==='touchmove');
+  assert.deepEqual(starts.map(e=>e.touch),[1,2],'A contact outside the keyboard cannot disappear before order allocation');assert.deepEqual(moves.map(e=>e.touch),[1,2],'Each overlapping finger retains its path');
+  const layout=w.diagnostics.find(e=>e.event==='keyboard-layout');assert.ok(layout);assert.deepEqual(layout.rects[0],[0,550,428,329]);assert.deepEqual(layout.rects[1],[1,556,42,58]);
+  assert.equal(w.actions.length,0);assert.equal(JSON.stringify(w.diagnostics).includes('PRIVATE_'),false);
+ }finally{w.close()}
+});
+
+test('contact diagnostics batch off the input path and flush pending events on page hide',()=>{
+ const dom=terminal({keyboardMode:'custom'}),w=dom.window,d=w.document;
+ try{
+  w.fixture.flushInputDiagnostics?.();w.diagnostics.length=0;w.diagnosticRequests.length=0;
+  const q=d.querySelector('.typing-layout:not([hidden]) [data-typing-key="q"]');keyboardPointer(w,q,'pointerdown',1);keyboardPointer(w,q,'pointerup',1);
+  assert.equal(w.diagnosticRequests.length,0,'Contact handlers must not perform one fetch per event');
+  w.dispatchEvent(new w.Event('pagehide'));assert.equal(w.diagnosticRequests.length,1);assert.ok(Array.isArray(w.diagnosticRequests[0].payload));assert.equal(w.diagnosticRequests[0].keepalive,true);
+  assert.equal(w.diagnostics.filter(e=>e.event==='key-down').length,1);assert.equal(w.diagnostics.filter(e=>e.event==='key-up').length,1);
  }finally{w.close()}
 });
