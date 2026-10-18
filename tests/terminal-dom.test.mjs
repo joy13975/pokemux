@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import { readFileSync } from 'node:fs';
 import { JSDOM, VirtualConsole } from 'jsdom';
 import { RenderGrid } from '../grid.mjs';
+import {KeyboardDecoder,calibrate} from '../keyboard.mjs';
 import { KanaComposer } from '../kana.mjs';
 import { installPopover } from './popover-fixture.mjs';
 const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
@@ -13,21 +14,23 @@ function terminal(saved) {
   w.isSecureContext=true;w.diagnostics=[];w.diagnosticRequests=[];
   w.resizeObservers=[];w.ResizeObserver = class { constructor(callback){this.callback=callback;this.targets=new Set();w.resizeObservers.push(this)} observe(target){this.targets.add(target)} disconnect(){this.targets.clear()} };
   installPopover(w);w.HTMLElement.prototype.setPointerCapture=()=>{};
+  const originalRect=w.HTMLElement.prototype.getBoundingClientRect;
+  w.HTMLElement.prototype.getBoundingClientRect=function(){const button=this.closest('[data-typing-key]');if(this.id==='softwareKeyboard')return {left:0,top:500,width:390,height:300,right:390,bottom:800};if(!button)return originalRect.call(this);const row=button.parentElement,rows=[...row.parentElement.children],buttons=[...row.children],i=buttons.indexOf(button),unit=390/buttons.length,left=i*unit,top=505+rows.indexOf(row)*58;return this===button?{left,top,width:unit,height:58,right:left+unit,bottom:top+58}:{left:left+3,top:top+3,width:unit-6,height:52,right:left+unit-3,bottom:top+55}};
   w.matchMedia = () => ({ matches: true });
   w.visualViewport = { width:390, height: 844, scale: 1, offsetTop: 0, offsetLeft:0, addEventListener() {} };
   w.EventSource = class { constructor() { w.fixtureStream=this; } addEventListener(type,fn) { (this.handlers??={})[type]=fn; } close() { this.closed=true; } };
   w.HTMLDialogElement.prototype.showModal=function(){this.open=true;};
   w.HTMLDialogElement.prototype.show=function(){this.open=true;};
   w.HTMLDialogElement.prototype.close=function(){this.open=false;this.dispatchEvent(new w.Event('close'));};
-  w.__RenderGrid = RenderGrid;w.__KanaComposer=KanaComposer;
+  w.__KeyboardDecoder=KeyboardDecoder;w.__calibrate=calibrate;w.__RenderGrid = RenderGrid;w.__KanaComposer=KanaComposer;
   w.actions=[];w.fetch=async(path,options)=>{if(path==='/api/action')w.actions.push(JSON.parse(options.body));if(path==='/api/client-diagnostic'){const payload=JSON.parse(options.body);w.diagnosticRequests.push({payload,keepalive:!!options.keepalive});w.diagnostics.push(...(Array.isArray(payload)?payload:[payload]))}return {ok:true,status:200,json:async()=>({})};};
   const script = html.split('<script type="module">\n')[1].split('</script>')[0];
   w.eval(script.slice(0, script.lastIndexOf('(async()=>{')) + `
-    RenderGrid=window.__RenderGrid;KanaComposer=window.__KanaComposer;kana=new KanaComposer();
+    KeyboardDecoder=window.__KeyboardDecoder;calibrate=window.__calibrate;RenderGrid=window.__RenderGrid;KanaComposer=window.__KanaComposer;kana=new KanaComposer();
     const fixture=workspace('owned-workspace','Owned workspace',null,'','',[pane('owned-pane',[surface('owned-surface','Owned terminal')])],'owned-window');
     workspaces.push(fixture);current=fixture;selectedWindow=fixture.window;connected=true;
     const initialFrame={format:'cmux.render-grid.v1',render_epoch:'owned-epoch',render_revision:1,full:true,rows:3,columns:30,row_spans:[{row:0,column:0,text:'hello 日本語',cell_width:12}],cursor:{row:0,column:12,visible:true,style:'bar'}};const model=new RenderGrid();model.apply(initialFrame);grids.set('owned-surface',model);
-    render();window.fixture={flushInputDiagnostics:typeof flushInputDiagnostics==='function'?flushInputDiagnostics:undefined,otherTerminal(){fixture.panes[0].tabs.push(surface('owned-surface-two','Other terminal'));const other=new RenderGrid();other.apply(initialFrame);grids.set('owned-surface-two',other);selectSurface('owned-pane','owned-surface-two')},inactivePane(){const other=new RenderGrid();other.apply({...initialFrame,active_screen:'alternate',modes:[{code:1000,on:true,ansi:false}]});grids.set('inactive-surface',other);fixture.panes.push(pane('inactive-pane',[surface('inactive-surface','Other pane')]));const box=document.querySelector('.panebox').cloneNode(true);box.classList.remove('focused');box.querySelector('.terminalwrap').dataset.paneFocus='inactive-pane';box.querySelector('.terminal').dataset.surfaceId='inactive-surface';box.querySelector('.terminal').replaceChildren();document.querySelector('.panegrid').append(box);other.paint(box.querySelector('.terminal'));render();return box.querySelector('.terminalwrap')},metadata(name){fixture.name='Directory changed';if(name)fixture.panes[0].tabs[0].name=name;render()},model,paintTerminal,syncViewport,caretToEnd,focusInput,applyTree};
+    render();window.fixture={displaySettings,flushInputDiagnostics:typeof flushInputDiagnostics==='function'?flushInputDiagnostics:undefined,otherTerminal(){fixture.panes[0].tabs.push(surface('owned-surface-two','Other terminal'));const other=new RenderGrid();other.apply(initialFrame);grids.set('owned-surface-two',other);selectSurface('owned-pane','owned-surface-two')},inactivePane(){const other=new RenderGrid();other.apply({...initialFrame,active_screen:'alternate',modes:[{code:1000,on:true,ansi:false}]});grids.set('inactive-surface',other);fixture.panes.push(pane('inactive-pane',[surface('inactive-surface','Other pane')]));const box=document.querySelector('.panebox').cloneNode(true);box.classList.remove('focused');box.querySelector('.terminalwrap').dataset.paneFocus='inactive-pane';box.querySelector('.terminal').dataset.surfaceId='inactive-surface';box.querySelector('.terminal').replaceChildren();document.querySelector('.panegrid').append(box);other.paint(box.querySelector('.terminal'));render();return box.querySelector('.terminalwrap')},metadata(name){fixture.name='Directory changed';if(name)fixture.panes[0].tabs[0].name=name;render()},model,paintTerminal,syncViewport,caretToEnd,focusInput,applyTree};
   `);
   return dom;
 }
@@ -93,8 +96,8 @@ test('shortcut cancellation and target changes never send a key; accessibility c
 test('emulated keyboard cancels native touch defaults on keys and gaps without losing independent pointer input',async()=>{
  const dom=terminal({keyboardMode:'custom'}),w=dom.window,d=w.document;try{const root=d.querySelector('#softwareKeyboard'),key=root.querySelector('[data-typing-key="p"]'),row=key.parentElement;
  for(const target of [key,key.querySelector('span'),row,root]){const e=new w.Event('touchstart',{bubbles:true,cancelable:true});Object.assign(e,{changedTouches:[],touches:[]});target.dispatchEvent(e);assert.equal(e.defaultPrevented,true,'The keyboard must own the touch rather than leave native page zoom eligible')}
- for(let i=0;i<2;i++){terminalPointer(w,key,'pointerdown');terminalPointer(w,key,'pointerup')}
- const other=root.querySelector('[data-typing-key="o"]');terminalPointer(w,key,'pointerdown');terminalPointer(w,other,'pointerdown',70,10,{pointerId:2,isPrimary:false});terminalPointer(w,key,'pointerup');terminalPointer(w,other,'pointerup',70,10,{pointerId:2,isPrimary:false});await new Promise(r=>w.setTimeout(r,0));assert.equal(w.actions.map(a=>a.text).join(''),'pppo');
+ for(let i=0;i<2;i++){keyboardPointer(w,key,'pointerdown');keyboardPointer(w,key,'pointerup')}
+ const other=root.querySelector('[data-typing-key="o"]');keyboardPointer(w,key,'pointerdown');keyboardPointer(w,other,'pointerdown',2);keyboardPointer(w,key,'pointerup');keyboardPointer(w,other,'pointerup',2);await new Promise(r=>w.setTimeout(r,0));assert.equal(w.actions.map(a=>a.text).join(''),'pppo');
  }finally{w.close()}
 });
 test('metadata refresh retains a pressed shortcut, modifier cycle and rail scroll without losing native focus',()=>{
@@ -364,7 +367,7 @@ test('drag-out-and-back, a secondary contact and a pinch release never engage ty
  for(const kind of ['excursion','secondary','pinch']){const dom=terminal(),w=dom.window,d=w.document,wrap=d.querySelector('.terminalwrap');try{w.HTMLElement.prototype.setPointerCapture=()=>{};const pointer=(type,x=100,primary=true)=>{const e=new w.Event(type,{bubbles:true,cancelable:true});Object.assign(e,{pointerId:1,button:0,isPrimary:primary,clientX:x,clientY:300});wrap.dispatchEvent(e)};pointer('pointerdown');if(kind==='excursion'){pointer('pointermove',250);pointer('pointermove',101)}if(kind==='pinch')d.querySelector('#content').dataset.swiped='true';pointer('pointerup',101,kind!=='secondary');wrap.dispatchEvent(new w.MouseEvent('click',{bubbles:true,detail:1}));assert.notEqual(d.activeElement,d.querySelector('.terminal'),kind+' must preserve reading mode')}finally{w.close()}}
 });
 
-function keyboardPointer(w,button,type,id=1){const e=new w.Event(type,{bubbles:true,cancelable:true});Object.assign(e,{pointerId:id,button:0,isPrimary:id===1,clientX:20,clientY:20});button.dispatchEvent(e)}
+function keyboardPointer(w,button,type,id=1){let hit=button.closest('[data-typing-key]')||button;if(type==='pointermove'&&w.document.elementFromPoint)hit=w.document.elementFromPoint(0,0);const r=hit.getBoundingClientRect();let x=hit===w.document.body?-100:r.left+r.width/2,y=hit===w.document.body?-100:r.top+r.height/2;w.keyboardPoints??=new Map();if(type==='pointerup'&&w.keyboardPoints.has(id))[x,y]=w.keyboardPoints.get(id);if(type==='pointerdown'||type==='pointermove')w.keyboardPoints.set(id,[x,y]);else w.keyboardPoints.delete(id);const e=new w.Event(type,{bubbles:true,cancelable:true});Object.assign(e,{pointerId:id,button:0,isPrimary:id===1,clientX:x,clientY:y});button.dispatchEvent(e)}
 function keyboardTap(w,value,id=1){const b=w.document.querySelector(`[data-typing-key="${value}"]`);assert.ok(b,`Keyboard key ${value} exists`);keyboardPointer(w,b,'pointerdown',id);keyboardPointer(w,b,'pointerup',id);b.dispatchEvent(new w.MouseEvent('click',{bubbles:true,cancelable:true,detail:1}));}
 test('custom keyboard owns typing while terminal retains native selection; dismissal and one tap reopen it',async()=>{
  const dom=terminal({keyboardMode:'custom'}),w=dom.window,d=w.document;
@@ -562,7 +565,7 @@ test('language activation stays open through release and compatibility click and
 test('custom key contacts survive key gaps, retarget on another key, and cancel outside the keyboard',async()=>{
  const dom=terminal({keyboardMode:'custom'}),w=dom.window,d=w.document;
  try{
-  w.fixture.focusInput();const a=d.querySelector('[data-typing-key="a"]'),b=d.querySelector('[data-typing-key="b"]'),layout=a.closest('.typing-layout');
+  w.fixture.focusInput();const a=d.querySelector('[data-typing-key="a"]'),b=d.querySelector('[data-typing-key="b"]'),layout=a.closest('.typing-layout');layout.getBoundingClientRect=()=>a.getBoundingClientRect();
   for(let n=0;n<10;n++){keyboardPointer(w,a,'pointerdown');if(n%5===4){d.elementFromPoint=()=>layout;keyboardPointer(w,a,'pointermove')}keyboardPointer(w,a,'pointerup')}
   keyboardPointer(w,a,'pointerdown');d.elementFromPoint=()=>b;keyboardPointer(w,a,'pointermove');keyboardPointer(w,a,'pointerup');
   keyboardPointer(w,a,'pointerdown');d.elementFromPoint=()=>d.body;keyboardPointer(w,a,'pointermove');keyboardPointer(w,a,'pointerup');
@@ -951,4 +954,50 @@ test('unsaved floating controls use the keyboard footer instead of covering lett
 test('keyboard-footer defaults preserve positions explicitly dragged by the user',()=>{
  const dom=terminal({keyboardMode:'custom',keyboardDefaultVersion:1,floatingPosition:[.25,.35],joystickPosition:[.75,.55]}),w=dom.window,d=w.document;
  try{w.fixture.focusInput();d.querySelector('.typing-layout:not([hidden]) .typing-row:last-child').getBoundingClientRect=()=>({bottom:700});w.fixture.syncViewport();assert.equal(parseFloat(d.querySelector('#floatingFunctions').style.top)+22,.35*844);assert.equal(parseFloat(d.querySelector('#cursorJoystick').style.top)+22,.55*844)}finally{w.close()}
+});
+
+test('spatial keyboard shows independent enlarged accepted-key previews and commits overlapping contacts once',async()=>{
+ const dom=terminal({keyboardMode:'custom'}),w=dom.window,d=w.document;
+ try{w.fixture.focusInput();const q=d.querySelector('[data-typing-key="q"]'),p=d.querySelector('[data-typing-key="p"]');keyboardPointer(w,q,'pointerdown',1);keyboardPointer(w,p,'pointerdown',2);assert.deepEqual([...d.querySelectorAll('.typing-preview')].map(e=>e.textContent),['q','p']);assert.ok([...d.querySelectorAll('.typing-preview')].every(e=>e.getAttribute('aria-hidden')==='true'));keyboardPointer(w,p,'pointerup',2);assert.deepEqual([...d.querySelectorAll('.typing-preview')].map(e=>e.textContent),['q']);keyboardPointer(w,q,'pointerup',1);await new Promise(r=>w.setTimeout(r,0));assert.deepEqual(w.actions.map(a=>a.text),['p','q']);assert.equal(d.querySelector('.typing-preview'),null)}finally{w.close()}
+});
+
+test('English boundary guess is previewed before release; symbols, modifiers, settings and target changes stay literal',async()=>{
+ const dom=terminal({keyboardMode:'custom'}),w=dom.window,d=w.document;
+ try{w.fixture.focusInput();const boundary=()=>{const g=d.querySelector('[data-typing-key="g"]'),h=d.querySelector('[data-typing-key="h"]'),a=g.firstElementChild.getBoundingClientRect(),b=h.firstElementChild.getBoundingClientRect();return {target:g,x:(a.left+a.width/2+b.left+b.width/2)/2-.4,y:a.top+a.height/2}},at=({target,x,y},type,id=2)=>{const event=new w.Event(type,{bubbles:true,cancelable:true});Object.assign(event,{pointerId:id,button:0,isPrimary:id===1,clientX:x,clientY:y});target.dispatchEvent(event)};
+  keyboardTap(w,'t');at(boundary(),'pointerdown');assert.equal(d.querySelector('.typing-preview').textContent,'h');at(boundary(),'pointerup');
+  d.querySelector('[data-key="Ctrl"]').click();at(boundary(),'pointerdown');assert.equal(d.querySelector('.typing-preview').textContent,'g');at(boundary(),'pointerup');
+  keyboardTap(w,'t');w.fixture.otherTerminal();at(boundary(),'pointerdown');assert.equal(d.querySelector('.typing-preview').textContent,'g');at(boundary(),'pointerup');
+  keyboardTap(w,'123');keyboardTap(w,'#+=');keyboardTap(w,'|');await new Promise(r=>w.setTimeout(r,0));assert.deepEqual(w.actions.map(a=>a.key||a.text),['t','h','Ctrl-g','t','g','|']);
+ }finally{w.close()}
+});
+
+test('guided thumb calibration captures known targets locally, restores typing, and settings reset it',async()=>{
+ const dom=terminal({keyboardMode:'custom',englishGuesser:false}),w=dom.window,d=w.document;
+ try{w.fixture.displaySettings();d.querySelector('#calibrateThumbs').click();assert.equal(d.querySelector('#softwareKeyboard').hidden,false);assert.equal(d.querySelector('#dialog').open,false);for(const key of ['f','j','r','u','v','n','t','y']){assert.ok(d.querySelector('#keyboardCoach').textContent.includes(key.toUpperCase()));const b=d.querySelector(`[data-typing-key="${key}"]`),r=b.firstElementChild.getBoundingClientRect();for(const type of ['pointerdown','pointerup']){const event=new w.Event(type,{bubbles:true,cancelable:true});Object.assign(event,{pointerId:3,button:0,isPrimary:true,clientX:r.left+r.width/2+4,clientY:r.top+r.height/2+3});b.dispatchEvent(event)}}assert.equal(d.querySelector('#keyboardCoach').hidden,true);await new Promise(r=>w.setTimeout(r,0));assert.equal(w.actions.length,0,'Calibration taps never reach cmux');assert.ok(JSON.parse(w.localStorage.getItem('cmux-pocket-customizations')).thumbOffsets.left.x>0);keyboardTap(w,'a');await new Promise(r=>w.setTimeout(r,0));assert.equal(w.actions.at(-1).text,'a');const g=d.querySelector('[data-typing-key="g"]'),h=d.querySelector('[data-typing-key="h"]'),a=g.firstElementChild.getBoundingClientRect(),b=h.firstElementChild.getBoundingClientRect(),x=(a.left+a.width/2+b.left+b.width/2)/2+2,y=a.top+a.height/2+3;const boundary=()=>{for(const type of ['pointerdown','pointerup']){const e=new w.Event(type,{bubbles:true,cancelable:true});Object.assign(e,{pointerId:4,button:0,isPrimary:true,clientX:x,clientY:y});h.dispatchEvent(e)}};boundary();await new Promise(r=>w.setTimeout(r,0));assert.equal(w.actions.at(-1).text,'g','Known rightward thumb offset resolves the intended g');w.fixture.displaySettings();assert.equal(d.querySelector('#resetThumbs').disabled,false);d.querySelector('#resetThumbs').click();assert.equal(d.querySelector('#resetThumbs').disabled,true);d.querySelector('#dialogClose').click();w.fixture.focusInput();boundary();await new Promise(r=>w.setTimeout(r,0));assert.equal(w.actions.at(-1).text,'h','Reset affects the live decoder at the same touch coordinates');w.fixture.displaySettings();d.querySelector('#englishGuesser').checked=false;d.querySelector('#englishGuesser').dispatchEvent(new w.Event('change'));assert.equal(JSON.parse(w.localStorage.getItem('cmux-pocket-customizations')).englishGuesser,false)}finally{w.close()}
+});
+
+test('external Backspace deletes English context before the next ambiguous touch',async()=>{
+ for(const source of ['hardware','floating']){const dom=terminal({keyboardMode:'custom',floatingFunctions:['key:Backspace','recent','paste','keyboard']}),w=dom.window,d=w.document;
+ try{w.fixture.focusInput();keyboardTap(w,'t');await new Promise(r=>w.setTimeout(r,0));if(source==='hardware')d.querySelector('.terminal').dispatchEvent(new w.KeyboardEvent('keydown',{key:'Backspace',bubbles:true,cancelable:true}));else{d.querySelector('#floatingHandle').click();d.querySelector('[data-function="0"]').click()}await new Promise(r=>w.setTimeout(r,0));assert.equal(w.actions.at(-1).key,'Backspace');const g=d.querySelector('[data-typing-key="g"]'),h=d.querySelector('[data-typing-key="h"]'),a=g.firstElementChild.getBoundingClientRect(),b=h.firstElementChild.getBoundingClientRect(),x=(a.left+a.width/2+b.left+b.width/2)/2-.4,y=a.top+a.height/2;for(const type of ['pointerdown','pointerup']){const e=new w.Event(type,{bubbles:true,cancelable:true});Object.assign(e,{pointerId:2,button:0,isPrimary:false,clientX:x,clientY:y});g.dispatchEvent(e)}await new Promise(r=>w.setTimeout(r,0));assert.equal(w.actions.at(-1).text,'g',source+' must clear the deleted t from prediction')
+ }finally{w.close()}}
+});
+
+test('a native slide release uses its final key even when WebKit omits pointermove',async()=>{
+ const dom=terminal({keyboardMode:'custom'}),w=dom.window,d=w.document;
+ try{const g=d.querySelector('[data-typing-key="g"]'),h=d.querySelector('[data-typing-key="h"]');for(const [type,key]of [['pointerdown',g],['pointerup',h]]){const r=key.firstElementChild.getBoundingClientRect(),e=new w.Event(type,{bubbles:true,cancelable:true});Object.assign(e,{pointerId:31,button:0,isPrimary:true,clientX:r.left+r.width/2,clientY:r.top+r.height/2});g.dispatchEvent(e)}await new Promise(r=>w.setTimeout(r,0));assert.deepEqual(w.actions.map(a=>a.text),['h'])}finally{w.close()}
+});
+
+test('entering a fullscreen TUI clears primary-screen scroll so its header stays visible',()=>{
+ const dom=terminal({keyboardMode:'custom'}),w=dom.window,d=w.document;
+ try{const wrap=d.querySelector('.terminalwrap');wrap.scrollTop=300;w.fixture.model.apply({format:'cmux.render-grid.v1',render_epoch:'owned-epoch',render_revision:2,full:true,active_screen:'alternate',rows:3,columns:30,row_spans:[{row:0,column:0,text:'TUI header'}],cursor:{row:2,column:0,visible:true,style:'bar'}});w.fixture.paintTerminal();assert.equal(wrap.scrollTop,0)}finally{w.close()}
+});
+
+test('enlarged edge-key feedback stays inside a short visual viewport',()=>{
+ const dom=terminal({keyboardMode:'custom'}),w=dom.window,d=w.document;
+ try{const root=d.querySelector('#softwareKeyboard'),q=d.querySelector('[data-typing-key="q"]');root.getBoundingClientRect=()=>({left:0,top:20,width:390,height:300});q.getBoundingClientRect=()=>({left:0,top:22,width:39,height:58});q.firstElementChild.getBoundingClientRect=()=>({left:3,top:25,width:33,height:52});keyboardPointer(w,q,'pointerdown');const preview=d.querySelector('.typing-preview');assert.ok(preview);assert.ok(20+parseFloat(preview.style.top)>=w.visualViewport.offsetTop);assert.ok(parseFloat(preview.style.left)>=0);assert.ok(parseFloat(preview.style.left)+64<=390);keyboardPointer(w,q,'pointerup')}finally{w.close()}
+});
+
+test('ordinary typing preserves key label nodes unless a one-shot modifier changes their displayed case',async()=>{
+ const dom=terminal({keyboardMode:'custom'}),w=dom.window,d=w.document;
+ try{const a=d.querySelector('[data-typing-key="a"] .typing-keycap'),label=a.firstChild;keyboardTap(w,'a');assert.equal(a.firstChild,label,'Unchanged keyboard labels must not be rewritten per input');keyboardTap(w,'Shift');assert.equal(a.textContent,'A');keyboardTap(w,'a');assert.equal(a.textContent,'a');const unshifted=a.firstChild;keyboardTap(w,'a');assert.equal(a.firstChild,unshifted);await new Promise(r=>w.setTimeout(r,0));assert.deepEqual(w.actions.map(a=>a.text),['a','A','a'])}finally{w.close()}
 });

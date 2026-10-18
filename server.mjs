@@ -8,6 +8,8 @@ const assets = new Map([
   ['/setup', ['setup.html', 'text/html; charset=utf-8']],
   ['/setup.mjs', ['setup.mjs', 'text/javascript']],
   ['/grid.mjs', ['grid.mjs', 'text/javascript']],
+  ['/keyboard.mjs', ['keyboard.mjs', 'text/javascript']],
+  ['/vendor/english/model.mjs', ['vendor/english/model.mjs', 'text/javascript']],
   ['/vendor/symbols/NotoSansSymbols2-Regular.ttf', ['vendor/symbols/NotoSansSymbols2-Regular.ttf', 'font/ttf']],
   ['/vendor/powerline/PowerlineSymbols.otf', ['vendor/powerline/PowerlineSymbols.otf', 'font/otf']],
   ['/kana.mjs', ['kana.mjs', 'text/javascript']],

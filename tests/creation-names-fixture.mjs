@@ -77,7 +77,7 @@ server.on('request',(req,res)=>{
  if(!['localhost:4395','127.0.0.1:4395'].includes(req.headers.host)){res.writeHead(403);res.end();return}
  if(process.env.POKEMUX_CANARY_TRACE==='1'&&req.url==='/__input-trace'){let body='';req.on('data',chunk=>body+=chunk);req.on('end',()=>{console.log('Input trace: '+body);res.end('{}')});return}
  if(process.env.POKEMUX_CANARY_TRACE==='1'&&req.url==='/'){
-  const end=res.end.bind(res);res.end=(body,...args)=>end(String(body).replace('</head>',`<script>for(const type of ['pointerdown','pointerup','click','focusin','focusout'])document.addEventListener(type,e=>{const target=e.target.id||e.target.dataset?.typingKey||e.target.tagName,detail=e.detail;setTimeout(()=>fetch('/__input-trace',{method:'POST',body:JSON.stringify({type,target,detail,hidden:document.querySelector('#softwareKeyboard')?.hidden,focus:document.activeElement.className})}),0)},true)</script></head>`),...args);
+  const end=res.end.bind(res);res.end=(body,...args)=>end(String(body).replace('</head>',`<script>const traceStarts=new WeakMap();for(const type of ['pointerdown','pointerup','click','focusin','focusout']){document.addEventListener(type,e=>traceStarts.set(e,performance.now()),true);document.addEventListener(type,e=>{const target=e.target.id||e.target.dataset?.typingKey||e.target.tagName,detail=e.detail,dispatchMs=performance.now()-traceStarts.get(e);setTimeout(()=>fetch('/__input-trace',{method:'POST',body:JSON.stringify({type,target,detail,dispatchMs,hidden:document.querySelector('#softwareKeyboard')?.hidden,focus:document.activeElement.className})}),0)})}</script></head>`),...args);
  }
  if(req.url==='/fixture'){res.writeHead(302,{'Set-Cookie':auth.cookie(id),Location:`/#${window.id}/${workspaceId}/${surfaceId}`});res.end();}
  else {

@@ -9,11 +9,44 @@ export function cursorOffset(text, column) {
 export class RenderGrid {
   revision = 0;
   history = [];
-  cellAt(element, x, y) {
+  cellAt(element, x, y, includeHistory = false) {
     if (element.paintedGrid !== `${this.epoch}/${this.revision}` || !element.firstElementChild) return null;
     const box = element.getBoundingClientRect(), line = element.firstElementChild.getBoundingClientRect();
     const col = Math.floor((x - box.left) / (box.width / this.columns)), row = Math.floor((y - line.top) / line.height) - (this.activeScreen === 'alternate' ? 0 : this.history.length);
-    return col >= 0 && col < this.columns && row >= 0 && row < this.rows ? { col, row } : null;
+    return col >= 0 && col < this.columns && row >= (includeHistory && this.activeScreen !== 'alternate' ? -this.history.length : 0) && row < this.rows ? { col, row } : null;
+  }
+  urlAt(element, x, y) {
+    const cell = this.cellAt(element, x, y, true);
+    if (!cell) return null;
+    const spans = cell.row < 0 ? this.history[this.history.length + cell.row] : this.screen[cell.row];
+    let text = '', column = 0, hit = -1;
+    const cells = [];
+    for (const span of spans) {
+      if (span.column < column) return null;
+      text += ' '.repeat(span.column - column); column = span.column;
+      const start = column;
+      for (const { segment } of segments.segment(span.text)) {
+        const size = width(segment), index = text.length;
+        if (cell.col >= column && cell.col < column + size && !span.style?.invisible) hit = index;
+        cells.push({ index, column, end: column + size });
+        text += span.style?.invisible ? ' '.repeat(segment.length) : segment;
+        column += size;
+      }
+      if (column - start !== span.cell_width) return null;
+    }
+    for (const match of text.matchAll(/https?:\/\/[^\s<>"'`\\]+/giu)) {
+      if (match.index && /[\p{L}\p{N}_:/\\@.-]/u.test(text[match.index - 1])) continue;
+      if (text[match.index + match[0].length] === '\\') continue;
+      let value = match[0].replace(/[.,;:!?]+$/u, '');
+      for (const [open, close] of [['(', ')'], ['[', ']'], ['{', '}']]) while (value.endsWith(close) && value.split(close).length > value.split(open).length) value = value.slice(0, -1);
+      const end = match.index + value.length, last = cells.findLast(item => item.index < end);
+      // The grid has no soft-wrap metadata, so an edge-truncated destination is ambiguous.
+      if (hit < match.index || hit >= end || !last || last.end >= this.columns) continue;
+      let url;
+      try { url = new URL(value); } catch (error) { if (error instanceof TypeError) continue; throw error; }
+      if (['http:', 'https:'].includes(url.protocol) && url.hostname) return url.href;
+    }
+    return null;
   }
   apply(frame) {
     if (frame.format !== 'cmux.render-grid.v1' || !Array.isArray(frame.row_spans) || frame.rows < 1 || frame.columns < 1) throw new Error('Invalid cmux render grid');
