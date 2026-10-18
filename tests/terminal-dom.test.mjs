@@ -77,12 +77,44 @@ test('swipe without a follow-up click cannot swallow the next dialog action',asy
     assert.equal(w.actions.length,1);assert.equal(w.actions[0].key,'Tab');
   } finally {w.close()}
 });
+test('native shortcut touch completes before a retargeted compatibility click, without duplicate keys or drag activation',async()=>{
+ const dom=terminal(),w=dom.window,d=w.document,output=d.querySelector('.terminal');try{output.focus();const ctrl=d.querySelector('.inputdock [data-key="Ctrl"]'),glyph=ctrl.querySelector('path'),rail=ctrl.closest('.inputdock');
+  const touch=new w.Event('touchstart',{bubbles:true,cancelable:true});Object.defineProperty(touch,'changedTouches',{value:[]});Object.defineProperty(touch,'touches',{value:[]});glyph.dispatchEvent(touch);assert.equal(touch.defaultPrevented,true,'Stop the native touch from producing a focus-changing mouse sequence');
+  for(const state of ['once','locked','released']){terminalPointer(w,glyph,'pointerdown');terminalPointer(w,glyph,'pointerup');assert.equal(ctrl.classList.contains('active'),state!=='released');assert.equal(ctrl.classList.contains('locked'),state==='locked');ctrl.dispatchEvent(new w.MouseEvent('click',{bubbles:true,cancelable:true,detail:1}));assert.equal(ctrl.classList.contains('locked'),state==='locked','A compatibility click must not activate twice');assert.equal(d.activeElement,output)}
+  const key=d.querySelector('.inputdock [data-key="Ctrl-A"]');terminalPointer(w,key,'pointerdown');terminalPointer(w,key,'pointerup');key.dispatchEvent(new w.MouseEvent('click',{bubbles:true,cancelable:true,detail:1}));await new Promise(r=>w.setTimeout(r,0));assert.deepEqual(w.actions.map(a=>a.key),['Ctrl-A']);
+  terminalPointer(w,ctrl,'pointerdown');terminalPointer(w,ctrl,'pointermove',80,10);terminalPointer(w,ctrl,'pointerup',80,10);ctrl.dispatchEvent(new w.MouseEvent('click',{bubbles:true,cancelable:true,detail:1}));assert.equal(ctrl.classList.contains('active'),false);assert.equal(d.activeElement,output);assert.ok(rail.isConnected);
+ }finally{w.close()}
+});
+test('shortcut cancellation and target changes never send a key; accessibility clicks still activate',async()=>{
+ const dom=terminal(),w=dom.window,d=w.document;try{const ctrl=d.querySelector('.inputdock [data-key="Ctrl"]');terminalPointer(w,ctrl,'pointerdown');terminalPointer(w,ctrl,'pointercancel');terminalPointer(w,ctrl,'pointerup');assert.equal(ctrl.classList.contains('active'),false);const displaced=d.querySelector('.inputdock [data-key="Tab"]');terminalPointer(w,displaced,'pointerdown');terminalPointer(w,displaced,'pointerup',200,100);displaced.dispatchEvent(new w.MouseEvent('click',{bubbles:true,cancelable:true,detail:1}));await new Promise(r=>w.setTimeout(r,0));assert.equal(w.actions.length,0,'A displaced release without a delivered move is still a drag');ctrl.click();assert.equal(ctrl.classList.contains('active'),true);ctrl.click();assert.equal(ctrl.classList.contains('locked'),true);ctrl.click();
+ const key=d.querySelector('.inputdock [data-key="Tab"]');terminalPointer(w,key,'pointerdown');w.fixture.otherTerminal();terminalPointer(w,key,'pointerup');await new Promise(r=>w.setTimeout(r,0));assert.equal(w.actions.length,0,'A completed contact cannot jump to the newly selected terminal');
+ }finally{w.close()}
+});
+test('emulated keyboard cancels native touch defaults on keys and gaps without losing independent pointer input',async()=>{
+ const dom=terminal({keyboardMode:'custom'}),w=dom.window,d=w.document;try{const root=d.querySelector('#softwareKeyboard'),key=root.querySelector('[data-typing-key="p"]'),row=key.parentElement;
+ for(const target of [key,key.querySelector('span'),row,root]){const e=new w.Event('touchstart',{bubbles:true,cancelable:true});Object.assign(e,{changedTouches:[],touches:[]});target.dispatchEvent(e);assert.equal(e.defaultPrevented,true,'The keyboard must own the touch rather than leave native page zoom eligible')}
+ for(let i=0;i<2;i++){terminalPointer(w,key,'pointerdown');terminalPointer(w,key,'pointerup')}
+ const other=root.querySelector('[data-typing-key="o"]');terminalPointer(w,key,'pointerdown');terminalPointer(w,other,'pointerdown',70,10,{pointerId:2,isPrimary:false});terminalPointer(w,key,'pointerup');terminalPointer(w,other,'pointerup',70,10,{pointerId:2,isPrimary:false});await new Promise(r=>w.setTimeout(r,0));assert.equal(w.actions.map(a=>a.text).join(''),'pppo');
+ }finally{w.close()}
+});
 test('metadata refresh retains a pressed shortcut, modifier cycle and rail scroll without losing native focus',()=>{
  const dom=terminal(),w=dom.window,d=w.document;
  try{const output=d.querySelector('.terminal');output.focus();const ctrl=d.querySelector('.inputdock [data-key="Ctrl"]'),rail=d.querySelector('.inputdock'),keys=rail.querySelector('.keygroups');keys.scrollLeft=67;
-  for(const state of ['once','locked','released']){terminalPointer(w,ctrl,'pointerdown');w.fixture.metadata('Changed tab title');assert.equal(d.querySelector('.inputdock [data-key="Ctrl"]'),ctrl,'An active contact must retain its button');assert.equal(keys.scrollLeft,67);terminalPointer(w,ctrl,'pointerup');ctrl.click();assert.equal(ctrl.classList.contains('active'),state!=='released');assert.equal(ctrl.classList.contains('locked'),state==='locked');assert.equal(d.activeElement,output)}
+  for(const state of ['once','locked','released']){terminalPointer(w,ctrl,'pointerdown');w.fixture.metadata('Changed tab title');assert.equal(d.querySelector('.inputdock [data-key="Ctrl"]'),ctrl,'An active contact must retain its button');assert.equal(keys.scrollLeft,67);terminalPointer(w,ctrl,'pointerup');ctrl.dispatchEvent(new w.MouseEvent('click',{bubbles:true,cancelable:true,detail:1}));assert.equal(ctrl.classList.contains('active'),state!=='released');assert.equal(ctrl.classList.contains('locked'),state==='locked');assert.equal(d.activeElement,output)}
   const taps=recordedDiagnostics(w).filter(row=>row.event==='pointerdown');assert.equal(taps.length,3);assert.ok(taps.every(row=>row.target==='shortcut'&&row.mode==='native'),'Shortcut taps start their own content-free capture window');
-  terminalPointer(w,ctrl,'pointerdown');terminalPointer(w,ctrl,'pointermove',42,30);w.fixture.metadata();terminalPointer(w,ctrl,'pointerup',42,30);ctrl.click();assert.equal(ctrl.classList.contains('active'),false,'A metadata refresh must not turn a drag into a shortcut');
+  terminalPointer(w,ctrl,'pointerdown');terminalPointer(w,ctrl,'pointermove',42,30);w.fixture.metadata();terminalPointer(w,ctrl,'pointerup',42,30);ctrl.dispatchEvent(new w.MouseEvent('click',{bubbles:true,cancelable:true,detail:1}));assert.equal(ctrl.classList.contains('active'),false,'A metadata refresh must not turn a drag into a shortcut');
+ }finally{w.close()}
+});
+test('pull-to-refresh keeps its armed arrow orientation while the page reload is pending',()=>{
+ const dom=terminal(),w=dom.window,d=w.document;try{const header=d.querySelector('.workspacehead'),mark=d.querySelector('.pullmark');terminalPointer(w,header,'pointerdown',150,30);terminalPointer(w,header,'pointermove',150,150);const armed=w.getComputedStyle(mark);assert.equal(d.querySelector('#pullLabel').textContent,'Release to refresh');const transform=armed.transform,animation=armed.animation;terminalPointer(w,header,'pointerup',150,150);assert.equal(d.querySelector('#pullLabel').textContent,'Refreshing…');const released=w.getComputedStyle(mark);assert.equal(released.transform,transform);assert.equal(released.animation,animation,'Release must not start spinning the arrow');
+ }finally{w.close()}
+});
+test('pull-to-refresh recognizes a displaced release even when no intermediate move is delivered',()=>{
+ const dom=terminal(),w=dom.window,d=w.document;try{const header=d.querySelector('.workspacehead');terminalPointer(w,header,'pointerdown',150,30);terminalPointer(w,header,'pointerup',150,150);assert.equal(d.querySelector('#pullLabel').textContent,'Refreshing…');assert.equal(d.querySelector('#pullIndicator').hidden,false);
+ }finally{w.close()}
+});
+test('closing the final workspace detaches its terminal stream and keyboard before empty-state rendering',async()=>{
+ const dom=terminal({keyboardMode:'custom'}),w=dom.window,d=w.document;try{const stream=w.fixtureStream;w.fixture.applyTree({notifications:[],windows:[{id:'owned-window',groups:[],workspaces:[]}]});assert.equal(stream.closed,true,'A removed terminal must stop its stream');assert.equal(d.querySelector('#softwareKeyboard').hidden,true);assert.equal(d.querySelector('#cursorJoystick').hidden,true);await stream.onerror();assert.equal(d.querySelector('#toast').classList.contains('show'),false,'The closed workspace is not a connection interruption');assert.equal(w.actions.length,0);
  }finally{w.close()}
 });
 test('metadata repaint preserves terminal DOM, native focus, text selection and reading scroll position', () => {

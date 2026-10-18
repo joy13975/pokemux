@@ -4,6 +4,8 @@ import { createServer } from 'node:net';
 import { createInterface } from 'node:readline';
 import { randomUUID } from 'node:crypto';
 import { CmuxBridge } from '../bridge.mjs';
+import { mkdir } from 'node:fs/promises';
+await mkdir(new URL('../state/',import.meta.url),{recursive:true});
 const until = async predicate => { const end = Date.now() + 3000; while (!predicate()) { assert.ok(Date.now() < end, 'local mirror made progress'); await new Promise(r => setTimeout(r, 10)); } };
 test('completed taps reach only the explicitly targeted native mouse cell and reject missing or invalid geometry',async()=>{
  const workspace_id=randomUUID(),surface_id=randomUUID(),bridge=new CmuxBridge(),received=[];

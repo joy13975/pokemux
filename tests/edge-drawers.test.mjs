@@ -55,7 +55,7 @@ test('queued close notifications from modal settlement do not restyle the newly 
 });
 test('native touch cancellation is restricted to a single edge contact',()=>{
  const dom=terminal(),w=dom.window,d=w.document;
- try{for(const [target,count,prevented] of [[d.querySelector('[data-edge="left"]'),1,true],[d.querySelector('.terminalwrap'),1,false],[d.querySelector('[data-edge="right"]'),2,false]]){const event=new w.Event('touchstart',{bubbles:true,cancelable:true});event.touches=Array.from({length:count},()=>({clientX:2,clientY:200}));target.dispatchEvent(event);assert.equal(event.defaultPrevented,prevented)}}finally{w.close()}
+ try{for(const [target,count,prevented] of [[d.querySelector('[data-edge="left"]'),1,true],[d.querySelector('.terminalwrap'),1,false],[d.querySelector('[data-edge="right"]'),2,false]]){const event=new w.Event('touchstart',{bubbles:true,cancelable:true});event.touches=Array.from({length:count},()=>({clientX:2,clientY:200}));event.changedTouches=event.touches;target.dispatchEvent(event);assert.equal(event.defaultPrevented,prevented)}}finally{w.close()}
 });
 test('drawer drag release cannot activate its starting button and never swallows the next fresh tap',()=>{
  const dom=terminal(),w=dom.window,d=w.document;

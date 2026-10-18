@@ -5,6 +5,16 @@ import vm from 'node:vm';
 import {JSDOM} from 'jsdom';
 import {CmuxBridge} from '../bridge.mjs';
 const html=readFileSync(new URL('../index.html',import.meta.url),'utf8');
+test('workspace close sends confirmation only after the red button; Cancel does not close',async()=>{
+ const f=fixture();try{vm.runInContext(html.slice(html.indexOf('function workspaceMenu('),html.indexOf('function newWorkspaceMenu(')),f.ctx);const workspace={id:'busy-workspace',window:'window',name:'Busy',group:null};
+  f.ctx.workspaceMenu(workspace);f.$('closeWorkspace').click();assert.equal(f.calls.length,0);f.$('cancel').click();assert.equal(f.$('dialog').open,false);assert.equal(f.calls.length,0);
+  f.ctx.workspaceMenu(workspace);f.$('closeWorkspace').click();f.ctx.current={id:'other-workspace'};await f.$('closeConfirmed').onclick();assert.deepEqual(f.calls,[{path:'manage',body:{action:'close-workspace',window_id:'window',workspace_id:workspace.id,confirmed:true}}]);assert.equal(f.$('dialog').open,false);
+ }finally{f.dom.window.close()}
+});
+test('only explicit confirmation permits closing a busy native workspace',async()=>{
+ const bridge=new CmuxBridge(),closed=[];bridge.tree=async()=>({windows:[{id:'window',groups:[],workspaces:[{id:'busy'}]}]});bridge.rpc=async(method,params)=>{assert.equal(method,'workspace.close');if(params.force!==true)throw new Error('confirmation_required');closed.push(params.workspace_id);return{workspace_id:params.workspace_id}};
+ try{const request={action:'close-workspace',window_id:'window',workspace_id:'busy'};for(const extra of [{},{force:true},{confirmed:'true'}]){await assert.rejects(bridge.manage({...request,...extra}),/confirmation_required/);assert.equal(closed.length,0)}await bridge.manage({...request,confirmed:true});assert.deepEqual(closed,['busy'])}finally{bridge.close()}
+});
 function fixture(){
  const dom=new JSDOM(html),document=dom.window.document,$=id=>document.getElementById(id),calls=[];
  const current={id:'workspace',window:'window',group:'group',panes:[{id:'pane',tabs:[{id:'created-tab'}]}]};

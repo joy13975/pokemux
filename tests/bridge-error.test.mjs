@@ -5,6 +5,8 @@ import { createInterface } from 'node:readline';
 import { randomUUID } from 'node:crypto';
 import { inspect } from 'node:util';
 import { CmuxBridge } from '../bridge.mjs';
+import { mkdir } from 'node:fs/promises';
+await mkdir(new URL('../state/',import.meta.url),{recursive:true});
 test('local socket rejection reports the operation but cannot expose pasted terminal text', async () => {
   const privateText='private-pasted-fixture-value',path=new URL(`../state/error-${randomUUID()}.sock`,import.meta.url).pathname;
   const sockets=new Set();

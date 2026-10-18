@@ -177,7 +177,7 @@ export class CmuxBridge extends EventEmitter {
       if (typeof body.name !== 'string' || !body.name.trim() || body.name.length > 120) throw new RequestError(400, 'Workspace name required');
       return this.rpc('workspace.rename', { workspace_id: workspace.id, title: body.name });
     }
-    if (body.action === 'close-workspace') return this.rpc('workspace.close', { workspace_id: workspace.id, force: false });
+    if (body.action === 'close-workspace') return this.rpc('workspace.close', { workspace_id: workspace.id, force: body.confirmed === true });
     throw new RequestError(400, 'Unknown workspace action');
   }
   async target(params) {

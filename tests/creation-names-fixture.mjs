@@ -13,7 +13,7 @@ const ownership={windowId:window.id,workspaces:new Set(),groups:new Set(),surfac
 const rpc=(method,params)=>{validateFixtureRPC(method,params,ownership);return native(method,params)};
 const persistInfo=()=>privateJSON(info,{...metadata,ownedWorkspaceIds:[...ownership.workspaces],ownedGroupIds:[...ownership.groups]});
 function rememberTree(tree){for(const win of tree.windows)for(const ws of win.workspaces)if(ownership.workspaces.has(ws.id))for(const pane of ws.panes){ownership.panes.add(pane.id);for(const surface of pane.surfaces)ownership.surfaces.add(surface.id)}}
-const prefix=new URL('../state/creation-names-fixture-'+randomUUID()+'-',import.meta.url).pathname;
+const runId=randomUUID(),prefix=new URL('../state/creation-names-fixture-'+runId+'-',import.meta.url).pathname;
 const info=new URL('../state/creation-names-fixture-info.json',import.meta.url);
 const log=prefix+'terminal.log';
 const command=`/usr/bin/python3 -u ${new URL('terminal-fixture.py',import.meta.url).pathname} ${log}`;
@@ -89,7 +89,7 @@ server.on('request',(req,res)=>{
 
 });
 await new Promise((resolve,reject)=>server.once('error',reject).listen(4395,'127.0.0.1',resolve));
-metadata={pid:process.pid,origin:auth.origin,windowId:window.id,workspaceId,surfaceId,secondSurfaceId:second,shellSurfaceId,groupId,groupedWorkspaceId,groupedSurfaceId,log};await persistInfo();published=true;
+metadata={runId,route:`/#${window.id}/${workspaceId}/${surfaceId}`,pid:process.pid,origin:auth.origin,windowId:window.id,workspaceId,surfaceId,secondSurfaceId:second,shellSurfaceId,groupId,groupedWorkspaceId,groupedSurfaceId,log};await persistInfo();published=true;
 console.log(JSON.stringify({origin:auth.origin,...owned(),second,ready:true}));
 }
 main().catch(error=>{console.error(error);finish(1);});
