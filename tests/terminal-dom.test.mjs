@@ -77,6 +77,14 @@ test('swipe without a follow-up click cannot swallow the next dialog action',asy
     assert.equal(w.actions.length,1);assert.equal(w.actions[0].key,'Tab');
   } finally {w.close()}
 });
+test('metadata refresh retains a pressed shortcut, modifier cycle and rail scroll without losing native focus',()=>{
+ const dom=terminal(),w=dom.window,d=w.document;
+ try{const output=d.querySelector('.terminal');output.focus();const ctrl=d.querySelector('.inputdock [data-key="Ctrl"]'),rail=d.querySelector('.inputdock'),keys=rail.querySelector('.keygroups');keys.scrollLeft=67;
+  for(const state of ['once','locked','released']){terminalPointer(w,ctrl,'pointerdown');w.fixture.metadata('Changed tab title');assert.equal(d.querySelector('.inputdock [data-key="Ctrl"]'),ctrl,'An active contact must retain its button');assert.equal(keys.scrollLeft,67);terminalPointer(w,ctrl,'pointerup');ctrl.click();assert.equal(ctrl.classList.contains('active'),state!=='released');assert.equal(ctrl.classList.contains('locked'),state==='locked');assert.equal(d.activeElement,output)}
+  const taps=recordedDiagnostics(w).filter(row=>row.event==='pointerdown');assert.equal(taps.length,3);assert.ok(taps.every(row=>row.target==='shortcut'&&row.mode==='native'),'Shortcut taps start their own content-free capture window');
+  terminalPointer(w,ctrl,'pointerdown');terminalPointer(w,ctrl,'pointermove',42,30);w.fixture.metadata();terminalPointer(w,ctrl,'pointerup',42,30);ctrl.click();assert.equal(ctrl.classList.contains('active'),false,'A metadata refresh must not turn a drag into a shortcut');
+ }finally{w.close()}
+});
 test('metadata repaint preserves terminal DOM, native focus, text selection and reading scroll position', () => {
   const dom = terminal(), w = dom.window, d = w.document, output = d.querySelector('.terminal'), wrap = d.querySelector('.terminalwrap');
   try {

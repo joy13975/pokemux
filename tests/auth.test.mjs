@@ -78,7 +78,7 @@ test('client diagnostics require authentication and origin and reject content-be
   const response=await post(data);assert.equal(response.status,200);assert.equal((await response.json()).recorded,true);
   assert.equal(logged.length,1);assert.deepEqual(JSON.parse(logged[0][1]).callsite,data.callsite);assert.equal(JSON.stringify(logged).includes('PRIVATE_'),false);
   for(const event of ['touchstart','touchend','touchcancel']){
-   const raw={...data,event,target:'keyboard',hit:'keyboard',touch:4,eventAt:1,x:192,y:602,contacts:1,hasKey:true,prevented:false};
+   const target=event==='touchstart'?'shortcut':'keyboard',raw={...data,event,target,hit:target,touch:4,eventAt:1,x:192,y:602,contacts:1,hasKey:true,prevented:false};
    assert.equal((await post(raw)).status,200);assert.equal((await post({...raw,key:'PRIVATE_TYPED_KEY'})).status,400);
   }
   assert.equal(logged.length,4);assert.equal(JSON.stringify(logged).includes('PRIVATE_'),false);
