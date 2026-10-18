@@ -137,9 +137,10 @@ export class CmuxBridge extends EventEmitter {
       if (typeof body.name !== 'string' || !body.name.trim() || body.name.length > 120) throw new RequestError(400, 'Group name required');
       return this.rpc('workspace.group.create', { window_id: window.id, name: body.name });
     }
+    if (['new-workspace', 'new-tab'].includes(body.action) && (typeof body.name !== 'string' || !body.name.trim() || body.name.length > 100)) throw new RequestError(400, 'Name required');
     if (body.action === 'new-workspace') {
       if (body.group_id && !group) throw new RequestError(404, 'Workspace group no longer exists');
-      return this.rpc('workspace.create', { window_id: window.id, ...(group ? { group_id: group.id } : {}), title: 'New workspace', focus: false });
+      return this.rpc('workspace.create', { window_id: window.id, ...(group ? { group_id: group.id } : {}), title: body.name, focus: false });
     }
     if (body.action === 'rename-group') {
       if (!group) throw new RequestError(404, 'Workspace group no longer exists');
@@ -167,7 +168,11 @@ export class CmuxBridge extends EventEmitter {
       if (index < 0) throw new RequestError(404, 'Destination group no longer contains this workspace');
       return this.rpc('workspace.reorder', { ...target, index });
     }
-    if (body.action === 'new-tab') return this.rpc('surface.create', { workspace_id: workspace.id, type: 'terminal', focus: false });
+    if (body.action === 'new-tab') {
+      const result = await this.rpc('surface.create', { workspace_id: workspace.id, type: 'terminal', focus: false });
+      await this.rpc('surface.action', { workspace_id: workspace.id, surface_id: result.surface_id, action: 'rename', title: body.name });
+      return result;
+    }
     if (body.action === 'rename-workspace') {
       if (typeof body.name !== 'string' || !body.name.trim() || body.name.length > 120) throw new RequestError(400, 'Workspace name required');
       return this.rpc('workspace.rename', { workspace_id: workspace.id, title: body.name });

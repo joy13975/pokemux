@@ -9,7 +9,7 @@ function sidebar(){
  const dom=new JSDOM(html),document=dom.window.document,$=id=>document.getElementById(id),calls=[],timers=new Map(),frames=[];let timer=0;
  const workspace=(id,group=null)=>({id,name:id,window:'window',group,description:'',branch:'',panes:[]});
  const workspaces=[workspace('outside'),workspace('anchor','group'),workspace('one','group'),workspace('two','group'),workspace('other-anchor','other-group'),workspace('three','other-group')],groups=[{id:'group',name:'Group',anchor:'anchor',window:'window'},{id:'other-group',name:'Other',anchor:'other-anchor',window:'window'}];
- const ctx=vm.createContext({document,$,workspaces,groups,current:workspaces[2],selectedWindow:'window',grids:new Map(),esc:String,statusIndicator:()=>'',workspaceState:()=>'',attention:()=>false,connected:true,icon:()=>'',setTimeout:fn=>{timers.set(++timer,fn);return timer},clearTimeout:id=>timers.delete(id),requestAnimationFrame:fn=>frames.push(fn),api:async(path,body)=>{calls.push({path,body:JSON.parse(JSON.stringify(body))});return{workspace_id:'created'}},loadTree:async()=>{},selectWorkspace:id=>calls.push({selected:id}),say:message=>calls.push({error:message}),editName:(_title,_value,apply)=>apply('New group'),openDialog(title,body){$('dialogTitle').textContent=title;$('dialogBody').innerHTML=body;$('dialog').open=true}});
+ const ctx=vm.createContext({document,$,workspaces,groups,current:workspaces[2],selectedWindow:'window',grids:new Map(),esc:String,statusIndicator:()=>'',workspaceState:()=>'',attention:()=>false,connected:true,icon:()=>'',setTimeout:fn=>{timers.set(++timer,fn);return timer},clearTimeout:id=>timers.delete(id),requestAnimationFrame:fn=>frames.push(fn),api:async(path,body)=>{calls.push({path,body:JSON.parse(JSON.stringify(body))});return{workspace_id:'created'}},loadTree:async()=>{},selectWorkspace:id=>calls.push({selected:id}),say:message=>calls.push({error:message}),editName:async(_title,value,apply,_submit,afterSave)=>{const result=await apply(value||'New group');afterSave?.(result)},openDialog(title,body){$('dialogTitle').textContent=title;$('dialogBody').innerHTML=body;$('dialog').open=true}});
  $('dialog').close=()=>{$('dialog').open=false};dom.window.HTMLElement.prototype.setPointerCapture=()=>{};
  vm.runInContext(html.slice(html.indexOf('function renderSidebar()'),html.indexOf('function selectWorkspace(')),ctx);
  const creationStart=html.includes('function newWorkspaceMenu(')?html.indexOf('function newWorkspaceMenu('):html.indexOf('async function createWorkspace(');
@@ -22,7 +22,7 @@ test('sidebar plus asks what to create before mutating, then creates the chosen 
  const f=sidebar();try{f.$('newWorkspace').click();assert.equal(f.calls.length,0);const group=f.$('createGroup');assert.ok(group);assert.ok(f.$('createWorkspace'));await group.onclick();assert.deepEqual(f.calls[0],{path:'manage',body:{action:'new-group',window_id:'window',name:'New group'}})}finally{f.dom.window.close()}
 });
 test('workspace choice retains the current group and explicit native creation target',async()=>{
- const f=sidebar();try{f.$('newWorkspace').click();assert.ok(f.$('createWorkspace'));await f.$('createWorkspace').onclick();assert.deepEqual(f.calls[0],{path:'manage',body:{action:'new-workspace',window_id:'window',group_id:'group'}});assert.equal(f.calls[1].selected,'created')}finally{f.dom.window.close()}
+ const f=sidebar();try{f.$('newWorkspace').click();assert.ok(f.$('createWorkspace'));await f.$('createWorkspace').onclick();assert.deepEqual(f.calls[0],{path:'manage',body:{action:'new-workspace',window_id:'window',group_id:'group',name:'New workspace'}});assert.equal(f.calls[1].selected,'created')}finally{f.dom.window.close()}
 });
 test('sidebar preserves cmux top-level order instead of putting every group first',()=>{
  const f=sidebar();try{const list=f.$('workspaceList');assert.equal(list.firstElementChild.querySelector('[data-workspace]').dataset.workspace,'outside')}finally{f.dom.window.close()}
@@ -89,6 +89,6 @@ test('group plus creates inside the clicked group without selecting or dragging 
  const f=sidebar();try{
   const button=f.$('workspaceList').querySelector('[data-new-workspace="other-group"]');assert.ok(button);
   f.pointer(button,'pointerdown',100,100);f.hold();assert.equal(f.$('workspaceList').classList.contains('workspace-dragging'),false);
-  await button.onclick();assert.deepEqual(f.calls,[{path:'manage',body:{action:'new-workspace',window_id:'window',group_id:'other-group'}},{selected:'created'}]);
+  await button.onclick();assert.deepEqual(f.calls,[{path:'manage',body:{action:'new-workspace',window_id:'window',group_id:'other-group',name:'New workspace'}},{selected:'created'}]);
  }finally{f.dom.window.close()}
 });
