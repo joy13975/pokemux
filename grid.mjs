@@ -9,6 +9,12 @@ export function cursorOffset(text, column) {
 export class RenderGrid {
   revision = 0;
   history = [];
+  cellAt(element, x, y) {
+    if (element.paintedGrid !== `${this.epoch}/${this.revision}` || !element.firstElementChild) return null;
+    const box = element.getBoundingClientRect(), line = element.firstElementChild.getBoundingClientRect();
+    const col = Math.floor((x - box.left) / (box.width / this.columns)), row = Math.floor((y - line.top) / line.height) - (this.activeScreen === 'alternate' ? 0 : this.history.length);
+    return col >= 0 && col < this.columns && row >= 0 && row < this.rows ? { col, row } : null;
+  }
   apply(frame) {
     if (frame.format !== 'cmux.render-grid.v1' || !Array.isArray(frame.row_spans) || frame.rows < 1 || frame.columns < 1) throw new Error('Invalid cmux render grid');
     if (frame.render_epoch === this.epoch && frame.render_revision <= this.revision) return false;

@@ -5,6 +5,15 @@ import { createInterface } from 'node:readline';
 import { randomUUID } from 'node:crypto';
 import { CmuxBridge } from '../bridge.mjs';
 const until = async predicate => { const end = Date.now() + 3000; while (!predicate()) { assert.ok(Date.now() < end, 'local mirror made progress'); await new Promise(r => setTimeout(r, 10)); } };
+test('completed taps reach only the explicitly targeted native mouse cell and reject missing or invalid geometry',async()=>{
+ const workspace_id=randomUUID(),surface_id=randomUUID(),bridge=new CmuxBridge(),received=[];
+ bridge.rpc=async(method,params)=>{if(method==='surface.health')return {workspace_id,surfaces:[{id:surface_id,type:'terminal'}]};received.push({method,params});return {ok:true}};
+ await bridge.action({action:'mouse',workspace_id,surface_id,col:8,row:12});
+ assert.deepEqual(received,[{method:'terminal.mouse',params:{workspace_id,surface_id,col:8,row:12}}]);
+ for(const invalid of [{col:undefined},{row:undefined},{col:-1},{row:1.5},{col:Infinity}])await assert.rejects(bridge.action({action:'mouse',workspace_id,surface_id,col:0,row:0,...invalid}),/Invalid mouse/);
+ for(const invalid of [{workspace_id:undefined},{surface_id:undefined}])await assert.rejects(bridge.action({action:'mouse',workspace_id,surface_id,col:0,row:0,...invalid}),/Explicit/);
+ assert.equal(received.length,1);
+});
 test('scroll reaches the explicit native terminal and rejects invalid wheel geometry',async()=>{
  const workspace_id=randomUUID(),surface_id=randomUUID(),bridge=new CmuxBridge(),received=[];
  bridge.rpc=async(method,params)=>{if(method==='surface.health')return {workspace_id,surfaces:[{id:surface_id,type:'terminal'}]};received.push({method,params});return {ok:true}};

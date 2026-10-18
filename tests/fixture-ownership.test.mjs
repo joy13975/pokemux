@@ -3,6 +3,12 @@ import {test} from 'node:test';
 import {validateFixtureRPC} from './fixture-ownership.mjs';
 const owned={windowId:'window',workspaces:new Set(['workspace','anchor']),groups:new Set(['group']),surfaces:new Set(['surface']),panes:new Set(['pane'])};
 const validate=(method,params)=>validateFixtureRPC(method,params,owned);
+test('terminal fixture cannot invoke native input with missing or foreign explicit target IDs, even with an uninitialized registry',()=>{
+ const calls=[],native=(method,params)=>{calls.push({method,params});return {ok:true}},invoke=(method,params,registry=owned)=>{validateFixtureRPC(method,params,registry);return native(method,params)};
+ for(const method of ['terminal.input','terminal.mouse','terminal.scroll','surface.send_key'])for(const params of [{},{workspace_id:'workspace'},{surface_id:'surface'},{workspace_id:'',surface_id:'surface'},{workspace_id:'workspace',surface_id:''},{workspace_id:'foreign',surface_id:'surface'},{workspace_id:'workspace',surface_id:'foreign'}])assert.throws(()=>invoke(method,params));
+ assert.throws(()=>invoke('terminal.input',{}, {...owned,workspaces:new Set([undefined]),surfaces:new Set([undefined])}));assert.equal(calls.length,0,'Invalid requests must not reach the native function');
+ invoke('terminal.mouse',{workspace_id:'workspace',surface_id:'surface',col:3,row:4});assert.equal(calls.length,1);
+});
 test('fixture permits UI creation in its window and management of dynamically owned targets',()=>{
  assert.doesNotThrow(()=>validate('workspace.create',{window_id:'window',group_id:'group',focus:false}));assert.doesNotThrow(()=>validate('workspace.group.create',{window_id:'window',name:'New group',child_workspace_ids:['workspace']}));assert.doesNotThrow(()=>validate('workspace.group.add',{window_id:'window',workspace_id:'workspace',group_id:'group',placement:'end'}));assert.doesNotThrow(()=>validate('workspace.group.remove',{window_id:'window',workspace_id:'workspace'}));assert.doesNotThrow(()=>validate('workspace.reorder',{window_id:'window',workspace_id:'workspace',before_workspace_id:'anchor'}));assert.doesNotThrow(()=>validate('terminal.input',{workspace_id:'workspace',surface_id:'surface',text:'test'}));
 });

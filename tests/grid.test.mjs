@@ -2,6 +2,14 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { RenderGrid, cursorOffset } from '../grid.mjs';
 const full = { format: 'cmux.render-grid.v1', render_epoch: 'producer-a', render_revision: 1, rows: 3, columns: 20, full: true, scrollback_rows: 1, scrollback_spans: [{ row: 0, column: 0, text: 'history' }], row_spans: [{ row: 0, column: 0, text: 'hello' }, { row: 1, column: 0, text: '日本語', cell_width: 6 }], cursor: { row: 1, column: 6, visible: true } };
+test('tap geometry maps transformed and panned screen cells but never historical, outside, or unpainted rows',async()=>{
+ const {JSDOM}=await import('jsdom'),dom=new JSDOM('<pre></pre>'),output=dom.window.document.querySelector('pre'),grid=new RenderGrid();
+ try{grid.apply(full);grid.paint(output);output.getBoundingClientRect=()=>({left:-85,top:-40,width:300,height:124});for(const [i,row]of[...output.children].entries())row.getBoundingClientRect=()=>({top:-40+i*31,bottom:-40+(i+1)*31,height:31});
+  assert.deepEqual(grid.cellAt(output,42,10),{col:8,row:0});assert.deepEqual(grid.cellAt(output,42,41),{col:8,row:1});
+  for(const [x,y]of[[42,-30],[-86,10],[215,10],[42,84]])assert.equal(grid.cellAt(output,x,y),null);
+  grid.apply({...full,render_revision:2});assert.equal(grid.cellAt(output,42,10),null,'A selection-delayed render cannot send coordinates for a different frame');
+ }finally{dom.window.close()}
+});
 test('streamed scroll, row erase and cursor update preserve history without repeating output', () => {
   const grid = new RenderGrid(); grid.apply(full);
   grid.apply({ ...full, full: false, render_revision: 2, delta_base_render_revision: 1, scrolled_rows: 1, cleared_rows: [0, 2], row_spans: [{ row: 2, column: 0, text: 'new output' }], cursor: { row: 2, column: 10, visible: true } });

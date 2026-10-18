@@ -27,11 +27,41 @@ function terminal(saved) {
     const fixture=workspace('owned-workspace','Owned workspace',null,'','',[pane('owned-pane',[surface('owned-surface','Owned terminal')])],'owned-window');
     workspaces.push(fixture);current=fixture;selectedWindow=fixture.window;connected=true;
     const initialFrame={format:'cmux.render-grid.v1',render_epoch:'owned-epoch',render_revision:1,full:true,rows:3,columns:30,row_spans:[{row:0,column:0,text:'hello 日本語',cell_width:12}],cursor:{row:0,column:12,visible:true,style:'bar'}};const model=new RenderGrid();model.apply(initialFrame);grids.set('owned-surface',model);
-    render();window.fixture={flushInputDiagnostics:typeof flushInputDiagnostics==='function'?flushInputDiagnostics:undefined,otherTerminal(){fixture.panes[0].tabs.push(surface('owned-surface-two','Other terminal'));const other=new RenderGrid();other.apply(initialFrame);grids.set('owned-surface-two',other);selectSurface('owned-pane','owned-surface-two')},metadata(name){fixture.name='Directory changed';if(name)fixture.panes[0].tabs[0].name=name;render()},model,paintTerminal,syncViewport,caretToEnd,focusInput,applyTree};
+    render();window.fixture={flushInputDiagnostics:typeof flushInputDiagnostics==='function'?flushInputDiagnostics:undefined,otherTerminal(){fixture.panes[0].tabs.push(surface('owned-surface-two','Other terminal'));const other=new RenderGrid();other.apply(initialFrame);grids.set('owned-surface-two',other);selectSurface('owned-pane','owned-surface-two')},inactivePane(){const other=new RenderGrid();other.apply({...initialFrame,active_screen:'alternate',modes:[{code:1000,on:true,ansi:false}]});grids.set('inactive-surface',other);fixture.panes.push(pane('inactive-pane',[surface('inactive-surface','Other pane')]));const box=document.querySelector('.panebox').cloneNode(true);box.classList.remove('focused');box.querySelector('.terminalwrap').dataset.paneFocus='inactive-pane';box.querySelector('.terminal').dataset.surfaceId='inactive-surface';box.querySelector('.terminal').replaceChildren();document.querySelector('.panegrid').append(box);other.paint(box.querySelector('.terminal'));render();return box.querySelector('.terminalwrap')},metadata(name){fixture.name='Directory changed';if(name)fixture.panes[0].tabs[0].name=name;render()},model,paintTerminal,syncViewport,caretToEnd,focusInput,applyTree};
   `);
   return dom;
 }
 function recordedDiagnostics(w){w.fixture.flushInputDiagnostics();return w.diagnostics}
+function terminalPointer(w,root,type,x=42,y=10,extra={}){const event=new w.Event(type,{bubbles:true,cancelable:true});Object.assign(event,{pointerId:1,button:0,isPrimary:true,clientX:x,clientY:y,...extra});root.dispatchEvent(event)}
+function terminalGeometry(output){output.getBoundingClientRect=()=>({left:-85,top:-21,width:450,height:93});for(const [i,row]of[...output.children].entries())row.getBoundingClientRect=()=>({top:-21+i*31,bottom:-21+(i+1)*31,height:31});}
+test('terminal tap sends one native cell click before keyboard focus, with movement, cancellation, selection and long-press excluded',async()=>{
+ const dom=terminal({keyboardMode:'custom'}),w=dom.window,d=w.document,output=d.querySelector('.terminal'),wrap=d.querySelector('.terminalwrap');
+ try{w.fixture.model.modes=[{code:1000,on:true,ansi:false}];terminalGeometry(output);
+  terminalPointer(w,wrap,'pointerdown');terminalPointer(w,wrap,'pointerup');await new Promise(r=>w.setTimeout(r,0));assert.deepEqual(w.actions.map(a=>({action:a.action,col:a.col,row:a.row,surface:a.surface_id})),[{action:'mouse',col:8,row:1,surface:'owned-surface'}]);assert.equal(d.querySelector('#softwareKeyboard').hidden,false,'The same tap engages typing');
+  terminalPointer(w,wrap,'pointerdown');terminalPointer(w,wrap,'pointermove',70,30);terminalPointer(w,wrap,'pointerup',42,10);
+  terminalPointer(w,wrap,'pointerdown');terminalPointer(w,wrap,'pointercancel');terminalPointer(w,wrap,'pointerup');
+  terminalPointer(w,wrap,'pointerdown');terminalPointer(w,wrap,'pointerdown',50,10,{pointerId:2,isPrimary:false});terminalPointer(w,wrap,'pointerup');
+  terminalPointer(w,wrap,'pointerdown');await new Promise(r=>w.setTimeout(r,310));terminalPointer(w,wrap,'pointerup');
+  const range=d.createRange();range.selectNodeContents(output.firstElementChild);w.getSelection().addRange(range);terminalPointer(w,wrap,'pointerdown');terminalPointer(w,wrap,'pointerup');assert.ok(w.getSelection().toString(),'Selection is retained');
+  await new Promise(r=>w.setTimeout(r,0));assert.equal(w.actions.length,1,'Only the completed short tap sends a click');
+ }finally{w.close()}
+});
+test('tap routes the tapped inactive pane rather than the previously active terminal',async()=>{
+ const dom=terminal({keyboardMode:'custom'}),w=dom.window;
+ try{const wrap=w.fixture.inactivePane();terminalGeometry(wrap.querySelector('.terminal'));terminalPointer(w,wrap,'pointerdown');terminalPointer(w,wrap,'pointerup');await new Promise(r=>w.setTimeout(r,0));assert.equal(w.actions.length,1);assert.deepEqual({surface:w.actions[0].surface_id,workspace:w.actions[0].workspace_id,col:w.actions[0].col,row:w.actions[0].row},{surface:'inactive-surface',workspace:'owned-workspace',col:8,row:1});assert.equal(w.document.querySelector('.terminal').dataset.surfaceId,'inactive-surface');
+ }finally{w.close()}
+});
+test('native keyboard focus cannot move a completed tap to a different terminal cell',async()=>{
+ const dom=terminal(),w=dom.window,output=w.document.querySelector('.terminal'),wrap=w.document.querySelector('.terminalwrap');
+ try{w.fixture.model.modes=[{code:1000,on:true,ansi:false}];terminalGeometry(output);terminalPointer(w,wrap,'pointerdown');output.getBoundingClientRect=()=>({left:-85,top:-21,width:900,height:186});for(const [i,row]of[...output.children].entries())row.getBoundingClientRect=()=>({top:-21+i*62,bottom:-21+(i+1)*62,height:62});terminalPointer(w,wrap,'pointerup');await new Promise(r=>w.setTimeout(r,0));assert.equal(w.actions.length,1);assert.deepEqual({col:w.actions[0].col,row:w.actions[0].row},{col:8,row:1});
+ }finally{w.close()}
+});
+test('normal screen keyboard taps and historical output never send unrelated TUI mouse cells',async()=>{
+ const dom=terminal({keyboardMode:'custom'}),w=dom.window,output=w.document.querySelector('.terminal'),wrap=w.document.querySelector('.terminalwrap');
+ try{terminalGeometry(output);terminalPointer(w,wrap,'pointerdown');terminalPointer(w,wrap,'pointerup');assert.equal(w.document.querySelector('#softwareKeyboard').hidden,false);
+  const model=w.fixture.model;model.apply({format:'cmux.render-grid.v1',render_epoch:'history',render_revision:1,full:true,rows:3,columns:30,scrollback_rows:1,scrollback_spans:[{row:0,column:0,text:'old output'}],row_spans:[],modes:[{code:1000,on:true,ansi:false}]});model.paint(output);terminalGeometry(output);terminalPointer(w,wrap,'pointerdown',42,-10);terminalPointer(w,wrap,'pointerup',42,-10);await new Promise(r=>w.setTimeout(r,0));assert.equal(w.actions.length,0);
+ }finally{w.close()}
+});
 test('swipe without a follow-up click cannot swallow the next dialog action',async()=>{
   const dom=terminal(),w=dom.window,d=w.document;
   try {

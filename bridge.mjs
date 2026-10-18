@@ -194,6 +194,13 @@ export class CmuxBridge extends EventEmitter {
         if (source.pane_id !== sibling.pane_id) throw new RequestError(400, 'Tabs must be in the same pane');
         return this.rpc('surface.reorder', { ...target, [body.after ? 'after_surface_id' : 'before_surface_id']: body.reference_surface_id, focus: false });
       }
+      if (body.action === 'mouse') {
+        const { col, row } = body;
+        if (!Number.isInteger(col) || col < 0 || !Number.isInteger(row) || row < 0) throw new RequestError(400, 'Invalid mouse geometry');
+        const result = await this.rpc('terminal.mouse', { ...target, col, row });
+        this.emit('input', target);
+        return result;
+      }
       if (body.action === 'scroll') {
         const { delta_lines, col, row } = body;
         if (!Number.isFinite(delta_lines) || !delta_lines || Math.abs(delta_lines) > 100 || !Number.isInteger(col) || col < 0 || !Number.isInteger(row) || row < 0) throw new RequestError(400, 'Invalid scroll geometry');
