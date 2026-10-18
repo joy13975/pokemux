@@ -5,10 +5,11 @@ import {writeFile,readFile,mkdir} from 'node:fs/promises';
 import {CmuxBridge} from '../bridge.mjs';
 import {application} from '../server.mjs';
 import {validateFixtureRPC} from './fixture-ownership.mjs';
+const runId=randomUUID();
+await writeFile(new URL('../TERMINAL_CLICK_CLEANUP_RESULT.json',import.meta.url),JSON.stringify({runId,passed:false,at:new Date().toISOString(),pending:true}));
 const native=(method,params)=>JSON.parse(execFileSync('/Applications/cmux.app/Contents/Resources/bin/cmux',['--socket','/Users/USER/.local/state/cmux/cmux.sock','--json','rpc',method,JSON.stringify(params)],{encoding:'utf8',stdio:['ignore','pipe','pipe']}));
 const before=native('system.tree',{all_windows:true}),window=before.windows[0],surfaces=new Set();
 let workspace,bridge,server;
-const runId=randomUUID();
 const log=new URL('../state/terminal-click-'+runId+'-bytes.log',import.meta.url),info=new URL('../state/terminal-click-info.json',import.meta.url);
 const claude=process.env.POKEMUX_CLICK_CLAUDE==='1',context=new URL('../state/terminal-click-'+runId+'-claude/',import.meta.url);
 if(claude)await mkdir(new URL('cwd/',context),{recursive:true,mode:0o700});
@@ -24,7 +25,6 @@ async function close(){
 }
 for(const signal of ['SIGTERM','SIGINT'])process.on(signal,()=>close().then(()=>process.exit(0),error=>{console.error(error);process.exit(1)}));
 try{
- await writeFile(new URL('../TERMINAL_CLICK_CLEANUP_RESULT.json',import.meta.url),JSON.stringify({runId,passed:false,at:new Date().toISOString(),pending:true}));
  const create={window_id:window.id,title:claude?'Pokemux Claude mouse test':'Pokemux terminal clicks test',initial_command:command,focus:false};guard('workspace.create',create);const created=native('workspace.create',create);assert.match(created.workspace_id||'',/^[a-f0-9-]{36}$/i);assert.match(created.surface_id||'',/^[a-f0-9-]{36}$/i);assert.ok(!before.windows.some(w=>w.workspaces.some(ws=>ws.id===created.workspace_id)));workspace=created.workspace_id;ownership.workspaces.add(workspace);surfaces.add(created.surface_id);
  bridge=new CmuxBridge();const rpc=bridge.rpc.bind(bridge);bridge.rpc=(method,params)=>{guard(method,params);return rpc(method,params)};await bridge.connect();
  const inventory=bridge.tree.bind(bridge);bridge.tree=async()=>{const t=await inventory();return {...t,notifications:[],windows:t.windows.filter(w=>w.id===window.id).map(w=>({...w,groups:[],workspaces:w.workspaces.filter(ws=>ws.id===workspace)}))}};
