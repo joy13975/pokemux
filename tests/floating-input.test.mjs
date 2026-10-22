@@ -29,7 +29,7 @@ test('floating function handle uses an unselectable icon rather than text',()=>{
 });
 test('existing three floating choices survive migration and get a fourth keyboard action',()=>{
  const dom=client({floatingFunctions:['key:Ctrl-C','frequent','paste']}),w=dom.window;
- try{assert.deepEqual([...w.fixture.floatingChoices()],['key:Ctrl-C','recent','paste','keyboard']);w.fixture.displaySettings();assert.equal(w.document.querySelectorAll('[data-function-setting]').length,4);assert.equal(w.document.querySelectorAll('#floatingFunctions [data-function]').length,4)}finally{w.close()}
+ try{assert.deepEqual([...w.fixture.floatingChoices()],['key:Ctrl-C','recent','paste','keyboard','scratchpad']);w.fixture.displaySettings();assert.equal(w.document.querySelectorAll('[data-function-setting]').length,5);assert.equal(w.document.querySelectorAll('#floatingFunctions [data-function]').length,5)}finally{w.close()}
 });
 test('recent shortcut follows successful usage rather than historical frequency',async()=>{
  const dom=client({shortcutUsage:{'Ctrl-C':100}}),w=dom.window;
