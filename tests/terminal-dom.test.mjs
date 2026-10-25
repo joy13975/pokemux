@@ -274,6 +274,20 @@ test('typing scale does not reduce the native editable zoom',()=>{
  }finally{w.close()}
 });
 
+test('inward pinch after viewport widening never enlarges content and can reveal the full terminal height',()=>{
+ const dom=terminal(),w=dom.window,d=w.document,output=d.querySelector('.terminal'),wrap=output.closest('.terminalwrap');
+ try{
+  let width=390,height=600;Object.defineProperties(wrap,{clientWidth:{get:()=>width},clientHeight:{get:()=>height}});Object.defineProperty(output,'scrollHeight',{value:868});wrap.style.padding='0';output.style.width='960px';
+  const computed=w.getComputedStyle.bind(w);w.getComputedStyle=e=>e===output?{width:'960px'}:computed(e);output.focus();
+  const pinch=(start,end)=>{const points=distance=>[100,100+distance].map((clientX,i)=>({identifier:i+1,clientX,clientY:100,target:wrap}));for(const [type,distance]of[['touchstart',start],['touchmove',end],['touchend',0]])wrap.dispatchEvent(new w.TouchEvent(type,{bubbles:true,cancelable:true,touches:type==='touchend'?[]:points(distance),changedTouches:points(distance)}))};
+  pinch(200,20);const before=Number.parseFloat(output.parentElement.style.width);width=926;height=71;
+  pinch(400,40);const after=Number.parseFloat(output.parentElement.style.width);
+  assert.ok(after<before,'Inward pinch must shrink after viewport widening instead of snapping up to the new width floor');
+  assert.ok(after/960*868<=height+.01,'Pinch can reveal all terminal rows in a short view');
+  assert.equal(w.visualViewport.scale,1);
+ }finally{w.close()}
+});
+
 test('terminal pinch is local and Zoom Toggle switches full grid and readable typing size',()=>{
  const dom=terminal(),w=dom.window,d=w.document,output=d.querySelector('.terminal'),wrap=d.querySelector('.terminalwrap');
  try{
