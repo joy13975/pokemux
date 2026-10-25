@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { readFile, writeFile, unlink } from 'node:fs/promises';
+import { readFile, writeFile, unlink, mkdir } from 'node:fs/promises';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { CmuxBridge, privateJSON } from '../bridge.mjs';
 import { Passkeys } from '../auth.mjs';
@@ -41,6 +41,7 @@ process.on('SIGINT',()=>finish(0));process.on('SIGTERM',()=>finish(0));
 process.on('SIGUSR1',()=>{bridge.local.close();console.log('Disconnected owned fixture RPC socket.');});
 process.on('SIGUSR2',()=>{auth.sessions.clear();bridge.local.close();console.log('Expired owned fixture browser session.');});
 async function main(){
+const tuiDirectory=new URL('../state/endpoint-tui/',import.meta.url).pathname;if(process.env.POKEMUX_CANARY_TUI==='1')await mkdir(tuiDirectory,{recursive:true});
 const created=rpc('workspace.create',{window_id:window.id,title:'Pokemux live browser test',initial_command:command,focus:false});
 console.log('Created fixture:',JSON.stringify(created));
 workspaceId=created.workspace_id;const surfaceId=created.surface_id;assert.match(workspaceId||'',/^[0-9a-f-]{36}$/i);assert.match(surfaceId||'',/^[0-9a-f-]{36}$/i);assert.ok(!beforeWorkspaceIds.has(workspaceId));ownership.workspaces.add(workspaceId);ownership.surfaces.add(surfaceId);
@@ -50,7 +51,9 @@ let ws;const deadline=Date.now()+10000;
 while(!ws){ws=rpc('system.tree',{all_windows:true}).windows.flatMap(w=>w.workspaces).find(w=>w.id===workspaceId);if(!ws){assert.ok(Date.now()<deadline);await new Promise(r=>setTimeout(r,50));}}
 rememberTree(rpc('system.tree',{all_windows:true}));
 const second=rpc('surface.create',{workspace_id:workspaceId,pane_id:ws.panes[0].id,type:'terminal',initial_command:command+'-second',focus:false}).surface_id;
-const shellSurfaceId=process.env.POKEMUX_CANARY_SHELL==='1'?rpc('surface.create',{workspace_id:workspaceId,pane_id:ws.panes[0].id,type:'terminal',initial_command:process.env.POKEMUX_CANARY_TUI==='1'?'/Users/USER/.local/bin/claude --bare':process.env.POKEMUX_CANARY_GLYPHS==='1'?`/bin/zsh -f -c 'printf "\\ue0a0 \\ue0b0 \\ue0b1 \\ue0b2 \\ue0b3\\n\\u23fa Writing \\u23fa\\ufe0e Text \\u23fa\\ufe0f Emoji\\n"; exec /bin/zsh -f'`:process.env.POKEMUX_CANARY_STYLED==='1'?`/bin/zsh -i -c '/usr/bin/python3 ${new URL('styled-output-fixture.py',import.meta.url).pathname}; exec /bin/zsh -i'`:'/bin/zsh -f',focus:false}).surface_id:undefined;
+ownership.surfaces.add(second);
+const shellSurfaceId=process.env.POKEMUX_CANARY_SHELL==='1'?rpc('surface.create',{workspace_id:workspaceId,pane_id:ws.panes[0].id,type:'terminal',initial_command:process.env.POKEMUX_CANARY_TUI==='1'?`/bin/zsh -f -c 'cd "${tuiDirectory}" && export CLAUDE_CODE_NO_FLICKER=1 && exec /Users/USER/.local/bin/claude --bare'`:process.env.POKEMUX_CANARY_GLYPHS==='1'?`/bin/zsh -f -c 'printf "\\ue0a0 \\ue0b0 \\ue0b1 \\ue0b2 \\ue0b3\\n\\u23fa Writing \\u23fa\\ufe0e Text \\u23fa\\ufe0f Emoji\\n"; exec /bin/zsh -f'`:process.env.POKEMUX_CANARY_STYLED==='1'?`/bin/zsh -i -c '/usr/bin/python3 ${new URL('styled-output-fixture.py',import.meta.url).pathname}; exec /bin/zsh -i'`:'/bin/zsh -f',focus:false}).surface_id:undefined;
+if(shellSurfaceId)ownership.surfaces.add(shellSurfaceId);
 let groupedSurfaceId;
 if(process.env.POKEMUX_CANARY_GROUP==='1'){
  const child=rpc('workspace.create',{window_id:window.id,title:'Pokemux grouped child',initial_command:'/bin/zsh -f',focus:false});groupedWorkspaceId=child.workspace_id;ownership.workspaces.add(groupedWorkspaceId);groupedSurfaceId=child.surface_id;

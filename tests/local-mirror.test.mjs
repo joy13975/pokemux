@@ -24,11 +24,13 @@ test('scroll reaches the explicit native terminal and rejects invalid wheel geom
  for(const invalid of [{delta_lines:Infinity},{delta_lines:0},{col:-1},{row:1.5}])await assert.rejects(bridge.action({action:'scroll',workspace_id,surface_id,delta_lines:1,col:0,row:0,...invalid}),/Invalid scroll/);
  assert.equal(received.length,1);
 });
-test('function-key shortcuts use terminal input because stock cmux named-key API rejects them',async()=>{
+test('unsupported function and modified navigation keys fail before stock cmux can turn them into literal input',async()=>{
  const workspace_id=randomUUID(),surface_id=randomUUID(),bridge=new CmuxBridge(),received=[];
- bridge.rpc=async(method,params)=>{if(method==='surface.health')return {workspace_id,surfaces:[{id:surface_id,type:'terminal'}]};if(method==='surface.send_key')throw new Error('Unknown key');received.push({method,params});return {ok:true}};
- for(const key of ['F1','Ctrl-F1','Shift-Alt-F5','Ctrl-Alt-Shift-F12','Insert','Ctrl-Home','Ctrl-PageUp'])await bridge.action({action:'key',key,workspace_id,surface_id});
- assert.deepEqual(received.map(r=>[r.method,r.params.text]),[['terminal.input','\x1bOP'],['terminal.input','\x1b[1;5P'],['terminal.input','\x1b[15;4~'],['terminal.input','\x1b[24;8~'],['terminal.input','\x1b[2~'],['terminal.input','\x1b[1;5H'],['terminal.input','\x1b[5;5~']]);assert.ok(received.every(r=>r.params.workspace_id===workspace_id&&r.params.surface_id===surface_id));
+ bridge.rpc=async(method,params)=>{if(method==='surface.health')return {workspace_id,surfaces:[{id:surface_id,type:'terminal'}]};received.push({method,params});return {ok:true}};
+ for(const key of ['F1','Ctrl-F1','Shift-Alt-F5','Ctrl-Alt-Shift-F12','Insert','Ctrl-Home','Ctrl-End','Shift-Home','Alt-End','Ctrl-PageUp','Shift-Delete'])await assert.rejects(bridge.action({action:'key',key,workspace_id,surface_id}),error=>error.status===400&&error.message.includes(key)&&error.message.includes('cmux'));
+ assert.deepEqual(received,[],'An unrepresentable key must never reach the text input parser');
+ for(const key of ['Home','End','PageUp','PageDown','Delete','Ctrl-Up','Alt-Right'])await bridge.action({action:'key',key,workspace_id,surface_id});
+ assert.deepEqual(received.map(r=>[r.method,r.params.key]),['Home','End','PageUp','PageDown','Delete','Ctrl-Up','Alt-Right'].map(key=>['surface.send_key',key]));
 });
 test('local mirror needs no vendor account, pushes authoritative changes and stops reading when detached', async () => {
   const path = new URL(`../state/mirror-${randomUUID()}.sock`, import.meta.url).pathname;

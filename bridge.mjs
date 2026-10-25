@@ -222,19 +222,14 @@ export class CmuxBridge extends EventEmitter {
       if (body.action === 'key') {
         if (typeof body.key !== 'string' || body.key.length > 40 || !/^(?:(?:Ctrl|Alt|Shift)-)*(?:[\p{L}\p{N}\p{P}\p{S}]|Enter|Tab|Escape|Backspace|Space|Left|Right|Up|Down|Home|End|PageUp|PageDown|Insert|Delete|F(?:[1-9]|1[0-2]))$/u.test(body.key)) throw new RequestError(400, 'Unsupported key');
         const prefix=body.key.match(/^(?:(?:Ctrl|Alt|Shift)-)+/)?.[0]||'',parts=prefix.split('-'),key=body.key.slice(prefix.length),modifier=1+(parts.includes('Shift')?1:0)+(parts.includes('Alt')?2:0)+(parts.includes('Ctrl')?4:0);
+        if (/^F\d+$/.test(key)||key==='Insert'||(modifier>1&&['Home','End','PageUp','PageDown','Delete'].includes(key))) throw new RequestError(400, `cmux cannot send ${body.key} as a key; no terminal input was sent`);
         let sequence;
         if(modifier===1&&[...key].length===1)sequence=key;
-        else if (/^F\d+$/.test(key)) {
-          const n=Number(key.slice(1));
-          sequence=n<=4?(modifier===1?'\x1bO':'\x1b[1;'+modifier)+'PQRS'[n-1]:'\x1b['+[15,17,18,19,20,21,23,24][n-5]+(modifier===1?'':';'+modifier)+'~';
-        } else if (parts.includes('Alt')&&([...key].length===1||key==='Space')) {
+        else if (parts.includes('Alt')&&([...key].length===1||key==='Space')) {
           // Native named Alt text follows the Mac's Option policy rather than terminal Meta semantics.
           let text=key==='Space'?' ':parts.includes('Shift')?key.toUpperCase():key;
           if(parts.includes('Ctrl')){const code=text.toUpperCase().charCodeAt(0);if(text===' '||code>=64&&code<=95)text=String.fromCharCode(code&31);else if(text==='?')text='\x7f';}
           sequence='\x1b'+text;
-        } else if (key==='Insert'||(modifier>1&&['Home','End','PageUp','PageDown','Delete'].includes(key))) {
-          const final={Home:'H',End:'F'}[key],code={Insert:2,Delete:3,PageUp:5,PageDown:6}[key];
-          sequence='\x1b['+(final?'1;'+modifier+final:code+(modifier===1?'':';'+modifier)+'~');
         }
         const result = await this.rpc(sequence?'terminal.input':'surface.send_key',sequence?{...target,text:sequence}:{...target,key:body.key});
         this.emit('input', target);
