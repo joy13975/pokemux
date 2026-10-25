@@ -311,6 +311,22 @@ test('native drawer overscroll keeps manual zoom through focus loss until the pu
  }finally{w.close()}
 });
 
+test('drawer release keeps its direction when browser focus shifts the visual origin',()=>{
+ const dom=terminal(),w=dom.window,d=w.document,wrap=d.querySelector('.terminalwrap');
+ try{Object.defineProperties(wrap,{clientWidth:{value:420},scrollWidth:{value:420}});wrap.scrollLeft=0;
+  terminalPointer(w,wrap,'pointerdown',310,300);terminalPointer(w,wrap,'pointermove',30,300);
+  Object.assign(w.visualViewport,{offsetLeft:420});terminalPointer(w,wrap,'pointerup',450,300);
+  assert.equal(d.querySelector('#dialog').open,true,'Stationary finger release commits the right drawer across an origin shift');assert.equal(d.querySelector('#shell').classList.contains('sidebar-open'),false);assert.equal(w.actions.length,0);
+ }finally{w.close()}
+});
+test('drawer settlement retains manual zoom while native dialog focus is restored then transferred',()=>{
+ const dom=terminal(),w=dom.window,d=w.document,output=d.querySelector('.terminal'),wrap=output.closest('.terminalwrap'),canvas=output.parentElement,dialog=d.querySelector('#dialog');
+ try{dialog.show=function(){this.open=true;this.querySelector('button').focus()};dialog.close=function(){this.open=false;output.focus();this.dispatchEvent(new w.Event('close'))};dialog.showModal=function(){this.open=true;this.querySelector('button').focus()};Object.defineProperties(wrap,{clientWidth:{value:390},clientHeight:{value:600},scrollWidth:{get:()=>Math.max(390,parseFloat(canvas.style.width))}});wrap.style.padding='0';output.style.width='960px';output.focus();d.querySelector('[data-function="0"]').click();
+  terminalPointer(w,wrap,'pointerdown',300,250);terminalPointer(w,wrap,'pointermove',20,250);terminalPointer(w,wrap,'pointerup',20,250);
+  assert.equal(dialog.open,true);assert.equal(parseFloat(canvas.style.width),390,'Dialog focus handoff cannot reset the user pinch');assert.equal(w.actions.length,0);
+ }finally{w.close()}
+});
+
 test('a finger on a floating control cannot join the terminal pinch and a terminal finger pans independently',()=>{
  const dom=terminal(),w=dom.window,d=w.document,output=d.querySelector('.terminal'),wrap=d.querySelector('.terminalwrap');
  try{Object.defineProperty(wrap,'clientWidth',{value:390});wrap.style.padding='0';output.style.width='960px';const computed=w.getComputedStyle.bind(w);w.getComputedStyle=e=>e===output?{width:'960px'}:computed(e);output.focus();const width=output.parentElement.style.width;wrap.scrollLeft=100;wrap.scrollTop=100;
@@ -1093,7 +1109,7 @@ test('directional steering dismisses the keyboard, retains modifiers and zoom, a
 
 test('joystick committed range attracts the marker toward its center without timing labels',()=>{
  const dom=terminal(),w=dom.window,d=w.document,h=d.querySelector('#cursorJoystick'),point=x=>({pointerId:76,button:0,isPrimary:true,clientX:x,clientY:422,preventDefault(){}});
- try{h.style.left='173px';h.style.top='400px';h.onpointerdown(point(195));h.onpointermove(point(225));const distance=Number(d.querySelector('.speed-marker').style.transform.match(/translate\(([-.\d]+)/)[1]),center=26+(390/2-31)*.2;assert.ok(Math.abs(distance-center)<5,'The marker stays near the committed slow-range center');assert.doesNotMatch(d.querySelector('#joystickSpeed').textContent,/\d[.,]\d|\d+s/);h.onpointercancel()
+ try{h.style.left='173px';h.style.top='400px';h.onpointerdown(point(195));h.onpointermove(point(225));const distance=Number(d.querySelector('.speed-marker').style.transform.match(/translate\(([-.\d]+)/)[1]),center=22+102*.2;assert.ok(Math.abs(distance-center)<5,'The marker stays near the committed slow-range center');assert.doesNotMatch(d.querySelector('#joystickSpeed').textContent,/\d[.,]\d|\d+s/);h.onpointercancel()
  }finally{w.close()}
 });
 
@@ -1126,9 +1142,9 @@ test('joystick mode affects horizontal movement only and every outer arm jumps o
 
 test('joystick detent crossing requires deliberate travel and responds to velocity rather than boundary jitter',async()=>{
  const dom=terminal(),w=dom.window,d=w.document,h=d.querySelector('#cursorJoystick'),point=(offset,timeStamp)=>({pointerId:83,button:0,isPrimary:true,clientX:195+offset,clientY:422,timeStamp,preventDefault(){}}),tier=()=>d.querySelector('#joystickSpeed .active')?.dataset.speed;let cadence;w.setInterval=(fn,ms)=>{cadence=ms;return 1};w.clearInterval=()=>{cadence=null};
- try{h.style.left='173px';h.style.top='400px';h.onpointerdown(point(0,0));h.onpointermove(point(25,50));assert.equal(tier(),'0');for(const [x,t]of[[68,200],[71,220],[69,240],[72,260],[70,280],[73,300]]){h.onpointermove(point(x,t));assert.equal(tier(),'0','Tiny reversals at the boundary must not change cadence');assert.equal(cadence,700)}
- h.onpointermove(point(81,400));assert.equal(tier(),'1','Pushing farther overcomes the detent');assert.equal(cadence,300);h.onpointermove(point(68,420));assert.equal(tier(),'1','A tiny overlap still belongs to the committed fast range');h.onpointermove(point(60,460));assert.equal(tier(),'0');h.onpointercancel();
- h.onpointerdown(point(0,500));h.onpointermove(point(25,550));h.onpointermove(point(65,650));h.onpointermove(point(74,660));assert.equal(tier(),'1','A deliberate quick push crosses nearer the boundary');assert.equal(cadence,300);h.onpointercancel();
+ try{h.style.left='173px';h.style.top='400px';h.onpointerdown(point(0,0));h.onpointermove(point(25,50));assert.equal(tier(),'0');for(const [x,t]of[[53,200],[56,220],[54,240],[57,260],[55,280],[58,300]]){h.onpointermove(point(x,t));assert.equal(tier(),'0','Tiny reversals at the boundary must not change cadence');assert.equal(cadence,700)}
+ h.onpointermove(point(66,400));assert.equal(tier(),'1','Pushing farther overcomes the detent');assert.equal(cadence,300);h.onpointermove(point(53,420));assert.equal(tier(),'1','A tiny overlap still belongs to the committed fast range');h.onpointermove(point(45,460));assert.equal(tier(),'0');h.onpointercancel();
+ h.onpointerdown(point(0,500));h.onpointermove(point(25,550));h.onpointermove(point(50,650));h.onpointermove(point(59,660));assert.equal(tier(),'1','A deliberate quick push crosses nearer the boundary');assert.equal(cadence,300);h.onpointercancel();
  assert.doesNotMatch(d.querySelector('#joystickSpeed').textContent,/\d|Char|Word|Row|Very/);assert.equal(d.querySelectorAll('#joystickSpeed [data-speed]').length,12)
  }finally{w.close()}
 });

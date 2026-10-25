@@ -1,15 +1,17 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { readFileSync } from 'node:fs';
-import { JSDOM } from 'jsdom';
+import { JSDOM, VirtualConsole } from 'jsdom';
 import { RenderGrid } from '../grid.mjs';
 import { KanaComposer } from '../kana.mjs';
 const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 function terminal(standalone=false,width=390) {
-  const dom = new JSDOM(html, { url: 'https://pokemux-test.invalid', runScripts: 'outside-only', pretendToBeVisual: true }), w = dom.window;
+  const virtualConsole=new VirtualConsole();virtualConsole.on('jsdomError',error=>{if(error.type==='unhandled-exception')throw error});
+  const dom = new JSDOM(html, { virtualConsole, url: 'https://pokemux-test.invalid', runScripts: 'outside-only', pretendToBeVisual: true }), w = dom.window;
   w.localStorage.setItem("cmux-pocket-customizations",JSON.stringify({shortcuts:[],snippets:[],keyboardMode:"custom",}));
   w.resizeObservers=[];w.ResizeObserver = class { constructor(callback){this.callback=callback;this.targets=new Set();w.resizeObservers.push(this)} observe(target){this.targets.add(target)} disconnect(){this.targets.clear()} };
   w.HTMLElement.prototype.setPointerCapture=()=>{};
+  w.document.elementFromPoint=(x,y)=>[...w.document.querySelectorAll('body *')].reverse().find(element=>{const r=element.getBoundingClientRect();return !element.closest('[hidden]')&&r.width>0&&r.height>0&&x>=r.left&&x<r.right&&y>=r.top&&y<r.bottom})||null;
   w.matchMedia = query => ({ matches:query.includes('max-width')&&width<1000||query.includes('max-height')||standalone&&query.includes('display-mode') });
   w.visualViewport = { width, height: 844, scale: 1, offsetTop: 0, offsetLeft:0, addEventListener() {} };
   w.EventSource = class { constructor() { w.fixtureStream=this; } addEventListener() {} close() { this.closed=true; } };
