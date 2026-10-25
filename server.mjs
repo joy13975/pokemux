@@ -63,7 +63,7 @@ export function application({ bridge, auth }) {
           for(const entry of entries)console.info('Pokemux client diagnostic', JSON.stringify({receivedAt:new Date().toISOString(),...entry}));
           return json({recorded:true});
         }
-        if (req.method === 'POST' && path === '/api/logout') { auth.sessions.delete(session.id); res.setHeader('Set-Cookie', 'pokemux=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0'); return json({ loggedOut: true }); }
+        if (req.method === 'POST' && path === '/api/logout') { await auth.logout(session.id); res.setHeader('Set-Cookie', 'pokemux=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0'); return json({ loggedOut: true }); }
         if (req.method === 'GET' && path === '/api/status') return json(await bridge.status());
         if (req.method === 'POST' && path === '/api/connect') { await bridge.connect(); return json({ connected: true }); }
         if (req.method === 'GET' && path === '/api/events') { await bridge.connect(); bridge.observeMetadata(); }

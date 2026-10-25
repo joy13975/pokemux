@@ -5,10 +5,11 @@ import { EventEmitter } from 'node:events';
 import { isoCBOR } from '@simplewebauthn/server/helpers';
 import { Passkeys } from '../auth.mjs';
 import { application } from '../server.mjs';
-import { mkdir, unlink, writeFile } from 'node:fs/promises';
+import { mkdir, unlink, writeFile, readFile, stat } from 'node:fs/promises';
 const encode = bytes => Buffer.from(bytes).toString('base64url');
 const hash = bytes => createHash('sha256').update(bytes).digest();
-test('HTTP authentication verifies signed passkeys, one-use challenge, origin, owner bootstrap and terminal access', async () => {
+test('HTTP authentication verifies signed passkeys, one-use challenge, origin, owner bootstrap and terminal access', async t => {
+  let now = Date.now(); const clock = t.mock.method(Date, 'now', () => now);
   const key = generateKeyPairSync('ec', { namedCurve: 'prime256v1' }), jwk = key.publicKey.export({ format: 'jwk' }), id = randomBytes(24);
   const cose = isoCBOR.encode(new Map([[1, 2], [3, -7], [-1, 1], [-2, Buffer.from(jwk.x, 'base64url')], [-3, Buffer.from(jwk.y, 'base64url')]]));
   const file = new URL(`../state/auth-test-${encode(id)}.json`, import.meta.url);
@@ -16,16 +17,16 @@ test('HTTP authentication verifies signed passkeys, one-use challenge, origin, o
   await writeFile(file, '[]', { mode: 0o600 });
   const bridge = new EventEmitter(); bridge.connected = true; let delivered = 0;
   bridge.action = async body => { delivered++; return { text: body.text }; };
-  const auth = new Passkeys({ origin: 'http://localhost', ownerLogin: 'owner@example.invalid', file }); await auth.initialize();
+  let auth = new Passkeys({ origin: 'http://localhost', ownerLogin: 'owner@example.invalid', file }); await auth.initialize();
   const server = application({ bridge, auth, origin: 'http://localhost' }); await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   const origin = `http://localhost:${server.address().port}`; auth.origin = origin;
   // The origin object passed to the app only supplies host validation, so use that same runtime origin.
   server.close(); await new Promise(resolve => server.once('close', resolve));
-  const app = application({ bridge, auth, origin }); await new Promise(resolve => app.listen(Number(new URL(origin).port), '127.0.0.1', resolve));
-  let cookie = '';
+  let app = application({ bridge, auth, origin }); await new Promise(resolve => app.listen(Number(new URL(origin).port), '127.0.0.1', resolve));
+  let cookie = '', setCookie = '';
   const post = async (path, body = {}, extra = {}) => {
     const r = await fetch(origin + '/api/' + path, { method: 'POST', headers: { Origin: origin, Cookie: cookie, 'Content-Type': 'application/json', ...extra }, body: JSON.stringify(body) });
-    if (r.headers.get('set-cookie')) cookie = r.headers.get('set-cookie').split(';')[0];
+    if (r.headers.get('set-cookie')) { setCookie = r.headers.get('set-cookie'); cookie = setCookie.split(';')[0]; }
     return { status: r.status, value: await r.json() };
   };
   try {
@@ -59,7 +60,45 @@ test('HTTP authentication verifies signed passkeys, one-use challenge, origin, o
     assert.equal((await post('passkey/login-verify', assertion)).status, 200);
     assert.equal((await post('action', { text: 'after-login' })).status, 200);
     assert.equal(auth.credentials[0].counter, 1);
-  } finally { app.closeAllConnections(); await new Promise(resolve => app.close(resolve)); await unlink(file); }
+    const signedInCookie = cookie, expiry = auth.session({ headers: { cookie } }).expires;
+    assert.equal(expiry, now + 12 * 3600000, 'Session lasts the existing twelve hours');
+    assert.match(setCookie, /; Max-Age=43200(?:;|$)/);
+    const restart = async () => {
+      app.closeAllConnections(); await new Promise(resolve => app.close(resolve));
+      auth = new Passkeys({ origin, ownerLogin: 'owner@example.invalid', file }); await auth.initialize();
+      app = application({ bridge, auth }); await new Promise(resolve => app.listen(Number(new URL(origin).port), '127.0.0.1', resolve));
+    };
+    await restart();
+    assert.equal((await post('action', { text: 'after-restart' })).status, 200, 'Verified login must survive bridge restart');
+    assert.equal(auth.session({ headers: { cookie } }).expires, expiry, 'Restart must not extend expiry');
+    assert.equal((await fetch(origin + '/', { headers: { Cookie: cookie }, redirect: 'manual' })).status, 200);
+    const sessionFile = new URL(file.href + '.sessions');
+    assert.equal((await stat(sessionFile)).mode & 0o777, 0o600);
+    const persisted = await readFile(sessionFile, 'utf8');
+    assert.equal(persisted.includes('challenge'), false, 'Never persist passkey challenges');
+    cookie = '';
+    await post('passkey/login-options');
+    const pendingCookie = cookie;
+    await restart();
+    assert.equal((await post('action')).status, 401, 'Pending login cannot become authenticated after restart');
+    assert.equal((await post('passkey/login-verify', assertion)).status, 400, 'Pending challenge must expire at restart');
+    cookie = signedInCookie;
+    now = expiry - 1;
+    assert.equal((await post('action')).status, 200, 'Login remains valid immediately before twelve hours');
+    now = expiry;
+    assert.equal((await post('action')).status, 401, 'Original expiry remains enforced');
+    await restart();
+    assert.equal((await post('action')).status, 401, 'Expired login stays expired after restart');
+    clock.mock.restore();
+    await restart();
+    cookie = signedInCookie;
+    assert.equal((await post('logout')).status, 200);
+    await restart();
+    cookie = signedInCookie;
+    assert.equal((await post('action')).status, 401, 'Logout must remain revoked after restart');
+    cookie = pendingCookie;
+    assert.equal((await post('action')).status, 401);
+  } finally { app.closeAllConnections(); await new Promise(resolve => app.close(resolve)); await unlink(file); await unlink(new URL(file.href + '.sessions')).catch(error => { if (error.code !== 'ENOENT') throw error; }); }
 });
 
 test('client diagnostics require authentication and origin and reject content-bearing fields',async t=>{
