@@ -16,7 +16,7 @@ function rememberTree(tree){for(const win of tree.windows)for(const ws of win.wo
 const runId=randomUUID(),prefix=new URL('../state/creation-names-fixture-'+runId+'-',import.meta.url).pathname;
 const info=new URL('../state/creation-names-fixture-info.json',import.meta.url);
 const log=prefix+'terminal.log';
-const command=`/usr/bin/python3 -u ${new URL('terminal-fixture.py',import.meta.url).pathname} ${log}`;
+const command=`/usr/bin/python3 -u ${new URL(process.env.POKEMUX_CANARY_ANIMATED==='1'?'gesture-output-fixture.py':'terminal-fixture.py',import.meta.url).pathname} ${log}`;
 let workspaceId, groupedWorkspaceId, groupId, bridge, server, auth, closing=false, published=false;
 async function cleanup(){
  if(closing)return;closing=true;let passed=false,unchanged=false;

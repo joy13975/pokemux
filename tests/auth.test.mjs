@@ -125,6 +125,7 @@ test('client diagnostics require authentication and origin and reject content-be
   for(const bad of [[],Array(65).fill(data),[data,{...move,text:'PRIVATE_TYPED_TEXT'}],[{...layout,rects:[['PRIVATE_TEXT',0,1,1]]}],[{...layout,rects:[[0,1,2]]}],[{...layout,rects:Array(65).fill([0,0,1,1])}]])assert.equal((await post(bad)).status,400);
   assert.equal(logged.length,4,'Reject the entire batch before recording any valid prefix');
   assert.equal((await post([layout,move])).status,200);assert.equal(logged.length,6);assert.deepEqual(JSON.parse(logged[4][1]).rects,layout.rects);assert.equal(JSON.parse(logged[5][1]).touch,2);assert.equal(JSON.stringify(logged).includes('PRIVATE_'),false);
+  const geometry={...data,event:'terminal-gesture',gesture:'pinch',contacts:2,rects:[[0,46,390,600],[13,46,720,600]]};assert.equal((await post(geometry)).status,200);assert.equal((await post({...geometry,gesture:'PRIVATE_TERMINAL'})).status,400);assert.equal((await post({...geometry,text:'PRIVATE_TERMINAL'})).status,400);
   const scratch={...data,event:'floating-action',functionKind:'scratchpad'};assert.equal((await post(scratch)).status,200);assert.equal((await post({...scratch,text:'PRIVATE_DRAFT'})).status,400);assert.equal(JSON.stringify(logged).includes('PRIVATE_DRAFT'),false);
 
  }finally{app.closeAllConnections();await new Promise(resolve=>app.close(resolve))}

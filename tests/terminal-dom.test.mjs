@@ -17,6 +17,7 @@ function terminal(saved,legacyTouchProperties=true) {
   installPopover(w);w.HTMLElement.prototype.setPointerCapture=()=>{};
   const originalRect=w.HTMLElement.prototype.getBoundingClientRect;
   w.HTMLElement.prototype.getBoundingClientRect=function(){const button=this.closest('[data-typing-key]');if(this.id==='softwareKeyboard')return {left:0,top:500,width:390,height:300,right:390,bottom:800};if(!button)return originalRect.call(this);const row=button.parentElement,rows=[...row.parentElement.children],buttons=[...row.children],i=buttons.indexOf(button),unit=390/buttons.length,left=i*unit,top=505+rows.indexOf(row)*58;return this===button?{left,top,width:unit,height:58,right:left+unit,bottom:top+58}:{left:left+3,top:top+3,width:unit-6,height:52,right:left+unit-3,bottom:top+55}};
+  w.document.elementFromPoint=(x,y)=>[...w.document.querySelectorAll('body *')].reverse().find(element=>{const r=element.getBoundingClientRect();return !element.closest('[hidden]')&&r.width>0&&r.height>0&&x>=r.left&&x<r.left+r.width&&y>=r.top&&y<r.top+r.height})||null;
   w.matchMedia = () => ({ matches: true });
   w.visualViewport = { width:390, height: 844, scale: 1, offsetTop: 0, offsetLeft:0, addEventListener() {} };
   w.EventSource = class { constructor() { w.fixtureStream=this; } addEventListener(type,fn) { (this.handlers??={})[type]=fn; } close() { this.closed=true; } };
@@ -946,6 +947,17 @@ test('raw custom-keyboard trace includes outside contacts, movement and numeric 
   assert.deepEqual(starts.map(e=>e.touch),[1,2],'A contact outside the keyboard cannot disappear before order allocation');assert.deepEqual(moves.map(e=>e.touch),[1,2],'Each overlapping finger retains its path');
   const layout=w.diagnostics.find(e=>e.event==='keyboard-layout');assert.ok(layout);assert.deepEqual(layout.rects[0],[0,550,428,329]);assert.deepEqual(layout.rects[1],[1,556,42,58]);
   assert.equal(w.actions.length,0);assert.equal(JSON.stringify(w.diagnostics).includes('PRIVATE_'),false);
+ }finally{w.close()}
+});
+
+test('system-keyboard terminal gestures log touch ownership and numeric geometry without terminal text',()=>{
+ const dom=terminal(),w=dom.window,d=w.document,output=d.querySelector('.terminal'),wrap=output.closest('.terminalwrap');
+ try{Object.defineProperties(wrap,{clientWidth:{value:390},clientHeight:{value:600}});wrap.style.padding='0';output.style.width='960px';d.elementFromPoint=()=>output;output.getBoundingClientRect=()=>({left:13,top:46,width:720,height:600});wrap.getBoundingClientRect=()=>({left:0,top:46,width:390,height:600});w.fixture.focusInput();w.fixture.flushInputDiagnostics();w.diagnostics.length=0;
+ const point=(identifier,x,target=output)=>({identifier,clientX:x,clientY:100,target}),send=(type,points)=>points.at(-1).target.dispatchEvent(new w.TouchEvent(type,{bubbles:true,cancelable:true,touches:points,changedTouches:points}));
+ send('touchstart',[point(1,100,wrap)]);send('touchstart',[point(1,100,wrap),point(2,300)]);send('touchmove',[point(1,130,wrap),point(2,270)]);w.fixture.flushInputDiagnostics();
+ assert.ok(w.diagnostics.some(e=>e.event==='touchstart'&&e.touch===1&&e.target==='terminal'),'Blank terminal wrapper touches must be classified as terminal');
+ assert.ok(w.diagnostics.some(e=>e.event==='touchmove'&&e.target==='terminal'&&e.contacts===2),'Native terminal touches cannot be skipped');
+ const gesture=w.diagnostics.find(e=>e.event==='terminal-gesture'&&e.gesture==='pinch');assert.ok(gesture,'Log the terminal handler owning both fingers');assert.deepEqual(gesture.rects,[[0,46,390,600],[13,46,720,600]]);assert.equal(JSON.stringify(w.diagnostics).includes(output.textContent),false);
  }finally{w.close()}
 });
 
