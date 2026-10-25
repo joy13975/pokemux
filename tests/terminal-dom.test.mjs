@@ -7,10 +7,11 @@ import {KeyboardDecoder,calibrate} from '../keyboard.mjs';
 import { KanaComposer } from '../kana.mjs';
 import { installPopover } from './popover-fixture.mjs';
 const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
-function terminal(saved) {
+function terminal(saved,legacyTouchProperties=true) {
   const virtualConsole=new VirtualConsole();virtualConsole.on('jsdomError',error=>{if(error.type==='unhandled-exception')throw error});
   const dom = new JSDOM(html, { virtualConsole, url: 'https://pokemux-test.invalid', runScripts: 'outside-only', pretendToBeVisual: true }), w = dom.window;
   w.localStorage.setItem("cmux-pocket-customizations",JSON.stringify({shortcuts:[],snippets:[],keyboardMode:"native",keyboardDefaultVersion:1,...saved}));
+  if(!legacyTouchProperties)for(const name of ['ontouchstart','ontouchmove','ontouchend','ontouchcancel'])delete w.HTMLElement.prototype[name];
   w.isSecureContext=true;w.diagnostics=[];w.diagnosticRequests=[];
   w.resizeObservers=[];w.ResizeObserver = class { constructor(callback){this.callback=callback;this.targets=new Set();w.resizeObservers.push(this)} observe(target){this.targets.add(target)} disconnect(){this.targets.clear()} };
   installPopover(w);w.HTMLElement.prototype.setPointerCapture=()=>{};
@@ -1029,7 +1030,7 @@ test('joystick outer vertical jumps once, modifiers survive ranges, and edge tra
   h.style.left='173px';h.style.top='400px';d.querySelector('[data-key="Shift"]').click();h.onpointerdown(point(195,422));
   for(const [offset,key]of[[-100,'Shift-Ctrl-Home'],[100,'Shift-Ctrl-End']]){h.onpointermove(point(195,422+offset));await flush();assert.equal(w.actions.at(-1).key,key);assert.equal(repeat,null,'Top/Bottom are single jumps, not repeats');const count=w.actions.length;h.onpointermove(point(195,423+offset));await flush();assert.equal(w.actions.length,count)}h.onpointercancel();
   h.style.left='8px';h.style.top='8px';h.onpointerdown(point(30,30));
-  for(const [dx,key,period]of[[-8,'Left',700],[-12,'Left',300],[-17,'Alt-Left',700],[-22,'Alt-Left',300]]){h.onpointermove(point(30+dx,30));await flush();assert.equal(w.actions.at(-1).key,key);assert.equal(repeat.ms,period)}h.onpointercancel();assert.equal(d.querySelector('#joystickSpeed').hidden,true);
+  for(const [dx,key,period]of[[-8,'Left',700],[-13,'Left',300],[-17,'Alt-Left',700],[-22,'Alt-Left',300]]){h.onpointermove(point(30+dx,30));await flush();assert.equal(w.actions.at(-1).key,key);assert.equal(repeat.ms,period)}h.onpointercancel();assert.equal(d.querySelector('#joystickSpeed').hidden,true);
  }finally{w.close()}
 });
 
@@ -1041,4 +1042,30 @@ test('pressing the outer edge of a joystick never turns neutral movement into an
 test('a held joystick stops producing input when its terminal is replaced',async()=>{
  const dom=terminal(),w=dom.window,h=w.document.querySelector('#cursorJoystick');let tick;w.setInterval=fn=>{tick=fn;return 1};w.clearInterval=()=>{};const point=x=>({pointerId:74,button:0,isPrimary:true,clientX:x,clientY:422,preventDefault(){}}),flush=()=>new Promise(r=>w.setTimeout(r,0));
  try{h.style.left='173px';h.style.top='400px';h.onpointerdown(point(195));h.onpointermove(point(215));await flush();assert.equal(w.actions.length,1);w.fixture.otherTerminal();tick();await flush();assert.equal(w.actions.length,1,'Changing terminals must not leave keys repeating into the old terminal');assert.equal(w.document.querySelector('#joystickSpeed').hidden,true)}finally{w.close()}
+});
+
+test('terminal pinch and mixed-contact pan work without legacy touch event properties',()=>{
+ const dom=terminal(undefined,false),w=dom.window,d=w.document,output=d.querySelector('.terminal'),wrap=d.querySelector('.terminalwrap');
+ try{Object.defineProperty(wrap,'clientWidth',{value:390});wrap.style.padding='0';output.style.width='960px';const computed=w.getComputedStyle.bind(w);w.getComputedStyle=e=>e===output?{width:'960px'}:computed(e);output.focus();const send=(type,points)=>wrap.dispatchEvent(new w.TouchEvent(type,{bubbles:true,cancelable:true,touches:points,changedTouches:points})),point=(id,x,y,target=wrap)=>({identifier:id,clientX:x,clientY:y,target});
+ send('touchstart',[point(1,100,200),point(2,300,200)]);send('touchmove',[point(1,0,200),point(2,400,200)]);assert.equal(Number.parseFloat(output.parentElement.style.width),1320);send('touchend',[]);
+ const width=output.parentElement.style.width;wrap.scrollLeft=100;wrap.scrollTop=100;const held=point(3,60,888,d.querySelector('#cursorJoystick'));send('touchstart',[held,point(4,250,400)]);send('touchmove',[held,point(4,150,100)]);assert.equal(output.parentElement.style.width,width);assert.equal(wrap.scrollLeft,200);assert.equal(wrap.scrollTop,400)
+ }finally{w.close()}
+});
+
+test('directional steering dismisses the keyboard, retains modifiers and zoom, and keeps its physical origin through viewport changes',async()=>{
+ for(const mode of ['native','custom']){const dom=terminal({keyboardMode:mode}),w=dom.window,d=w.document,h=d.querySelector('#cursorJoystick'),point=(x,y)=>({pointerId:75,button:0,isPrimary:true,clientX:x,clientY:y,preventDefault(){}});
+ try{w.fixture.focusInput();if(mode==='native'){w.visualViewport.height=430;w.fixture.syncViewport();assert.equal(d.activeElement,d.querySelector('.terminal'))}d.querySelector('[data-key="Ctrl"]').click();d.querySelector('[data-key="Ctrl"]').click();const x=Number.parseFloat(h.style.left)+22,y=Number.parseFloat(h.style.top)+22,width=d.querySelector('.terminal').parentElement.style.width;h.onpointerdown(point(x,y));h.onpointermove(point(x+20,y));await new Promise(r=>w.setTimeout(r,0));assert.equal(d.querySelector('#softwareKeyboard').hidden,true);assert.notEqual(d.activeElement,d.querySelector('.terminal'));w.fixture.syncViewport();assert.equal(d.querySelector('#viewportDock').classList.contains('typing'),false);assert.equal(d.querySelector('[data-key="Ctrl"]').classList.contains('locked'),true);assert.equal(d.querySelector('.terminal').parentElement.style.width,width);const top=h.style.top,left=h.style.left;Object.assign(w.visualViewport,{height:1000,offsetTop:100});w.fixture.syncViewport();assert.equal(h.style.top,top);assert.equal(h.style.left,left);const count=w.actions.length;h.onpointermove(point(x+20,y+100));await new Promise(r=>w.setTimeout(r,0));assert.equal(w.actions.length,count,'Viewport motion does not change a held direction or restart its repeat');h.onpointerup(point(x+20,y+100));assert.equal(d.querySelector('#softwareKeyboard').hidden,true)
+ }finally{w.close()}}
+});
+
+test('joystick detents resist boundary jitter and attract the marker to each range center without timing labels',async()=>{
+ const dom=terminal(),w=dom.window,d=w.document,h=d.querySelector('#cursorJoystick'),point=x=>({pointerId:76,button:0,isPrimary:true,clientX:x,clientY:422,preventDefault(){}}),flush=()=>new Promise(r=>w.setTimeout(r,0)),tier=()=>d.querySelector('#joystickSpeed .active')?.dataset.speed;
+ try{h.style.left='173px';h.style.top='400px';h.onpointerdown(point(195));h.onpointermove(point(215));await flush();assert.equal(tier(),'0');h.onpointermove(point(235));assert.equal(tier(),'0','Small overshoot resists leaving the current range');h.onpointermove(point(240));assert.equal(tier(),'1','Intentional farther travel crosses the detent');h.onpointermove(point(235));assert.equal(tier(),'1','Boundary reversal does not flicker');h.onpointermove(point(225));assert.equal(tier(),'0');h.onpointermove(point(220));const marker=d.querySelector('.speed-marker').style.transform,distance=Number(marker.match(/translate\(([-.\d]+)/)[1]),center=32+(390/2-32)*.125;assert.ok(Math.abs(distance-center)<5,'Marker is attracted to the selected range center');assert.doesNotMatch(d.querySelector('#joystickSpeed').textContent,/\d[.,]\d|\d+s/);h.onpointercancel()
+ }finally{w.close()}
+});
+
+test('held arrow repeats do not pull the view back after an independent finger pans',async()=>{
+ const dom=terminal({keyboardMode:'custom'}),w=dom.window,d=w.document,output=d.querySelector('.terminal'),wrap=output.closest('.terminalwrap'),h=d.querySelector('#cursorJoystick');let repeat;w.setInterval=fn=>{repeat=fn;return 1};w.clearInterval=()=>{};const point=x=>({pointerId:77,button:0,isPrimary:true,clientX:x,clientY:422,preventDefault(){}}),flush=()=>new Promise(r=>w.setTimeout(r,0));
+ try{w.fixture.focusInput();h.style.left='173px';h.style.top='400px';h.onpointerdown(point(195));h.onpointermove(point(215));await flush();wrap.scrollLeft=100;wrap.scrollTop=100;const held={identifier:1,target:h,clientX:215,clientY:422},p=(x,y)=>({identifier:2,target:output,clientX:x,clientY:y});for(const [type,x,y]of[['touchstart',250,350],['touchmove',150,200]])wrap.dispatchEvent(new w.TouchEvent(type,{bubbles:true,cancelable:true,touches:[held,p(x,y)],changedTouches:[p(x,y)]}));assert.equal(wrap.scrollTop,250);wrap.getBoundingClientRect=()=>({top:50,bottom:400});output.querySelector('.remote-cursor').getBoundingClientRect=()=>({top:0,bottom:20});repeat();await flush();w.fixture.paintTerminal();assert.equal(wrap.scrollTop,250,'Repeats preserve the explicit reading/pan position');assert.equal(wrap.scrollLeft,200);h.onpointermove(point(245));await flush();w.fixture.paintTerminal();assert.equal(wrap.scrollTop,250,'Changing the held range cannot take scroll ownership back');assert.equal(wrap.scrollLeft,200);h.onpointercancel()
+ }finally{w.close()}
 });

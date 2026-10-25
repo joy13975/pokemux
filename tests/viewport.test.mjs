@@ -5,8 +5,8 @@ import vm from 'node:vm';
 const html=readFileSync(new URL('../index.html',import.meta.url),'utf8');
 const source=html.slice(html.indexOf('function syncViewport()'),html.indexOf('function insertText('));
 function fixture(restoreOverview=true){
- const properties={},root={clientHeight:844,clientWidth:390,style:{setProperty:(k,v)=>properties[k]=v},classList:{toggle:(k,v)=>properties[k]=v}};
- const context=vm.createContext({window:{innerHeight:844,visualViewport:{height:844,scale:1,offsetTop:0}},document:{documentElement:root},customInput:()=>false,preferences:{restoreOverview},manualScale:1.3,terminalTyping:true,keyboardVisible:true,restingHeight:844,viewportWidth:390,$:()=>({classList:{toggle:(k,v)=>properties[k]=v}}),fitTerminal(){},syncFloating(){},syncDock(){},syncPanelLayout(){},requestAnimationFrame:fn=>fn(),revealInputLine(){}});
+ const input={},properties={},root={clientHeight:844,clientWidth:390,style:{setProperty:(k,v)=>properties[k]=v},classList:{toggle:(k,v)=>properties[k]=v}};
+ const context=vm.createContext({window:{innerHeight:844,visualViewport:{height:844,scale:1,offsetTop:0}},document:{documentElement:root,activeElement:input},inputSurface:()=>input,joystickSteering:false,customInput:()=>false,preferences:{restoreOverview},manualScale:1.3,terminalTyping:true,keyboardVisible:true,restingHeight:844,viewportWidth:390,$:()=>({classList:{toggle:(k,v)=>properties[k]=v}}),fitTerminal(){},syncFloating(){},syncDock(){},syncPanelLayout(){},requestAnimationFrame:fn=>fn(),revealInputLine(){}});
  vm.runInContext(source,context);
  return {resize(height,scale=1,layout=844){root.clientHeight=layout;context.window.visualViewport.height=height;context.window.visualViewport.scale=scale;context.syncViewport();return {...properties,manualScale:context.manualScale}}};
 }

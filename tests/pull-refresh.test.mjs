@@ -8,7 +8,7 @@ const source = html.slice(html.indexOf('function bindSwipes()'), html.indexOf('f
 function gesture(typing = false, selected = false, shortcuts = false) {
   const node = () => ({ hidden: true, textContent: '', dataset: {}, style: { setProperty(k, v) { this[k] = v; } }, classList: { toggle() {}, add() {}, remove() {} } });
   const nodes = { content: node(), pullIndicator: node(), pullLabel: node(), dialog: {...node(),open:shortcuts} };
-  nodes.content.querySelector = () => node();
+  nodes.content.querySelector = () => Object.assign(new EventTarget(),node());
   let reloads = 0, sidebars = 0, keyboards = 0, dismissals=0; const keys = []; const output = {};
   nodes.dialog.contains=()=>false;nodes.dialog.classList.contains=()=>shortcuts;nodes.dialog.close=()=>{nodes.dialog.open=false;dismissals++};
   const context = vm.createContext({ stopTerminalScroll(){}, $: id => nodes[id], document: { activeElement: typing ? output : {} }, inputSurface: () => output, getSelection: () => ({ toString: () => selected ? 'selected terminal text' : '' }), matchMedia: () => ({ matches: true }), activeSurface: () => ({ kind: 'terminal' }), connected: true, terminalTyping:typing, focusInput() {}, sendKey(key) { keys.push(key); }, openSidebar() { sidebars++; }, keyboardDialog() { keyboards++; }, location: { reload: () => reloads++ }, requestAnimationFrame: fn => fn() });
