@@ -73,8 +73,10 @@ const authFile=new URL('../state/creation-names-fixture-passkeys.json',import.me
 auth=new Passkeys({origin:'http://localhost:4395',ownerLogin:'fixture@example.invalid',file:authFile});await auth.initialize();
 const id=randomBytes(32).toString('hex');auth.sessions.set(id,{authenticated:true,expires:Date.now()+3600000});
 server=application({bridge,auth});const handler=server.listeners('request')[0];server.removeAllListeners('request');
-server.on('request',(req,res)=>{
+server.on('request',async(req,res)=>{
  if(!['localhost:4395','127.0.0.1:4395'].includes(req.headers.host)){res.writeHead(403);res.end();return}
+ if(process.env.POKEMUX_CANARY_LINKS==='1'&&req.url==='/__link-probe'){res.setHeader('Content-Type','text/html');res.end(await readFile(new URL('link-handoff-probe.html',import.meta.url)));return}
+ if(process.env.POKEMUX_CANARY_LINKS==='1'&&req.url==='/__link-probe.webmanifest'){res.setHeader('Content-Type','application/manifest+json');res.end(JSON.stringify({id:'/__link-probe',name:'Pokemux link probe',start_url:'/__link-probe',scope:'/__link-',display:'standalone'}));return}
  if(process.env.POKEMUX_CANARY_TRACE==='1'&&req.url==='/__input-trace'){let body='';req.on('data',chunk=>body+=chunk);req.on('end',()=>{console.log('Input trace: '+body);res.end('{}')});return}
  if(process.env.POKEMUX_CANARY_TRACE==='1'&&req.url==='/'){
   const end=res.end.bind(res);res.end=(body,...args)=>end(String(body).replace('</head>',`<script>const traceStarts=new WeakMap();for(const type of ['pointerdown','pointerup','click','focusin','focusout']){document.addEventListener(type,e=>traceStarts.set(e,performance.now()),true);document.addEventListener(type,e=>{const target=e.target.id||e.target.dataset?.typingKey||e.target.tagName,detail=e.detail,dispatchMs=performance.now()-traceStarts.get(e);setTimeout(()=>fetch('/__input-trace',{method:'POST',body:JSON.stringify({type,target,detail,dispatchMs,hidden:document.querySelector('#softwareKeyboard')?.hidden,focus:document.activeElement.className})}),0)})}</script></head>`),...args);
