@@ -1084,6 +1084,12 @@ test('held arrow repeats do not pull the view back after an independent finger p
  }finally{w.close()}
 });
 
+test('joystick displaced release without pointermove cannot masquerade as a mode-toggle tap',()=>{
+ const dom=terminal(),w=dom.window,h=w.document.querySelector('#cursorJoystick'),point=x=>({pointerId:85,button:0,isPrimary:true,clientX:x,clientY:422,preventDefault(){}});
+ try{h.style.left='173px';h.style.top='400px';h.onpointerdown(point(195));h.onpointerup(point(295));assert.equal(h.dataset.mode,'character');assert.equal(w.actions.length,0,'A missed-move release must neither toggle nor send an unexpected arrow');h.onpointerdown(point(195));h.onpointerup(point(197));assert.equal(h.dataset.mode,'word','Small tap slop still toggles')}
+ finally{w.close()}
+});
+
 test('joystick taps persist character or word mode without terminal input or toggling after reposition',async()=>{
  const dom=terminal(),w=dom.window,d=w.document,h=d.querySelector('#cursorJoystick'),point=(x=195,y=422)=>({pointerId:81,button:0,isPrimary:true,clientX:x,clientY:y,preventDefault(){}}),flush=()=>new Promise(r=>w.setTimeout(r,0));
  try{h.style.left='173px';h.style.top='400px';assert.equal(h.getAttribute('aria-pressed'),'false');h.onpointerdown(point());h.onpointerup(point());assert.equal(h.getAttribute('aria-pressed'),'true');assert.equal(h.querySelector('.joystick-mode').textContent,'W');assert.equal(JSON.parse(w.localStorage.getItem('cmux-pocket-customizations')).joystickWordMode,true);assert.equal(w.actions.length,0);
