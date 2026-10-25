@@ -304,6 +304,13 @@ test('terminal pinch is local and Zoom Toggle switches full grid and readable ty
  }finally{w.close()}
 });
 
+test('native drawer overscroll keeps manual zoom through focus loss until the pull commits',()=>{
+ const dom=terminal(),w=dom.window,d=w.document,output=d.querySelector('.terminal'),wrap=output.closest('.terminalwrap'),canvas=output.parentElement;
+ try{d.querySelector('#dialog').show=function(){this.open=true;this.querySelector('button').focus()};Object.defineProperties(wrap,{clientWidth:{value:390},clientHeight:{value:600},scrollWidth:{get:()=>Math.max(390,parseFloat(canvas.style.width))}});wrap.style.padding='0';output.style.width='960px';output.focus();d.querySelector('[data-function="0"]').click();assert.equal(parseFloat(canvas.style.width),390);
+ terminalPointer(w,wrap,'pointerdown',300,250);terminalPointer(w,wrap,'pointermove',100,250);assert.equal(d.querySelector('#dialog').open,true);assert.notEqual(d.activeElement,output,'Drawer preview actually blurs the native input');assert.equal(parseFloat(canvas.style.width),390,'Focus loss cannot move the content boundary during its active overscroll');terminalPointer(w,wrap,'pointerup',100,250);assert.equal(d.querySelector('#dialog').open,true,'The same pull must still commit after focus changes');assert.equal(w.actions.length,0);
+ }finally{w.close()}
+});
+
 test('a finger on a floating control cannot join the terminal pinch and a terminal finger pans independently',()=>{
  const dom=terminal(),w=dom.window,d=w.document,output=d.querySelector('.terminal'),wrap=d.querySelector('.terminalwrap');
  try{Object.defineProperty(wrap,'clientWidth',{value:390});wrap.style.padding='0';output.style.width='960px';const computed=w.getComputedStyle.bind(w);w.getComputedStyle=e=>e===output?{width:'960px'}:computed(e);output.focus();const width=output.parentElement.style.width;wrap.scrollLeft=100;wrap.scrollTop=100;
