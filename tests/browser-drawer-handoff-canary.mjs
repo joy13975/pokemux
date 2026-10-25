@@ -1,0 +1,22 @@
+import assert from 'node:assert/strict';
+import {readFile,writeFile} from 'node:fs/promises';
+import {createHash} from 'node:crypto';
+
+export async function verifyDrawerHandoff(tab,cdp,{infoPath,proofPath}){
+ const info=JSON.parse(await readFile(infoPath,'utf8'));assert.equal(await tab.url(),info.origin+info.route);assert.ok(info.ownedWorkspaceIds.includes(info.workspaceId));
+ const bytes=async()=>[...(await readFile(info.log,'utf8')).matchAll(/^RECV:(.+)$/gm)].map(m=>m[1]).join(''),before=await bytes(),steps=[],checks=[];
+ const state=()=>tab.playwright.evaluate(()=>{const wrap=document.querySelector('.terminalwrap'),shell=document.querySelector('#shell'),dialog=document.querySelector('#dialog');return{left:wrap.scrollLeft,max:wrap.scrollWidth-wrap.clientWidth,sidebar:shell.classList.contains('sidebar-open'),preview:shell.classList.contains('sidebar-preview'),leftProgress:Number(shell.style.getPropertyValue('--sidebar-progress')),rightProgress:Number(dialog.style.getPropertyValue('--drawer-progress')),drawer:dialog.open&&dialog.classList.contains('app-drawer'),modal:dialog.matches(':modal'),width:document.querySelector('#sidebar').getBoundingClientRect().width}});
+ let time=Date.now()/1000;
+ const touch=async(type,x,y=240,elapsed=.16)=>{time+=elapsed;const params={type,timestamp:time,touchPoints:type==='touchEnd'||type==='touchCancel'?[]:[{x,y,id:1}]};await cdp.send('Input.dispatchTouchEvent',params,{timeoutMs:10000});steps.push(params);return state()};
+ const close=async()=>{await touch('touchStart',250,450);await touch('touchMove',30,450);await touch('touchEnd')};
+ let s=await state();assert.equal(s.left,0);assert.ok(s.max>50,'Use real horizontally overflowing terminal output');
+ await touch('touchStart',100);s=await touch('touchMove',190);assert.ok(Math.abs(s.leftProgress-90/s.width)<.01);assert.equal(s.sidebar,false);await writeFile(proofPath,await tab.screenshot({fullPage:false}));s=await touch('touchMove',105);assert.ok(s.leftProgress<.03);await touch('touchEnd');assert.equal((await state()).sidebar,false);checks.push('Interior partial pull follows the finger and reversal cancels');
+ await touch('touchStart',90);await touch('touchMove',320);await touch('touchEnd');assert.equal((await state()).sidebar,true);await close();assert.equal((await state()).sidebar,false);checks.push('Interior rightward pull opens the left sidebar and reverse drawer drag closes it');
+ await touch('touchStart',350);s=await touch('touchMove',200);assert.equal(s.left,150);assert.equal(s.drawer,false);await touch('touchMove',350);await touch('touchEnd');assert.equal((await state()).left,0);checks.push('Horizontal content travel is consumed without opening a drawer');
+ await touch('touchStart',350);s=await touch('touchMove',200,240,.016);assert.equal(s.left,150);await touch('touchEnd',undefined,240,.004);
+ for(let n=0;n<20;n++){s=await state();if(s.left===s.max)break;await new Promise(r=>setTimeout(r,30))}assert.equal(s.left,s.max);assert.equal(s.drawer,false);assert.equal(s.preview,false);checks.push('A real flick coasts to the content edge without opening either drawer');
+ await touch('touchStart',320);s=await touch('touchMove',230);assert.ok(Math.abs(s.rightProgress-90/s.width)<.01);assert.equal(s.modal,false);s=await touch('touchMove',315);assert.ok(s.rightProgress<.03);await touch('touchEnd');assert.equal((await state()).drawer,false);checks.push('Fresh intentional overscroll pulls the right menu; reversal cancels');
+ await touch('touchStart',320);await touch('touchMove',90);await touch('touchEnd');assert.equal((await state()).modal,true);await touch('touchStart',180);await touch('touchMove',410);await touch('touchEnd');assert.equal((await state()).drawer,false);checks.push('Right menu commits only on release and can be dragged closed');
+ await touch('touchStart',320);await touch('touchMove',90);await touch('touchCancel');assert.equal((await state()).sidebar,false);assert.equal((await state()).preview,false);assert.equal((await state()).drawer,false);assert.equal((await state()).modal,false);assert.equal(await bytes(),before,'Drawer gestures must not send terminal input');
+ return{time:new Date().toISOString(),runId:info.runId,workspaceId:info.workspaceId,surfaceId:info.surfaceId,sourceSha256:createHash('sha256').update(await readFile(new URL('../index.html',import.meta.url))).digest('hex'),scope:'Chrome actual touch engine at428x926; not native Safari continuity proof',checks,steps,noTerminalInput:true,passed:true};
+}
