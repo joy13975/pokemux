@@ -20,6 +20,7 @@ function terminal(saved,legacyTouchProperties=true) {
   w.document.elementFromPoint=(x,y)=>[...w.document.querySelectorAll('body *')].reverse().find(element=>{const r=element.getBoundingClientRect();return !element.closest('[hidden]')&&r.width>0&&r.height>0&&x>=r.left&&x<r.left+r.width&&y>=r.top&&y<r.top+r.height})||null;
   w.matchMedia = () => ({ matches: true });
   w.visualViewport = { width:390, height: 844, scale: 1, offsetTop: 0, offsetLeft:0, addEventListener() {} };
+  Object.defineProperties(w.document.documentElement,{clientWidth:{value:390},clientHeight:{value:844}});w.innerHeight=844;
   w.EventSource = class { constructor() { w.fixtureStream=this; } addEventListener(type,fn) { (this.handlers??={})[type]=fn; } close() { this.closed=true; } };
   w.HTMLDialogElement.prototype.showModal=function(){this.open=true;};
   w.HTMLDialogElement.prototype.show=function(){this.open=true;};

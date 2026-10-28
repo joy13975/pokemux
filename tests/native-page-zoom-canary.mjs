@@ -1,0 +1,17 @@
+import assert from 'node:assert/strict';
+import {readFile,writeFile} from 'node:fs/promises';
+import {createHash} from 'node:crypto';
+export async function verifyNativePageZoom(app){
+ const path=new URL('../state/native-page-zoom-final.log',import.meta.url),steps=[];
+ const frames=async from=>(await readFile(path,'utf8')).slice(from).split('\n').filter(s=>s.startsWith('Pokemux client diagnostic ')).map(s=>JSON.parse(s.slice('Pokemux client diagnostic '.length))).filter(d=>d.event==='bootstrap');
+ const wait=async predicate=>{const until=Date.now()+7000;while(true){const value=await predicate();if(value)return value;assert.ok(Date.now()<until,'Expected native Page Zoom outcome');await new Promise(resolve=>setTimeout(resolve,50))}};
+ const index=(state,pattern)=>{const match=state.match(pattern);assert.ok(match,'Expected native Safari control');return Number(match[1])};
+ const reload=async()=>{const before=(await readFile(path,'utf8')).length,state=await app.getAXState({emit:false,disableDiffing:true});await app.click(index(state,/(\d+) button Description: refresh,/));await app.getAXState({emit:false});return wait(async()=>{const rows=await frames(before);assert.equal(rows.some(d=>d.phase==='error'),false,'Landing must not crash');return rows.find(d=>d.phase==='ready')})};
+ const half=await reload();assert.equal(half.scale,.5);assert.equal(half.width,856);assert.equal(half.native,false,'Native Page Zoom must not masquerade as an open keyboard');steps.push('Native Safari Page Zoom50 survives reload despite minimum-scale1');
+ await app.drag([500,600],[450,650]);await app.getAXState({emit:false});await writeFile(new URL('../NATIVE_PAGE_ZOOM_50.png',import.meta.url),await app.getScreenshot({emit:false}));
+ let state=await app.getAXState({emit:false,disableDiffing:true});await app.click(index(state,/(\d+) button Description: Page Menu,/));state=await app.getAXState({emit:false,disableDiffing:true});
+ for(let count=0;count<4;count++){const prior=(await frames(0)).at(-1);if(prior.scale===1)break;await app.click(index(state,/(\d+) button Description: textformat.size.larger, ID: Increment,/));state=await app.getAXState({emit:false,disableDiffing:true});await wait(async()=>{const current=(await frames(0)).at(-1);return current.scale>prior.scale&&current})}
+ assert.equal((await frames(0)).at(-1).scale,1);await app.click([600,280]);await app.getAXState({emit:false});const normal=await reload();assert.equal(normal.scale,1);assert.equal(normal.width,428);assert.equal(normal.native,false);steps.push('Resetting native Page Zoom100 restores normal first load with unchanged app source');
+ assert.equal((await readFile(path,'utf8')).includes('"fixtureAction"'),false,'Local preview gestures send no terminal actions');await writeFile(new URL('../NATIVE_PAGE_ZOOM_100.png',import.meta.url),await app.getScreenshot({emit:false}));
+ const sourceSha256={};for(const file of ['index.html','server.mjs'])sourceSha256[file]=createHash('sha256').update(await readFile(new URL('../'+file,import.meta.url))).digest('hex');const result={passed:true,scope:'Native iPhone13ProMax Simulator Safari26.3, actual Page Zoom controls50→100, non-editable first tab, no injected viewport metadata or cmux connection; physical phone setting not inspected',half,normal,steps,sourceSha256};await writeFile(new URL('../NATIVE_PAGE_ZOOM_RESULT.json',import.meta.url),JSON.stringify(result,null,2)+'\n');return result;
+}

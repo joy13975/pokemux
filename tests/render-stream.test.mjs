@@ -7,7 +7,7 @@ import { JSDOM } from 'jsdom';
 import { RenderGrid } from '../grid.mjs';
 import { KanaComposer } from '../kana.mjs';
 const html=readFileSync(new URL('../index.html',import.meta.url),'utf8');
-function client(){
+function client(initialKind='terminal'){
  const dom=new JSDOM(html,{url:'https://pokemux-test.invalid',runScripts:'outside-only',pretendToBeVisual:true}),w=dom.window;
  w.localStorage.setItem("cmux-pocket-customizations",JSON.stringify({shortcuts:[],snippets:[],keyboardMode:"custom",keyboardDefaultVersion:1}));
  w.ResizeObserver=class{observe(){}disconnect(){}};w.HTMLElement.prototype.setPointerCapture=()=>{};w.matchMedia=()=>({matches:true});
@@ -20,7 +20,7 @@ function client(){
  const script=html.split('<script type="module">\n')[1].split('</script>')[0];
  w.eval(script.slice(0,script.lastIndexOf('(async()=>{'))+`
  RenderGrid=window.__RenderGrid;KanaComposer=window.__KanaComposer;kana=new KanaComposer();
- const fixture=workspace('owned-workspace','Owned',null,'','',[pane('owned-pane',[surface('owned-surface','Owned')])],'owned-window');workspaces.push(fixture);current=fixture;selectedWindow=fixture.window;connected=true;terminalTyping=true;render();
+ const fixture=workspace('owned-workspace','Owned',null,'','',[pane('owned-pane',[surface('owned-surface','Owned',${JSON.stringify(initialKind)})])],'owned-window');workspaces.push(fixture);current=fixture;selectedWindow=fixture.window;connected=true;terminalTyping=true;render();
  window.fixture={switchSurface(){const p=activePane();p.tabs.push(surface('other-surface','Other'));selectSurface(p.id,'other-surface')},subscribeTerminal,sendTerminal,typingAction,syncDock,get connected(){return connected},frame(revision,text){return{format:'cmux.render-grid.v1',render_epoch:'owned',render_revision:revision,full:true,rows:2,columns:20,row_spans:[{row:0,column:0,text}],cursor:{row:0,column:text.length,visible:true,style:'block'}}}};
  `);
  return dom;
@@ -68,3 +68,7 @@ test('terminal symbol font is served and contains monochrome record, stop and pa
   for(const cp of [0x23fa,0x23f8,0x23f9,0x26a0]){const group=groups.find(([start,end])=>cp>=start&&cp<=end);assert.ok(group,`Missing terminal symbol ${cp.toString(16)}`);assert.ok(group[2]+cp-group[0]>0)}
  }finally{await new Promise(resolve=>server.close(resolve))}
 });
+
+test('landing on a browser tab renders its preview without binding a nonexistent shortcut grip',()=>{const dom=client('browser');try{assert.ok(dom.window.document.querySelector('.browserpreview'));assert.equal(dom.window.document.querySelector('.shortcut-grip'),null);assert.ok(dom.window.document.querySelector('#sidebarToggle'));assert.ok(dom.window.document.querySelector('#appActions'));const w=dom.window,errors=[];w.addEventListener('error',e=>{errors.push(e.error);e.preventDefault()});const wrap=w.document.querySelector('.terminalwrap');w.document.elementFromPoint=()=>wrap;const event=new w.Event('touchstart',{bubbles:true,cancelable:true});const contacts=[{identifier:1,clientX:40,clientY:90,target:wrap}];Object.defineProperties(event,{touches:{value:contacts},changedTouches:{value:contacts}});wrap.dispatchEvent(event);assert.equal(errors.length,0,errors.map(e=>e?.stack||String(e)).join("\n"));assert.equal(w.actions.length,0)}finally{dom.window.close()}});
+
+test('browser preview disables terminal floating actions for taps and drag selection while Scratchpad remains usable',()=>{const dom=client('browser'),w=dom.window,d=w.document;try{d.querySelector('#floatingHandle').click();for(const i of [0,1,2]){const b=d.querySelector(`[data-function="${i}"]`);assert.equal(b.disabled,true);b.click()}const handle=d.querySelector('#floatingHandle'),control=d.querySelector('#floatingFunctions'),zoom=d.querySelector('[data-function="0"]'),x=parseFloat(control.style.left)+22,y=parseFloat(control.style.top)+22,point=(clientX,clientY)=>({pointerId:1,button:0,isPrimary:true,clientX,clientY,preventDefault(){}});handle.onpointerdown(point(x,y));handle.onpointermove(point(x+parseFloat(zoom.style.left),y+parseFloat(zoom.style.top)));assert.equal(zoom.getAttribute('aria-pressed'),'false');handle.onpointerup(point(x+parseFloat(zoom.style.left),y+parseFloat(zoom.style.top)));assert.equal(w.actions.length,0);d.querySelector('#floatingHandle').click();d.querySelector('[data-function="4"]').click();assert.equal(d.querySelector('#scratchLayer').hidden,false);assert.equal(d.querySelector('#scratchSend').disabled,true)}finally{w.close()}});
