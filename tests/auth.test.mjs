@@ -128,5 +128,7 @@ test('client diagnostics require authentication and origin and reject content-be
   const geometry={...data,event:'terminal-gesture',gesture:'pinch',contacts:2,rects:[[0,46,390,600],[13,46,720,600]]};assert.equal((await post(geometry)).status,200);assert.equal((await post({...geometry,gesture:'PRIVATE_TERMINAL'})).status,400);assert.equal((await post({...geometry,text:'PRIVATE_TERMINAL'})).status,400);
   const scratch={...data,event:'floating-action',functionKind:'scratchpad'};assert.equal((await post(scratch)).status,200);assert.equal((await post({...scratch,text:'PRIVATE_DRAFT'})).status,400);assert.equal(JSON.stringify(logged).includes('PRIVATE_DRAFT'),false);
 
+  const bootstrap={...data,event:'bootstrap',phase:'initial',width:840,height:1688,scale:.5,rects:[[0,0,840,1688],[0,0,1680,1688]]};assert.equal((await post(bootstrap)).status,200);assert.deepEqual(JSON.parse(logged.at(-1)[1]).rects,bootstrap.rects);for(const phase of ['PRIVATE_TEXT','constructor'])assert.equal((await post({...bootstrap,phase})).status,400);
+
  }finally{app.closeAllConnections();await new Promise(resolve=>app.close(resolve))}
 });

@@ -1,7 +1,7 @@
 // Browser renderer fixture only: no connection to cmux and no user terminal data.
 import { EventEmitter } from 'node:events';
 import { randomUUID } from 'node:crypto';
-import { writeFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import { application } from '../server.mjs';
 import { eastAsianWidth } from 'get-east-asian-width';
 const cells=text=>[...new Intl.Segmenter(undefined,{granularity:'grapheme'}).segment(text)].reduce((n,{segment})=>n+(/\p{Emoji_Presentation}|\uFE0F/u.test(segment)?2:eastAsianWidth(segment.codePointAt(0))),0);
@@ -9,12 +9,13 @@ const workspace=randomUUID(),surface=randomUUID(),secondSurface=randomUUID(),pan
 const frame={format:'cmux.render-grid.v1',render_epoch:'glyph-probe',render_revision:1,full:true,rows:10,columns:99,row_spans:[],styles:[{id:1,bold:true},{id:2,background:'#2255aa'}],cursor:{row:4,column:21,visible:true,style:'block'}};
 for(const [row,text] of ['ASCII','BOLD','Powerline \ue0b0','日本語 😀','CURSOR'].entries())frame.row_spans.push({row,column:0,text,cell_width:[5,4,11,9,6][row],style_id:row===1?1:row===2?2:undefined},{row,column:21,text:'|',cell_width:1});
 frame.row_spans.push({row:8,column:0,text:'⏺ Writing  ⎿ Tool'});
+const recordedTree=process.env.POKEMUX_CANARY_TREE?JSON.parse(await readFile(process.env.POKEMUX_CANARY_TREE,'utf8')):null;
 const echoMode=process.env.POKEMUX_CANARY_ECHO==='1';
 let echoText='',echoColumn=0;
 if(process.env.POKEMUX_CANARY_HISTORY==='1'){frame.scrollback_rows=4005;frame.scrollback_spans=Array.from({length:4005},(_,row)=>({row,column:0,text:'History '+row,cell_width:('History '+row).length}));}
 if(echoMode){frame.styles.push({id:3,foreground:'#CC372E'});frame.cursor={row:6,column:2,visible:true,style:'block'};frame.row_spans.push({row:6,column:0,text:'> ',cell_width:2});}
 const subscribers=new Set();
-const bridge=Object.assign(new EventEmitter(),{connected:true,async connect(){},async status(){return {connected:true}},observeMetadata(){},async target(t){if(t.workspace_id!==workspace||![surface,secondSurface].includes(t.surface_id))throw new Error('Unknown fixture target')},async tree(){return {notifications:[],windows:[{id:window,groups:[],workspaces:[{id:workspace,title:'Renderer test',panes:[{id:pane,selected_surface_id:surface,surfaces:[{id:surface,title:process.env.POKEMUX_CANARY_LONG_TABS==='1'?'Glyph probe · terminal rendering':'Glyph probe',type:'terminal'},{id:secondSurface,title:process.env.POKEMUX_CANARY_LONG_TABS==='1'?'Second terminal · input stream':'Second terminal',type:'terminal'}]}]}]}]}},watch(target,deliver){subscribers.add(deliver);deliver(frame);return ()=>subscribers.delete(deliver)},async action(data){await this.target(data);if(echoMode){const beforeText=echoText,beforeColumn=echoColumn;
+const bridge=Object.assign(new EventEmitter(),{connected:true,async connect(){},async status(){return {connected:true}},observeMetadata(){},async target(t){if(recordedTree? !recordedTree.windows.some(w=>w.workspaces.some(ws=>ws.id===t.workspace_id&&ws.panes.some(p=>p.surfaces.some(s=>s.id===t.surface_id)))) : t.workspace_id!==workspace||![surface,secondSurface].includes(t.surface_id))throw new Error('Unknown fixture target')},async tree(){if(recordedTree)return recordedTree;return {notifications:[],windows:[{id:window,groups:[],workspaces:[{id:workspace,title:'Renderer test',panes:[{id:pane,selected_surface_id:surface,surfaces:[{id:surface,title:process.env.POKEMUX_CANARY_LONG_TABS==='1'?'Glyph probe · terminal rendering':'Glyph probe',type:'terminal'},{id:secondSurface,title:process.env.POKEMUX_CANARY_LONG_TABS==='1'?'Second terminal · input stream':'Second terminal',type:'terminal'}]}]}]}]}},watch(target,deliver){subscribers.add(deliver);if(process.env.POKEMUX_CANARY_EMPTY_FIRST!=='1'||target.surface_id===secondSurface)deliver(frame);return ()=>subscribers.delete(deliver)},async action(data){await this.target(data);if(echoMode){const beforeText=echoText,beforeColumn=echoColumn;
 if(data.text!==undefined){echoText=echoText.slice(0,echoColumn)+data.text+echoText.slice(echoColumn);echoColumn+=data.text.length;}
 else if(data.key==='Backspace'&&echoColumn>0){echoText=echoText.slice(0,echoColumn-1)+echoText.slice(echoColumn);echoColumn--;}
 else if(data.key==='Left'&&echoColumn>0)echoColumn--;

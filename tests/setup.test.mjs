@@ -1,3 +1,4 @@
+import {execFileSync} from 'node:child_process';
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
 import {readFileSync} from 'node:fs';
@@ -66,3 +67,5 @@ test('automatic passkey waits for document focus after Safari address-bar naviga
   dom.window.dispatchEvent(new dom.window.Event('focus'));d.dispatchEvent(new dom.window.Event('visibilitychange'));await settle();assert.equal(calls,1,'Returning from canceled sheet must not launch another');
  }finally{dom.window.close()}
 });
+
+test('the complete terminal module parses, including asynchronous startup',()=>{const page=readFileSync(new URL('../index.html',import.meta.url),'utf8'),module=page.split('<script type="module">\n')[1].split('</script>')[0];execFileSync(process.execPath,['--check','--input-type=module'],{input:module});});
