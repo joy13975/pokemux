@@ -2,5 +2,16 @@
   "source": "https://notofonts.github.io/symbols/fonts/NotoSansSymbols2/googlefonts/ttf/NotoSansSymbols2-Regular.ttf",
   "sha256": "300bcd65ef0669d42d585364840e7994ffd87503bea1ac782af0899f4af3ec31",
   "license": "OFL-1.1",
-  "modified": false
+  "modified": false,
+  "inline_subset": {
+    "modified": true,
+    "codepoints": [
+      "U+23F8",
+      "U+23F9",
+      "U+23FA",
+      "U+26A0"
+    ],
+    "fonttools": "4.60.1",
+    "sha256": "d4126b170e9d4b8d34beb9537403e3df9e7cf321b42efdb33d4e676d113373e3"
+  }
 }

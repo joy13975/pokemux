@@ -10,6 +10,7 @@ const frame={format:'cmux.render-grid.v1',render_epoch:'glyph-probe',render_revi
 for(const [row,text] of ['ASCII','BOLD','Powerline \ue0b0','日本語 😀','CURSOR'].entries())frame.row_spans.push({row,column:0,text,cell_width:[5,4,11,9,6][row],style_id:row===1?1:row===2?2:undefined},{row,column:21,text:'|',cell_width:1});
 frame.row_spans.push({row:8,column:0,text:'⏺ Writing  ⎿ Tool'});
 const recordedTree=process.env.POKEMUX_CANARY_TREE?JSON.parse(await readFile(process.env.POKEMUX_CANARY_TREE,'utf8')):null;
+if(process.env.POKEMUX_CANARY_FONT_FAILURE==='1')frame.row_spans.push({row:9,column:0,text:'⏺︎ Text ⏺️ Emoji ⏹ ⏸ ⚠',style_id:1});
 const echoMode=process.env.POKEMUX_CANARY_ECHO==='1';
 let echoText='',echoColumn=0;
 if(process.env.POKEMUX_CANARY_HISTORY==='1'){frame.scrollback_rows=4005;frame.scrollback_spans=Array.from({length:4005},(_,row)=>({row,column:0,text:'History '+row,cell_width:('History '+row).length}));}
@@ -26,7 +27,10 @@ const auth={origin:'http://localhost:4392',credentials:[],session:()=>({authenti
 const server=application({bridge,auth});
 {
  const handler=server.listeners('request')[0];server.removeAllListeners('request');server.on('request',(req,res)=>{
-  if(req.url==='/__glyph-control'){res.setHeader('Content-Type','text/html; charset=utf-8');res.end('<!doctype html><meta name="viewport" content="width=device-width, initial-scale=1"><title>Terminal symbol presentation</title><p style="font:24px monospace">Default: ⏺ ⏹ ⏸ 😀</p><p style="font:24px monospace;font-variant-emoji:text">Text CSS: ⏺ ⏹ ⏸ 😀</p><p style="font:24px monospace;font-variant-emoji:unicode">Unicode CSS: ⏺ ⏹ ⏸ 😀</p><p style="font:24px monospace">Text selectors: ⏺︎ ⏹︎ ⏸︎ 😀</p><p>Plain browser font: こんにちは ネコ 日本語</p><p style="font-family:-apple-system">Apple system family: こんにちは ネコ 日本語</p><p style="font-family:monospace">Monospace: こんにちは ネコ 日本語</p><p style="font-family:sans-serif">Sans serif: こんにちは ネコ 日本語</p><p style="font-family:system-ui">System UI: こんにちは ネコ 日本語</p><p style="font-family:ui-monospace">UI monospace: こんにちは ネコ 日本語</p>');return}
+  if(process.env.POKEMUX_CANARY_FONT_FAILURE==='1'&&req.url==='/grid.mjs'){const end=res.end.bind(res);res.end=(body,...args)=>end(String(body).replace('PokemuxSymbols, monospace','PokemuxSymbols, Apple Color Emoji'),...args)}
+ if(process.env.POKEMUX_CANARY_FONT_FAILURE==='1'&&req.url==='/vendor/symbols/NotoSansSymbols2-Regular.ttf'){res.writeHead(503);res.end('Fixture font unavailable');return}
+ if(process.env.POKEMUX_CANARY_INITIAL_SCALE&&req.url==='/'){const end=res.end.bind(res);res.end=(body,...args)=>end(String(body).replace('initial-scale=1,','initial-scale='+Number(process.env.POKEMUX_CANARY_INITIAL_SCALE)+','),...args)}
+ if(req.url==='/__glyph-control'){res.setHeader('Content-Type','text/html; charset=utf-8');res.end('<!doctype html><meta name="viewport" content="width=device-width, initial-scale=1"><title>Terminal symbol presentation</title><p style="font:24px monospace">Default: ⏺ ⏹ ⏸ 😀</p><p style="font:24px monospace;font-variant-emoji:text">Text CSS: ⏺ ⏹ ⏸ 😀</p><p style="font:24px monospace;font-variant-emoji:unicode">Unicode CSS: ⏺ ⏹ ⏸ 😀</p><p style="font:24px monospace">Text selectors: ⏺︎ ⏹︎ ⏸︎ 😀</p><p>Plain browser font: こんにちは ネコ 日本語</p><p style="font-family:-apple-system">Apple system family: こんにちは ネコ 日本語</p><p style="font-family:monospace">Monospace: こんにちは ネコ 日本語</p><p style="font-family:sans-serif">Sans serif: こんにちは ネコ 日本語</p><p style="font-family:system-ui">System UI: こんにちは ネコ 日本語</p><p style="font-family:ui-monospace">UI monospace: こんにちは ネコ 日本語</p>');return}
   handler(req,res);
  });
 }
