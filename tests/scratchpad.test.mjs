@@ -9,10 +9,11 @@ const html=readFileSync(new URL('../index.html',import.meta.url),'utf8');
 function client(saved={},draft=''){
  const vc=new VirtualConsole();vc.on('jsdomError',error=>{if(error.type==='unhandled-exception')throw error});const dom=new JSDOM(html,{url:'https://scratchpad.invalid',runScripts:'outside-only',pretendToBeVisual:true,virtualConsole:vc}),w=dom.window;
  w.localStorage.setItem('cmux-pocket-customizations',JSON.stringify({shortcuts:[],snippets:[],keyboardDefaultVersion:1,keyboardMode:'native',...saved}));w.localStorage.setItem('pokemux-scratchpad',draft);
+ Object.defineProperties(w.document.documentElement,{clientWidth:{value:428},clientHeight:{value:926}});
  w.ResizeObserver=class{observe(){}disconnect(){}};w.matchMedia=query=>({matches:query!=='(display-mode: standalone)'});w.visualViewport={width:428,height:926,scale:1,offsetTop:0,offsetLeft:0,addEventListener(){}};installPopover(w);w.HTMLElement.prototype.setPointerCapture=()=>{};w.EventSource=class{addEventListener(){}close(){}};
  w.HTMLDialogElement.prototype.showModal=function(){this.open=true};w.HTMLDialogElement.prototype.show=function(){this.open=true};w.HTMLDialogElement.prototype.close=function(){this.open=false;this.dispatchEvent(new w.Event('close'))};
  w.requests=[];w.fetch=async(path,options)=>{w.requests.push({path,body:options?.body});return{ok:true,status:200,json:async()=>({})}};w.__RenderGrid=RenderGrid;w.__KanaComposer=KanaComposer;
- const script=html.split('<script type="module">\n')[1].split('</script>')[0];w.eval(script.slice(0,script.lastIndexOf('(async()=>{'))+`RenderGrid=window.__RenderGrid;KanaComposer=window.__KanaComposer;kana=new KanaComposer();current=workspace('owned-workspace','Owned',null,'','',[pane('owned-pane',[surface('owned-surface','Owned')])],'owned-window');workspaces.push(current);connected=true;render();window.fixture={syncDock,syncFloating,displaySettings,focusInput,setConnection,preferences,floatingChoices,switchSurface(){current.panes[0].tabs.push(surface("other-surface","Other terminal"));selectSurface("owned-pane","other-surface")}};`);
+ const script=html.split('<script type="module">\n')[1].split('</script>')[0];w.eval(script.slice(0,script.lastIndexOf('(async()=>{'))+`RenderGrid=window.__RenderGrid;KanaComposer=window.__KanaComposer;kana=new KanaComposer();current=workspace('owned-workspace','Owned',null,'','',[pane('owned-pane',[surface('owned-surface','Owned')])],'owned-window');workspaces.push(current);connected=true;render();window.fixture={syncDock,syncViewport,syncFloating,displaySettings,focusInput,setConnection,preferences,floatingChoices,switchSurface(){current.panes[0].tabs.push(surface("other-surface","Other terminal"));selectSurface("owned-pane","other-surface")}};`);
  const rail=w.document.querySelector('.inputdock');Object.defineProperty(rail,'offsetHeight',{get:()=>80});w.fixture.syncDock();return dom;
 }
 const tick=w=>new Promise(r=>w.setTimeout(r,0));
@@ -58,4 +59,20 @@ test('all five expanded floating actions remain distinct and inside the keyboard
  try{Object.assign(w.visualViewport,{height:300});for(const position of [[0,0],[1,0],[0,1],[1,1]]){w.fixture.preferences.floatingPosition=position;w.fixture.syncFloating();const control=d.querySelector('#floatingFunctions'),cx=parseFloat(control.style.left)+22,cy=parseFloat(control.style.top)+22,boxes=[...control.querySelectorAll('[data-function]')].map(b=>({x:cx+parseFloat(b.style.left),y:cy+parseFloat(b.style.top)}));for(const box of boxes){assert.ok(box.x>=48&&box.x<=428-48);assert.ok(box.y>=22&&box.y<=300-22)}for(let i=0;i<boxes.length;i++)for(let j=i+1;j<boxes.length;j++)assert.ok(Math.abs(boxes[i].x-boxes[j].x)>=96||Math.abs(boxes[i].y-boxes[j].y)>=44)} }finally{w.close()}
 });
 
-test('Send inserts the complete scratchpad into the active tab without Enter and clears the composer after delivery',async()=>{const dom=client({},'Draft 日本語');const w=dom.window,d=w.document;try{w.fixture.switchSurface();open(w);const button=d.querySelector('#scratchSend');assert.ok(button,'Scratchpad needs Send');assert.equal(button.disabled,false);button.click();await tick(w);const actions=w.requests.filter(r=>r.path==='/api/action').map(r=>JSON.parse(r.body));assert.deepEqual(actions,[{action:'paste',workspace_id:'owned-workspace',surface_id:'other-surface',text:'Draft 日本語'}]);assert.equal(d.querySelector('#scratchLayer').hidden,false);assert.equal(d.querySelector('#scratchText').value,'');assert.equal(w.localStorage.getItem('pokemux-scratchpad'),'');assert.equal(button.disabled,true);enter(w,'Retained');w.fixture.setConnection(false);assert.equal(button.disabled,true);button.click();await tick(w);assert.equal(w.requests.filter(r=>r.path==='/api/action').length,1);assert.equal(d.querySelector('#scratchText').value,'Retained')}finally{w.close()}});
+test('Send inserts the complete scratchpad into the active tab without Enter and clears the composer after delivery',async()=>{const dom=client({},'Draft 日本語');const w=dom.window,d=w.document;try{w.fixture.switchSurface();open(w);const button=d.querySelector('#scratchSend');assert.ok(button,'Scratchpad needs Send');assert.equal(button.disabled,false);button.click();await tick(w);const actions=w.requests.filter(r=>r.path==='/api/action').map(r=>JSON.parse(r.body));assert.deepEqual(actions,[{action:'paste',workspace_id:'owned-workspace',surface_id:'other-surface',text:'Draft 日本語'}]);assert.equal(d.querySelector('#scratchLayer').hidden,false);assert.equal(d.activeElement,d.querySelector('#scratchText'));assert.equal(d.querySelector('#scratchText').value,'');assert.equal(w.localStorage.getItem('pokemux-scratchpad'),'');assert.equal(button.disabled,true);enter(w,'Retained');w.fixture.setConnection(false);assert.equal(button.disabled,true);button.click();await tick(w);assert.equal(w.requests.filter(r=>r.path==='/api/action').length,1);assert.equal(d.querySelector('#scratchText').value,'Retained')}finally{w.close()}});
+
+test('Close hands an open native keyboard directly from the composer to the terminal',()=>{
+ const dom=client(),w=dom.window,d=w.document;
+ try{
+  open(w);
+  Object.assign(w.visualViewport,{height:450});w.fixture.syncViewport();
+  const area=d.querySelector('#scratchText'),terminal=d.querySelector('.terminal');
+  let previousFocus;
+  const focus=terminal.focus.bind(terminal);
+  terminal.focus=options=>{previousFocus=d.activeElement;focus(options)};
+  d.querySelector('#scratchClose').click();
+  assert.equal(previousFocus,area);
+  assert.equal(d.activeElement,terminal);
+  assert.equal(terminal.getAttribute('contenteditable'),'plaintext-only');
+ }finally{w.close()}
+});
