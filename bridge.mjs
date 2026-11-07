@@ -193,22 +193,30 @@ export class CmuxBridge extends EventEmitter {
     const lease = { ...target, client_id, viewport_generation };
     if (body.clear === true) { await this.rpc('terminal.viewport', { ...lease, clear: true }); return { released: true }; }
     if (![viewport_columns, viewport_rows].every(value => Number.isSafeInteger(value) && value > 0)) throw new RequestError(400, 'Invalid phone terminal dimensions');
+    const devicePrefix = 'pokemux-', device_id = devicePrefix + client_id;
     if (body.claim === true) {
       const { size_state: state } = await this.rpc('terminal.size_state', target);
-      if (state?.policy?.mode === 'latest') await this.rpc('terminal.size_policy.set', { ...target, mode: 'smallest' });
-      else if (state?.policy?.mode !== 'smallest') throw new RequestError(409, 'Choose Fit Everyone in the cmux terminal size menu first');
+      const { mode, priority } = state.policy;
+      if (!['latest', 'smallest'].includes(mode) && !(mode === 'priority' && priority.some(key => { const device = key.split('/').at(-1); return device.startsWith(devicePrefix) && uuid.test(device.slice(devicePrefix.length)); }))) {
+        throw new RequestError(409, 'Choose Last Active or Fit Everyone in the cmux terminal size menu first');
+      }
     }
     let replay;
     try {
-      replay = await this.rpc('terminal.replay', { ...lease, viewport_columns, viewport_rows, anchor: 'screen', scrollback_lines: 0, device_kind: 'iphone', device_name: 'Pokemux' });
+      replay = await this.rpc('terminal.replay', { ...lease, viewport_columns, viewport_rows, anchor: 'screen', max_scrollback_rows: 0, device_kind: 'iphone', device_name: 'Pokemux', device_id, ...(body.claim === true ? { counts_override: true } : {}) });
     } catch (error) {
       if (error.cmuxCode === 'viewport_transition') return { pending: true };
       throw error;
     }
     const state = replay.size_state;
     const participant = state?.participants?.find(view => view.id === replay.self_participant_id);
-    if (!participant) throw new RequestError(502, 'cmux did not confirm the phone sizing participant');
-    if (state.policy.mode !== 'smallest' || participant.counts === false) return { released: true };
+    if (!participant?.priority_key) throw new RequestError(502, 'cmux did not confirm the phone sizing participant');
+    const ownsSize = state.policy.mode === 'priority' && state.policy.priority[0] === participant.priority_key;
+    if (body.claim === true && !ownsSize) {
+      await this.rpc('terminal.size_policy.set', { ...target, mode: 'priority', priority: [participant.priority_key] });
+      return { pending: true, claimed: true };
+    }
+    if (!ownsSize || !participant.counts) return { released: true };
     return { columns: state.cols, rows: state.rows };
   }
   async action(body) {

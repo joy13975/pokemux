@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import vm from 'node:vm';
 const html=readFileSync(new URL('../index.html',import.meta.url),'utf8');
-const compactSource=html.match(/^function compactLayout\(\).*$/m)[0];
+const compactSource=[...html.matchAll(/^function (?:phoneLayout|compactLayout)\(\).*$/gm)].map(([fn])=>fn).join('\n');
 const source=html.slice(html.indexOf('function viewportDiagnostic('),html.indexOf('function insertText('));
 function fixture(restoreOverview=true,scrolling=false,geometry={width:390,layoutWidth:390,layoutHeight:844},device={width:390,height:844,coarse:true},standalone=false){
  const input={},properties={},root={clientHeight:geometry.layoutHeight,clientWidth:geometry.layoutWidth,style:{setProperty:(k,v)=>properties[k]=v},classList:{contains:k=>!!properties[k],toggle:(k,v)=>properties[k]=v}};
