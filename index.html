@@ -141,7 +141,7 @@ function bindWorkspaceDragging(){const list=$('workspaceList');let contact,hold;
  function nextTopLevel(id,sourceId){const sourceGroup=groups.find(g=>g.anchor===sourceId)?.id,rows=workspaces.filter(w=>w.window===selectedWindow&&w.id!==sourceId&&(!sourceGroup||w.group!==sourceGroup)),index=rows.findIndex(w=>w.id===id),group=rows[index]?.group,next=rows.slice(index+1).find(w=>w.group!==group||!group);return groups.find(g=>g.id===next?.group)?.anchor||next?.id||null}
 }
 function selectWorkspace(id){inputDiagnostic('workspace-switch',{},true);const next=workspaces.find(w=>w.id===id);if(!next)return;mods.clear();current=next;closeSidebar();render();history.replaceState(null,'',`#${current.window}/${current.id}/${activeSurface().id}`);resumeInput()}
-function compactLayout(){return window.visualViewport.width*window.visualViewport.scale<1000}
+function compactLayout(){return matchMedia('(pointer: coarse)').matches&&Math.min(screen.width,screen.height)<=600||window.visualViewport.width*window.visualViewport.scale<1000}
 function syncSidebarState(){
  const compact=compactLayout(),open=$('shell').classList.contains('sidebar-open'),blocked=compact&&open;
  $('sidebar').inert=compact&&!open&&!$('shell').classList.contains('sidebar-preview');
