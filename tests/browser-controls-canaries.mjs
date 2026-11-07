@@ -24,18 +24,19 @@ export async function* verifyControls(tab,cdp){
  await tab.pressKey(null,'x');await wait(async()=> (await bytes()).length===before+1);assert.equal((await bytes()).at(-1),120);
  checks.push('Physical keyboard continues reaching custom terminal input after native focus is released');yield checks.at(-1);
  const move=await box('#cursorJoystick');await touch('touchStart',move.x+move.width/2,move.y+move.height/2);await new Promise(r=>setTimeout(r,430));await touch('touchMove',370,888);await touch('touchEnd');await observe();await wait(async()=>Math.abs((await box('#cursorJoystick')).x+22-370)<2);
- const joy=await box('#cursorJoystick'),x=joy.x+joy.width/2,y=joy.y+joy.height/2,wordEvidence=[];
- for(const [dx,direction,sequence] of [[-100,'Left','\x1bb'],[100,'Right','\x1bf']]){
-  const startX=direction==='Left'?x:Math.min(x,300);if(direction==='Right'){await touch('touchStart',x,y);await new Promise(r=>setTimeout(r,430));await touch('touchMove',startX,y);await touch('touchEnd');await observe()}
-  before=(await bytes()).length;await touch('touchStart',startX,y);await touch('touchMove',startX+dx,y);await new Promise(r=>setTimeout(r,360));await observe();
-  const highlight=await tab.playwright.locator('#cursorJoystick').evaluate(e=>({directions:[...e.querySelectorAll('[data-direction].active')].map(p=>p.dataset.direction),words:[...e.querySelectorAll('[data-word-direction].active')].map(p=>p.dataset.wordDirection),oppositeHidden:[...e.querySelectorAll('[data-word-direction]:not(.active)')].every(p=>getComputedStyle(p).display==='none')}));assert.equal(highlight.directions.join(','),direction);assert.equal(highlight.words.join(','),direction);assert.equal(highlight.oppositeHidden,true);
-  await writeFile(new URL('../proof-joystick-'+direction.toLowerCase()+'.png',import.meta.url),await tab.screenshot({fullPage:false}));await touch('touchEnd');await observe();await new Promise(r=>setTimeout(r,180));const delta=(await bytes()).subarray(before).toString();assert.ok(delta.length>=4);assert.equal(delta.split(sequence).join(''),'','Only word-navigation bytes may reach cmux');const stopped=(await bytes()).length;await new Promise(r=>setTimeout(r,200));assert.equal((await bytes()).length,stopped);wordEvidence.push({direction,hex:Buffer.from(delta).toString('hex'),highlight});
+ const wordWing=direction=>`[data-cursor-direction="${direction}"][data-cursor-step="far"]`,wordEvidence=[];
+ await tap('#cursorJoystick');
+ for(const [direction,sequence] of [['Left','\x1bb'],['Right','\x1bf']]){
+  const r=await box(wordWing(direction));before=(await bytes()).length;await touch('touchStart',r.x+r.width/2,r.y+r.height/2);
+  await wait(async()=> (await bytes()).length>=before+sequence.length*2);
+  const highlight=await tab.playwright.locator('#cursorWings').evaluate(e=>[...e.querySelectorAll('.active')].map(b=>b.dataset.cursorDirection));assert.deepEqual(highlight,[direction]);
+  await writeFile(new URL('../proof-joystick-'+direction.toLowerCase()+'.png',import.meta.url),await tab.screenshot({fullPage:false}));await touch('touchEnd');await observe();const delta=(await bytes()).subarray(before).toString();assert.equal(delta.split(sequence).join(''),'','Only word-navigation bytes may reach cmux');const stopped=(await bytes()).length;await new Promise(r=>setTimeout(r,260));assert.equal((await bytes()).length,stopped);wordEvidence.push({direction,hex:Buffer.from(delta).toString('hex'),highlight});
  }
  checks.push({name:'Held left/right word movement repeats only native navigation bytes, highlights one side, and stops on release',wordEvidence});yield checks.at(-1);
- before=(await bytes()).length;for(const modifier of ['Ctrl','Alt','Shift'])await tap('.inputdock [data-key="'+modifier+'"]');const modifiedJoy=await box('#cursorJoystick');await touch('touchStart',modifiedJoy.x+22,modifiedJoy.y+22);await touch('touchMove',modifiedJoy.x+22-100,modifiedJoy.y+22);await touch('touchEnd');await observe();await wait(async()=> (await bytes()).length>before);assert.equal((await bytes()).subarray(before).toString(),'\x1b[1;8D');checks.push('Joystick word-left preserves combined Control, Option and Shift modifiers');yield checks.at(-1);
+ before=(await bytes()).length;for(const modifier of ['Ctrl','Alt','Shift'])await tap('.inputdock [data-key="'+modifier+'"]');await tap(wordWing('Left'));await wait(async()=> (await bytes()).length>before);assert.equal((await bytes()).subarray(before).toString(),'\x1b[1;8D');checks.push('Joystick word-left preserves combined Control, Option and Shift modifiers');yield checks.at(-1);
  await tap(`.surfacetab[data-surface="${info.shellSurfaceId}"]`);await tap('.inputdock [data-key="Ctrl"]');await tap(key('u'));
  for(const c of 'one two three')await tap(key(c===' '?'Space':c));
- const currentJoy=await box('#cursorJoystick'),cx=currentJoy.x+22,cy=currentJoy.y+22;await touch('touchStart',cx,cy);await touch('touchMove',cx-100,cy);await touch('touchEnd');await observe();await tap(key('x'));
+ await tap(wordWing('Left'));await tap(key('x'));
  await wait(async()=>await tab.playwright.locator('.remote-cursor').evaluate(e=>e.parentElement.textContent.includes('one two xthree')));
  const line=await tab.playwright.locator('.remote-cursor').evaluate(e=>e.parentElement.textContent);assert.ok(line.includes('one two xthree'));await tap('.inputdock [data-key="Ctrl"]');await tap(key('u'));
  checks.push({name:'Actual zsh word-left places following typed text inside the previous word instead of inserting b',line});yield checks.at(-1);

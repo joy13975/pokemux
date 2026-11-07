@@ -37,6 +37,8 @@ test('opening the composer folds shortcuts and closing restores them',()=>{
   assert.equal(rail.hidden,false);
   open(w);
   assert.equal(rail.hidden,true);
+  assert.equal(d.querySelector('#floatingLayer').hidden,false);
+  assert.equal(d.querySelector('#cursorJoystick').hidden,false);
   assert.equal(d.querySelector('#scratchCopy'),null);
   d.querySelector('#scratchClose').click();
   assert.equal(rail.hidden,false);
@@ -59,7 +61,7 @@ test('all five expanded floating actions remain distinct and inside the keyboard
  try{Object.assign(w.visualViewport,{height:300});for(const position of [[0,0],[1,0],[0,1],[1,1]]){w.fixture.preferences.floatingPosition=position;w.fixture.syncFloating();const control=d.querySelector('#floatingFunctions'),cx=parseFloat(control.style.left)+22,cy=parseFloat(control.style.top)+22,boxes=[...control.querySelectorAll('[data-function]')].map(b=>({x:cx+parseFloat(b.style.left),y:cy+parseFloat(b.style.top)}));for(const box of boxes){assert.ok(box.x>=48&&box.x<=428-48);assert.ok(box.y>=22&&box.y<=300-22)}for(let i=0;i<boxes.length;i++)for(let j=i+1;j<boxes.length;j++)assert.ok(Math.abs(boxes[i].x-boxes[j].x)>=96||Math.abs(boxes[i].y-boxes[j].y)>=44)} }finally{w.close()}
 });
 
-test('Send inserts the complete scratchpad into the active tab without Enter and clears the composer after delivery',async()=>{const dom=client({},'Draft 日本語');const w=dom.window,d=w.document;try{w.fixture.switchSurface();open(w);const button=d.querySelector('#scratchSend');assert.ok(button,'Scratchpad needs Send');assert.equal(button.disabled,false);button.click();await tick(w);const actions=w.requests.filter(r=>r.path==='/api/action').map(r=>JSON.parse(r.body));assert.deepEqual(actions,[{action:'paste',workspace_id:'owned-workspace',surface_id:'other-surface',text:'Draft 日本語'}]);assert.equal(d.querySelector('#scratchLayer').hidden,false);assert.equal(d.activeElement,d.querySelector('#scratchText'));assert.equal(d.querySelector('#scratchText').value,'');assert.equal(w.localStorage.getItem('pokemux-scratchpad'),'');assert.equal(button.disabled,true);enter(w,'Retained');w.fixture.setConnection(false);assert.equal(button.disabled,true);button.click();await tick(w);assert.equal(w.requests.filter(r=>r.path==='/api/action').length,1);assert.equal(d.querySelector('#scratchText').value,'Retained')}finally{w.close()}});
+test('Send pastes the complete draft into the active tab then presses Enter',async()=>{const dom=client({},'Draft 日本語');const w=dom.window,d=w.document;try{w.fixture.switchSurface();open(w);const button=d.querySelector('#scratchSend');assert.ok(button,'Scratchpad needs Send');assert.equal(button.disabled,false);button.click();await tick(w);const actions=w.requests.filter(r=>r.path==='/api/action').map(r=>JSON.parse(r.body));assert.deepEqual(actions,[{action:'paste',workspace_id:'owned-workspace',surface_id:'other-surface',text:'Draft 日本語'},{action:'key',workspace_id:'owned-workspace',surface_id:'other-surface',key:'Enter'}]);assert.equal(d.querySelector('#scratchLayer').hidden,false);assert.equal(d.activeElement,d.querySelector('#scratchText'));assert.equal(d.querySelector('#scratchText').value,'');assert.equal(w.localStorage.getItem('pokemux-scratchpad'),'');assert.equal(button.disabled,true);enter(w,'Retained');w.fixture.setConnection(false);assert.equal(button.disabled,true);button.click();await tick(w);assert.equal(w.requests.filter(r=>r.path==='/api/action').length,2);assert.equal(d.querySelector('#scratchText').value,'Retained')}finally{w.close()}});
 
 test('Close hands an open native keyboard directly from the composer to the terminal',()=>{
  const dom=client(),w=dom.window,d=w.document;
@@ -74,5 +76,21 @@ test('Close hands an open native keyboard directly from the composer to the term
   assert.equal(previousFocus,area);
   assert.equal(d.activeElement,terminal);
   assert.equal(terminal.getAttribute('contenteditable'),'plaintext-only');
+ }finally{w.close()}
+});
+
+
+test('holding Send can cancel or deliver the draft without Return',async()=>{
+ const dom=client({},'Saved draft'),w=dom.window,d=w.document;
+ try{
+  open(w);const button=d.querySelector('#scratchSend'),choices=d.querySelector('#scratchSendChoices');
+  const point=x=>({button:0,isPrimary:true,pointerId:1,clientX:x,clientY:10,preventDefault(){}});
+  const hold=async()=>{button.onpointerdown(point(0));await new Promise(r=>w.setTimeout(r,380));assert.equal(choices.hidden,false)};
+  d.elementFromPoint=x=>x===50?choices.querySelector('[data-scratch-send="paste"]'):d.body;
+  await hold();button.onpointerup(point(99));await tick(w);
+  assert.equal(d.querySelector('#scratchText').value,'Saved draft');assert.equal(w.requests.filter(r=>r.path==='/api/action').length,0);
+  await hold();button.onpointerup(point(50));await tick(w);
+  assert.deepEqual(w.requests.filter(r=>r.path==='/api/action').map(r=>JSON.parse(r.body).action),['paste']);
+  assert.equal(d.querySelector('#scratchText').value,'');assert.equal(d.activeElement,d.querySelector('#scratchText'));
  }finally{w.close()}
 });
