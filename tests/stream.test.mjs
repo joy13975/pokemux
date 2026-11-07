@@ -64,3 +64,26 @@ test('large cold replay remains connected and delivers subsequent terminal chang
     assert.equal(events[0].scrollback_spans.length,4000);assert.equal(events[1].row_spans[0].text,'after');
   } finally {clearTimeout(timeout);abort.abort();bridge.close();server.closeAllConnections();await new Promise(resolve=>server.close(resolve));}
 });
+
+test('phone sizing uses expiring reports and leaves Mac reclaim in control',async()=>{
+ const bridge=new CmuxBridge(),calls=[];
+ const target={workspace_id:'11111111-1111-4111-8111-111111111111',surface_id:'22222222-2222-4222-8222-222222222222'};
+ const client_id='33333333-3333-4333-8333-333333333333';
+ let mode='latest';
+ bridge.target=async()=>({});
+ bridge.rpc=async(method,params)=>{
+  calls.push([method,params]);
+  if(method==='terminal.size_policy.set')mode=params.mode;
+  if(method==='terminal.replay')return {size_state:{policy:{mode},cols:params.viewport_columns,rows:Math.min(params.viewport_rows,24),participants:[{id:'mobile',counts:true}]},self_participant_id:'mobile'};
+  return {size_state:{policy:{mode}}};
+ };
+ const action={...target,action:'viewport',client_id,viewport_columns:51,viewport_rows:31};
+ assert.deepEqual(await bridge.action({...action,viewport_generation:1,claim:true}),{columns:51,rows:24});
+ assert.deepEqual(calls.map(([method])=>method),['terminal.size_state','terminal.size_policy.set','terminal.replay']);
+ assert.equal(calls[2][1].client_id,client_id);
+ mode='latest';
+ assert.deepEqual(await bridge.action({...action,viewport_generation:2}),{released:true});
+ assert.deepEqual(calls.slice(3).map(([method])=>method),['terminal.replay']);
+ await bridge.action({...target,action:'viewport',client_id,viewport_generation:3,clear:true});
+ assert.deepEqual(calls.at(-1),['terminal.viewport',{...target,client_id,viewport_generation:3,clear:true}]);
+});

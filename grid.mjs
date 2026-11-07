@@ -89,7 +89,7 @@ export class RenderGrid {
       const previous = element.children[row], signature = JSON.stringify(spans);
       if (previous?.renderedSpans === signature && previous.textContent === previous.renderedText && row !== history.length + this.cursor?.row && !previous.querySelector('.remote-cursor')) { content.push(previous); continue; }
       const fragment = doc.createElement('div'); fragment.className = 'terminal-row'; fragment.renderedSpans = signature;
-      Object.assign(fragment.style, { position: 'relative', height: '1.55em' }); content.push(fragment);
+      Object.assign(fragment.style, { position: 'relative', height: 'calc(var(--terminal-leading, 1.55) * 1em)' }); content.push(fragment);
       let column = 0;
       for (const span of spans) {
         const spaces = doc.createTextNode(' '.repeat(span.column - column)); fragment.append(spaces);
@@ -118,7 +118,7 @@ export class RenderGrid {
         }
         fragment.append(node);
         const spanWidth = span.cell_width;
-        Object.assign(node.style, { display: 'inline-block', width: `${spanWidth}ch`, height: '1.55em', verticalAlign: 'top' });
+        Object.assign(node.style, { display: 'inline-block', width: `${spanWidth}ch`, height: 'calc(var(--terminal-leading, 1.55) * 1em)', verticalAlign: 'top' });
         if (row === history.length + this.cursor?.row && this.cursor.column >= span.column && this.cursor.column <= span.column + spanWidth) {
           let offset = cursorOffset(span.text, this.cursor.column - span.column), text;
           const walker = doc.createTreeWalker(node, doc.defaultView.NodeFilter.SHOW_TEXT);
@@ -138,7 +138,7 @@ export class RenderGrid {
     element.style.width = `${this.columns}ch`; element.style.minWidth = '0';
     if (this.cursor?.visible) {
       const cursor = doc.createElement('span'); cursor.className = 'remote-cursor'; cursor.contentEditable = 'false'; cursor.setAttribute('aria-hidden', 'true');
-      Object.assign(cursor.style, { position: 'absolute', left: `${this.cursor.column}ch`, top: '0', width: this.cursor.style === 'bar' ? '2px' : '1ch', height: '1.55em', pointerEvents: 'none', background: this.cursor.style === 'block' ? '#80aaff80' : 'transparent', borderBottom: this.cursor.style === 'underline' ? '2px solid #80aaff' : '', borderLeft: this.cursor.style === 'bar' ? '2px solid #80aaff' : '', outline: this.cursor.style === 'block_hollow' ? '1px solid #80aaff' : '' });
+      Object.assign(cursor.style, { position: 'absolute', left: `${this.cursor.column}ch`, top: '0', width: this.cursor.style === 'bar' ? '2px' : '1ch', height: 'calc(var(--terminal-leading, 1.55) * 1em)', pointerEvents: 'none', background: this.cursor.style === 'block' ? '#80aaff80' : 'transparent', borderBottom: this.cursor.style === 'underline' ? '2px solid #80aaff' : '', borderLeft: this.cursor.style === 'bar' ? '2px solid #80aaff' : '', outline: this.cursor.style === 'block_hollow' ? '1px solid #80aaff' : '' });
       element.children[this.cursor.row + history.length].append(cursor);
     }
     return true;

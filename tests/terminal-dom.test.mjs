@@ -1182,3 +1182,24 @@ test('opening and stowing either drawer keeps the active native terminal editabl
   assert.equal(output.getAttribute('contenteditable'),'plaintext-only');
  }finally{w.close()}
 });
+
+test('rapid printable input drains behind one round trip without crossing key or tab boundaries',async()=>{
+ const dom=terminal(),w=dom.window,d=w.document,requests=[],fetch=w.fetch;
+ let release;const first=new Promise(resolve=>release=resolve),tick=()=>new Promise(resolve=>w.setTimeout(resolve,0));
+ w.fetch=async(path,options)=>{
+  if(path==='/api/action'){requests.push(JSON.parse(options.body));if(requests.length===1)await first}
+  return fetch(path,options);
+ };
+ const type=text=>d.querySelector('.terminal').dispatchEvent(new w.InputEvent('beforeinput',{inputType:'insertText',data:text,bubbles:true,cancelable:true}));
+ try{
+  type('a');await tick();
+  for(const c of '日本語b')type(c);
+  d.querySelector('.terminal').dispatchEvent(new w.KeyboardEvent('keydown',{key:'Backspace',bubbles:true,cancelable:true}));
+  type('c');w.fixture.otherTerminal();type('d');type('e');
+  assert.equal(requests.length,1);
+  release();await tick();
+  assert.deepEqual(requests.map(a=>[a.surface_id,a.text??a.key]),[
+   ['owned-surface','a'],['owned-surface','日本語b'],['owned-surface','Backspace'],['owned-surface','c'],['owned-surface-two','de']
+  ]);
+ }finally{release();w.close()}
+});

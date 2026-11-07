@@ -15,6 +15,9 @@ while True:
         break
     if data == b'\x13':
         subprocess.run(['/usr/bin/less'], input=''.join(f'WHEEL_CANARY_{n:04d}\n' for n in range(1000)).encode(), check=True)
+    elif data == b'\x07':
+        size = os.get_terminal_size()
+        sys.stdout.write(f'PTY {size.columns}x{size.lines}\r\n')
     elif data == b'\x12':
         sys.stdout.write('\x1b[?1049h\x1b[?1000h\x1b[?1006h\x1b[2J\x1b[HURL https://example.com/ \r\nTUI_CLICK_CANARY\r\n')
     elif data == b'\x14':

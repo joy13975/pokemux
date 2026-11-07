@@ -41,7 +41,7 @@ class LocalSocket extends EventEmitter {
       if (!entry) { socket.destroy(new Error('Unexpected cmux reply')); return; }
       clearTimeout(entry.timer); this.pending.delete(response.id);
       if (response.ok) entry.resolve(response.result);
-      else entry.reject(new RequestError(502, `cmux ${entry.method} rejected (${response.error?.code || 'unknown'})`));
+      else entry.reject(Object.assign(new RequestError(502, `cmux ${entry.method} rejected (${response.error?.code || 'unknown'})`), {cmuxCode:response.error?.code}));
     });
     return this.ready;
   }
@@ -187,11 +187,36 @@ export class CmuxBridge extends EventEmitter {
     if (health.workspace_id !== params.workspace_id || !surface || params.action !== 'reorder' && surface.type !== 'terminal') throw new RequestError(404, 'Terminal is no longer in this workspace');
     return health;
   }
+  async phoneViewport(target, body) {
+    const { client_id, viewport_generation, viewport_columns, viewport_rows } = body;
+    if (!uuid.test(client_id || '') || !Number.isSafeInteger(viewport_generation) || viewport_generation < 1) throw new RequestError(400, 'Invalid phone sizing lease');
+    const lease = { ...target, client_id, viewport_generation };
+    if (body.clear === true) { await this.rpc('terminal.viewport', { ...lease, clear: true }); return { released: true }; }
+    if (![viewport_columns, viewport_rows].every(value => Number.isSafeInteger(value) && value > 0)) throw new RequestError(400, 'Invalid phone terminal dimensions');
+    if (body.claim === true) {
+      const { size_state: state } = await this.rpc('terminal.size_state', target);
+      if (state?.policy?.mode === 'latest') await this.rpc('terminal.size_policy.set', { ...target, mode: 'smallest' });
+      else if (state?.policy?.mode !== 'smallest') throw new RequestError(409, 'Choose Fit Everyone in the cmux terminal size menu first');
+    }
+    let replay;
+    try {
+      replay = await this.rpc('terminal.replay', { ...lease, viewport_columns, viewport_rows, anchor: 'screen', scrollback_lines: 0, device_kind: 'iphone', device_name: 'Pokemux' });
+    } catch (error) {
+      if (error.cmuxCode === 'viewport_transition') return { pending: true };
+      throw error;
+    }
+    const state = replay.size_state;
+    const participant = state?.participants?.find(view => view.id === replay.self_participant_id);
+    if (!participant) throw new RequestError(502, 'cmux did not confirm the phone sizing participant');
+    if (state.policy.mode !== 'smallest' || participant.counts === false) return { released: true };
+    return { columns: state.cols, rows: state.rows };
+  }
   async action(body) {
     const prior = this.queues.get(body.surface_id) || Promise.resolve();
     const operation = prior.then(async () => {
       const health = await this.target(body);
       const target = { workspace_id: body.workspace_id, surface_id: body.surface_id };
+      if (body.action === 'viewport') return this.phoneViewport(target, body);
       if (body.action === 'reorder') {
         if (!uuid.test(body.reference_surface_id || '') || body.reference_surface_id === body.surface_id || typeof body.after !== 'boolean') throw new RequestError(400, 'A sibling tab and reorder direction are required');
         const source = health.surfaces.find(s => s.id === body.surface_id), sibling = health.surfaces.find(s => s.id === body.reference_surface_id);
