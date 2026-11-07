@@ -419,6 +419,7 @@ function viewportSnapshot(){
  return {width:v.width,height:v.height,scale:v.scale,rects};
 }
 function viewportDiagnostic(phase,initial){inputDiagnostic('bootstrap',{phase,...(initial||viewportSnapshot())},true)}
+let portraitReanchorPending=false;
 function syncViewport(){const viewport=window.visualViewport,height=viewport.height*viewport.scale;document.documentElement.style.setProperty('--viewport-width',viewport.width+'px');document.documentElement.style.setProperty('--viewport-left',viewport.offsetLeft+'px');document.documentElement.style.setProperty('--viewport-height',viewport.height+'px');document.documentElement.style.setProperty('--viewport-top',viewport.offsetTop+'px');const width=viewport.width*viewport.scale,layoutScale=width/document.documentElement.clientWidth;if(width!==viewportWidth){viewportWidth=width;restingHeight=Math.max(window.innerHeight*layoutScale,document.documentElement.clientHeight*layoutScale,height)}const baseline=Math.max(restingHeight,document.documentElement.clientHeight*layoutScale),keyboardNow=height<baseline-150;
  const root=document.documentElement;
  root.style.setProperty('--ui-width',width+'px');
@@ -427,7 +428,17 @@ function syncViewport(){const viewport=window.visualViewport,height=viewport.hei
  const compact=compactLayout();
  root.classList.toggle('compact-layout',compact);
  root.classList.toggle('wide-layout',!compact);
- root.classList.toggle('landscape-layout',compact&&width>baseline);
+ const landscape=compact&&width>baseline;
+ if(landscape)portraitReanchorPending=false;
+ else if(root.classList.contains('landscape-layout')&&(matchMedia('(display-mode: standalone)').matches||navigator.standalone))portraitReanchorPending=true;
+ root.classList.toggle('landscape-layout',landscape);
+ if(portraitReanchorPending)requestAnimationFrame(()=>{
+  if(!portraitReanchorPending||keyboardVisible||Math.abs(viewport.height-root.clientHeight)>1||Math.abs(viewport.width-root.clientWidth)>1)return;
+  portraitReanchorPending=false;
+  // WebKit can retain the old native scroll origin even after the DOM viewport is restored.
+  root.scrollTop=0;
+  if(connected)viewportDiagnostic('resize');
+ });
  syncViewportLayer($('shellLayer'));
  syncSidebarState();if(!customInput()&&keyboardVisible&&!keyboardNow){terminalTyping=false;if(document.activeElement===inputSurface()&&!joystickSteering&&!edgeContact?.scroll&&preferences.restoreOverview!==false){manualScale=null}}restingHeight=Math.max(restingHeight,height);syncTerminalEditing();keyboardVisible=keyboardNow;document.documentElement.classList.toggle('keyboard-open',keyboardNow);$('content').classList.toggle('typing',terminalTyping);syncDock();fitTerminal();syncPanelLayout();syncFloating();requestAnimationFrame(revealInputLine)}
 function insertText(text){if(!text)return;consumeModifiers();sendTerminal('paste',text)}
