@@ -1156,3 +1156,29 @@ test('native keyboard requires its floating toggle and ordinary taps preserve re
   assert.equal(wrap.scrollLeft,120);
  }finally{w.close()}
 });
+
+test('opening and stowing either drawer keeps the active native terminal editable and focused',()=>{
+ const dom=terminal(),w=dom.window,d=w.document;
+ try{
+  const output=d.querySelector('.terminal'),dialog=d.querySelector('#dialog');
+  const show=dialog.show.bind(dialog);
+  dialog.show=()=>{show();d.querySelector('#dialogClose').focus()};
+  dialog.showModal=dialog.show;
+  d.querySelector('#floatingFunctions [data-function="3"]').click();
+  assert.equal(d.activeElement,output);
+  d.querySelector('#sidebarToggle').click();
+  assert.equal(d.querySelector('#shell').classList.contains('sidebar-open'),true);
+  assert.equal(d.querySelector('#content').inert,false);
+  assert.equal(d.activeElement,output);
+  d.querySelector('#scrim').click();
+  assert.equal(d.querySelector('#shell').classList.contains('sidebar-open'),false);
+  d.querySelector('#appActions').click();
+  assert.equal(dialog.open,true);
+  assert.equal(d.querySelector('#menuScrim').hidden,false);
+  assert.equal(d.activeElement,output);
+  d.querySelector('#menuScrim').click();
+  assert.equal(dialog.open,false);
+  assert.equal(d.activeElement,output);
+  assert.equal(output.getAttribute('contenteditable'),'plaintext-only');
+ }finally{w.close()}
+});
