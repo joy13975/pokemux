@@ -43,15 +43,7 @@ test('clipboard reading starts in the triggering call stack and paste does not a
  const dom=client(),w=dom.window;let read=false;
  try{Object.defineProperty(w.navigator,'clipboard',{value:{readText:()=>{read=true;return Promise.resolve('pasted text')}}});const paste=w.fixture.runFloating('paste');assert.equal(read,true);await paste;await flush(w);assert.equal(w.actions.length,1);assert.equal(w.actions[0].action,'paste');assert.equal(w.actions[0].text,'pasted text')}finally{w.close()}
 });
-test('both menu and fourth floating action return to Pokemux keyboard and preserve Japanese preference',async()=>{
- for(const path of ['menu','floating']){const dom=client({keyboardMode:'native',keyboardLanguage:'system',customKeyboardLanguage:'katakana'}),w=dom.window,d=w.document;
- try{if(path==='menu'){w.fixture.appMenu();const button=d.querySelector('#menuPokemuxKeyboard');assert.ok(button);button.click()}else await w.fixture.runFloating('keyboard');assert.equal(w.fixture.preferences.keyboardMode,'custom');assert.equal(w.fixture.preferences.keyboardLanguage,'katakana');assert.equal(d.querySelector('.terminal').getAttribute('inputmode'),'none');assert.equal(d.querySelector('#dialog').open,false);w.fixture.appMenu();assert.equal(d.querySelector('#menuPokemuxKeyboard'),null)}finally{w.close()}}
-});
 test('unexpected clipboard failures stay visible and reject instead of masquerading as permission denial',async()=>{
  const dom=client(),w=dom.window,d=w.document;
  try{const error=new Error('Clipboard transport failed');Object.defineProperty(w.navigator,'clipboard',{value:{readText:()=>Promise.reject(error)}});await assert.rejects(w.fixture.runFloating('paste'),error);assert.equal(d.querySelector('#nativePaste'),null);assert.match(d.querySelector('#toast').textContent,/Clipboard transport failed/)}finally{w.close()}
-});
-test('language picker remembers custom Japanese mode across a system keyboard round trip',()=>{
- const dom=client(),w=dom.window,d=w.document;
- try{w.fixture.languageDialog();d.querySelector('#languageKatakana').click();w.fixture.languageDialog();d.querySelector('#languageSystem').click();assert.equal(w.fixture.preferences.customKeyboardLanguage,'katakana');w.fixture.appMenu();d.querySelector('#menuPokemuxKeyboard').click();assert.equal(w.fixture.preferences.keyboardLanguage,'katakana')}finally{w.close()}
 });

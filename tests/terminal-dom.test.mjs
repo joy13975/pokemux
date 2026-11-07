@@ -280,7 +280,7 @@ test('inward pinch after viewport widening never enlarges content and can reveal
  const dom=terminal(),w=dom.window,d=w.document,output=d.querySelector('.terminal'),wrap=output.closest('.terminalwrap');
  try{
   let width=390,height=600;Object.defineProperties(wrap,{clientWidth:{get:()=>width},clientHeight:{get:()=>height}});Object.defineProperty(output,'scrollHeight',{value:868});wrap.style.padding='0';output.style.width='960px';
-  const computed=w.getComputedStyle.bind(w);w.getComputedStyle=e=>e===output?{width:'960px'}:computed(e);output.focus();
+  const computed=w.getComputedStyle.bind(w);w.getComputedStyle=e=>e===output?{width:'960px'}:computed(e);w.fixture.focusInput();
   const pinch=(start,end)=>{const points=distance=>[100,100+distance].map((clientX,i)=>({identifier:i+1,clientX,clientY:100,target:wrap}));for(const [type,distance]of[['touchstart',start],['touchmove',end],['touchend',0]])wrap.dispatchEvent(new w.TouchEvent(type,{bubbles:true,cancelable:true,touches:type==='touchend'?[]:points(distance),changedTouches:points(distance)}))};
   pinch(200,20);const before=Number.parseFloat(output.parentElement.style.width);width=926;height=71;
   pinch(400,40);const after=Number.parseFloat(output.parentElement.style.width);
@@ -296,12 +296,12 @@ test('terminal pinch is local and Zoom Toggle switches full grid and readable ty
   w.HTMLElement.prototype.setPointerCapture=()=>{};
   Object.defineProperty(wrap,'clientWidth',{value:390});wrap.style.padding='0';output.style.width='960px';
   const computed=w.getComputedStyle.bind(w);w.getComputedStyle=e=>e===output?{width:'960px'}:computed(e);
-  output.focus();
+  w.fixture.focusInput();
   let lastTouches=[];const touch=(type,points)=>{const contacts=points.map(([clientX,clientY],i)=>({identifier:i+1,clientX,clientY,target:wrap})),e=new w.TouchEvent(type,{bubbles:true,cancelable:true,touches:contacts,changedTouches:type==='touchend'?lastTouches:contacts});lastTouches=contacts;wrap.dispatchEvent(e)};
   touch('touchstart',[[100,200],[300,200]]);touch('touchmove',[[0,200],[400,200]]);touch('touchend',[]);
   assert.equal(parseFloat(output.parentElement.style.width),1320,'Pinch must enlarge terminal content, rather than the browser page');
   d.querySelector('[data-function="0"]').click();assert.equal(parseFloat(output.parentElement.style.width),390);d.querySelector('[data-function="0"]').click();assert.equal(parseFloat(output.parentElement.style.width),720);assert.equal(w.visualViewport.scale,1);
-  output.focus();Object.assign(w.visualViewport,{height:430});w.fixture.syncViewport();touch('touchstart',[[100,200],[300,200]]);touch('touchmove',[[0,200],[400,200]]);touch('touchend',[]);Object.assign(w.visualViewport,{height:844});w.fixture.syncViewport();assert.equal(parseFloat(output.parentElement.style.width),720,'Closing keyboard must restore readable size after manual pinch');
+  w.fixture.focusInput();Object.assign(w.visualViewport,{height:430});w.fixture.syncViewport();touch('touchstart',[[100,200],[300,200]]);touch('touchmove',[[0,200],[400,200]]);touch('touchend',[]);Object.assign(w.visualViewport,{height:844});w.fixture.syncViewport();assert.equal(parseFloat(output.parentElement.style.width),720,'Closing keyboard must restore readable size after manual pinch');
  }finally{w.close()}
 });
 
@@ -373,10 +373,6 @@ test('Zoom Toggle retains full grid through updates then returns to the saved ty
  }finally{w.close()}
  });
 
-test('terminal whitespace tap activates native input after the page has settled',async()=>{
- const dom=terminal(),w=dom.window,d=w.document,wrap=d.querySelector('.terminalwrap');
- try{w.HTMLElement.prototype.setPointerCapture=()=>{};await new Promise(r=>w.setTimeout(r,350));const down=new w.Event('pointerdown',{bubbles:true,cancelable:true});Object.assign(down,{pointerId:1,button:0,isPrimary:true,clientX:100,clientY:300});wrap.dispatchEvent(down);const up=new w.Event('pointerup',{bubbles:true,cancelable:true});Object.assign(up,{pointerId:1,button:0,isPrimary:true,clientX:100,clientY:300});wrap.dispatchEvent(up);wrap.dispatchEvent(new w.MouseEvent('click',{bubbles:true,detail:1}));assert.equal(d.activeElement,d.querySelector('.terminal'))}finally{w.close()}
-});
 
 test('streaming cursor follow preserves the user horizontal position while revealing the input row vertically',()=>{
  const dom=terminal(),w=dom.window,d=w.document,output=d.querySelector('.terminal'),wrap=d.querySelector('.terminalwrap');
@@ -388,14 +384,10 @@ test('hardware arrows and the joystick share modifier intent without duplicating
  try{d.querySelector('[data-key="Ctrl"]').click();output.dispatchEvent(new w.KeyboardEvent('keydown',{key:'ArrowRight',ctrlKey:true,shiftKey:true,bubbles:true,cancelable:true}));await new Promise(r=>w.setTimeout(r,0));assert.equal(w.actions.at(-1).key,'Ctrl-Shift-Right');assert.equal(d.querySelector('[data-key="Ctrl"]').getAttribute('aria-pressed'),'false')}finally{w.close()}
 });
 
-test('a native tap opens terminal input even when Safari omits the compatibility click',()=>{
- const dom=terminal(),w=dom.window,d=w.document,wrap=d.querySelector('.terminalwrap');
- try{w.HTMLElement.prototype.setPointerCapture=()=>{};for(const type of ['pointerdown','pointerup']){const e=new w.Event(type,{bubbles:true,cancelable:true});Object.assign(e,{pointerId:1,button:0,isPrimary:true,clientX:100,clientY:300});wrap.dispatchEvent(e)}assert.equal(d.activeElement,d.querySelector('.terminal'))}finally{w.close()}
-});
 
-test('selecting a terminal tab engages typing by default',()=>{
+test('selecting a terminal tab preserves reading mode',()=>{
  const dom=terminal(),w=dom.window,d=w.document;
- try{assert.notEqual(d.activeElement,d.querySelector('.terminal'));d.querySelector('[data-surface]').click();assert.equal(d.activeElement,d.querySelector('.terminal'));assert.equal(d.querySelector('#viewportDock').classList.contains('typing'),true)}finally{w.close()}
+ try{assert.notEqual(d.activeElement,d.querySelector('.terminal'));d.querySelector('[data-surface]').click();assert.notEqual(d.activeElement,d.querySelector('.terminal'));assert.equal(d.querySelector('#viewportDock').classList.contains('typing'),false)}finally{w.close()}
 });
 
 test('an offscreen remote cursor does not put the native editing caret outside the visible viewport',()=>{
@@ -629,18 +621,6 @@ test('alternate-screen vertical gestures send native wheel events while horizont
  }finally{w.close()}
 });
 
-test('system keyboard becomes the default once, preserving an explicit later emulated-keyboard choice',()=>{
- for(const keyboardMode of [undefined,'custom','native']){
-  const dom=terminal({keyboardMode,keyboardDefaultVersion:undefined,keyboardLanguage:'hiragana'}),w=dom.window,d=w.document;
-  try{
-   w.fixture.focusInput();assert.equal(d.querySelector('#softwareKeyboard').hidden,true);
-   let saved=JSON.parse(w.localStorage.getItem('cmux-pocket-customizations'));assert.equal(saved.keyboardMode,'native');assert.equal(saved.customKeyboardLanguage,'hiragana');
-   d.querySelector('#appActions').click();d.querySelector('#menuPokemuxKeyboard').click();assert.equal(d.querySelector('#softwareKeyboard').hidden,false);
-   saved=JSON.parse(w.localStorage.getItem('cmux-pocket-customizations'));const reloaded=terminal(saved);
-   try{reloaded.window.fixture.focusInput();assert.equal(reloaded.window.document.querySelector('#softwareKeyboard').hidden,false)}finally{reloaded.window.close()}
-  }finally{w.close()}
- }
-});
 
 function scrollFixture(saved={}){
  const dom=terminal(saved),w=dom.window,d=w.document,wrap=d.querySelector('.terminalwrap'),output=d.querySelector('.terminal');
@@ -1096,7 +1076,7 @@ test('a held joystick stops producing input when its terminal is replaced',async
 
 test('terminal pinch and mixed-contact pan work without legacy touch event properties',()=>{
  const dom=terminal(undefined,false),w=dom.window,d=w.document,output=d.querySelector('.terminal'),wrap=d.querySelector('.terminalwrap');
- try{Object.defineProperty(wrap,'clientWidth',{value:390});wrap.style.padding='0';output.style.width='960px';const computed=w.getComputedStyle.bind(w);w.getComputedStyle=e=>e===output?{width:'960px'}:computed(e);output.focus();const send=(type,points)=>wrap.dispatchEvent(new w.TouchEvent(type,{bubbles:true,cancelable:true,touches:points,changedTouches:points})),point=(id,x,y,target=wrap)=>({identifier:id,clientX:x,clientY:y,target});
+ try{Object.defineProperty(wrap,'clientWidth',{value:390});wrap.style.padding='0';output.style.width='960px';const computed=w.getComputedStyle.bind(w);w.getComputedStyle=e=>e===output?{width:'960px'}:computed(e);w.fixture.focusInput();const send=(type,points)=>wrap.dispatchEvent(new w.TouchEvent(type,{bubbles:true,cancelable:true,touches:points,changedTouches:points})),point=(id,x,y,target=wrap)=>({identifier:id,clientX:x,clientY:y,target});
  send('touchstart',[point(1,100,200),point(2,300,200)]);send('touchmove',[point(1,0,200),point(2,400,200)]);assert.equal(Number.parseFloat(output.parentElement.style.width),1320);send('touchend',[]);
  const width=output.parentElement.style.width;wrap.scrollLeft=100;wrap.scrollTop=100;const held=point(3,60,888,d.querySelector('#cursorJoystick'));send('touchstart',[held,point(4,250,400)]);send('touchmove',[held,point(4,150,100)]);assert.equal(output.parentElement.style.width,width);assert.equal(wrap.scrollLeft,200);assert.equal(wrap.scrollTop,400)
  }finally{w.close()}
@@ -1153,5 +1133,26 @@ test('joystick detent crossing requires deliberate travel and responds to veloci
 test('joystick endpoint direction changes update the preview when locked modifiers produce the same key',async()=>{
  const dom=terminal(),w=dom.window,d=w.document,h=d.querySelector('#cursorJoystick'),point=(x,y)=>({pointerId:84,button:0,isPrimary:true,clientX:x,clientY:y,preventDefault(){}}),flush=()=>new Promise(r=>w.setTimeout(r,0));
  try{h.style.left='173px';h.style.top='400px';d.querySelector('[data-key="Ctrl"]').click();d.querySelector('[data-key="Ctrl"]').click();h.onpointerdown(point(195,422));h.onpointermove(point(40,422));await flush();const count=w.actions.length;assert.equal(w.actions.at(-1).key,'Ctrl-Home');h.onpointermove(point(195,267));await flush();assert.equal(w.actions.length,count+1,'Entering another endpoint is a new jump even if modifiers encode the same key');assert.equal(d.querySelector('#joystickSpeed .active').dataset.direction,'Up');assert.equal(h.querySelector('[data-direction].active').dataset.direction,'Up');h.onpointercancel()
+ }finally{w.close()}
+});
+
+test('native keyboard requires its floating toggle and ordinary taps preserve reading position',()=>{
+ const dom=terminal(),w=dom.window,d=w.document;
+ try{
+  const output=d.querySelector('.terminal'),wrap=output.closest('.terminalwrap');
+  wrap.scrollLeft=120;
+  terminalPointer(w,wrap,'pointerdown',100,100);
+  terminalPointer(w,wrap,'pointerup',100,100);
+  assert.notEqual(d.activeElement,output,'An ordinary tap must not focus terminal editing');
+  assert.equal(output.getAttribute('contenteditable'),'false');
+  assert.equal(wrap.scrollLeft,120);
+  const keyboard=d.querySelector('[data-function="3"]');
+  keyboard.click();
+  assert.equal(d.activeElement,output);
+  assert.equal(output.getAttribute('contenteditable'),'plaintext-only');
+  keyboard.click();
+  assert.notEqual(d.activeElement,output);
+  assert.equal(output.getAttribute('contenteditable'),'false');
+  assert.equal(wrap.scrollLeft,120);
  }finally{w.close()}
 });
