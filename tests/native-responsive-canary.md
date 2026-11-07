@@ -13,3 +13,9 @@ Use the iPhone 13 Pro Max Simulator with the software keyboard enabled. Open `ht
 7. Restore Safari's zoom and Simulator's keyboard settings, blank the fixture tab, and stop the fixture.
 
 Use native Simulator taps and drags. Compare bootstrap geometry after Safari's resize settles because WebKit can report the new scale before it updates the visual viewport dimensions.
+
+## Home Screen rotation and full-screen terminal drawers
+
+Start the loopback fixture with `POKEMUX_CANARY_TUI=1 node tests/render-browser-fixture.mjs`. Open it from the iPhone 13 Pro Max Home Screen. At Safari Page Zoom 50%, rotate to landscape, show and dismiss the native keyboard, and rotate directly back. Tap the joystick and quick actions at their visible centers, then cancel a short header pull. The joystick changes mode, quick actions open, and the tab rail returns to its original height. The Simulator does not reproduce the physical phone's stale hit region.
+
+In the same fixture, drag horizontally inside the terminal to each scroll limit, then continue an intentional pull toward the interior. Each drawer should open on release after the pull crosses its commit point. A shorter pull stows the preview. The fixture uses the same alternate-screen mouse reporting that preceded canceled pointer events in the physical trace.

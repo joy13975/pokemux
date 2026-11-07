@@ -9,6 +9,11 @@ const workspace=randomUUID(),surface=randomUUID(),secondSurface=randomUUID(),pan
 const frame={format:'cmux.render-grid.v1',render_epoch:'glyph-probe',render_revision:1,full:true,rows:10,columns:99,row_spans:[],styles:[{id:1,bold:true},{id:2,background:'#2255aa'}],cursor:{row:4,column:21,visible:true,style:'block'}};
 for(const [row,text] of ['ASCII','BOLD','Powerline \ue0b0','日本語 😀','CURSOR'].entries())frame.row_spans.push({row,column:0,text,cell_width:[5,4,11,9,6][row],style_id:row===1?1:row===2?2:undefined},{row,column:21,text:'|',cell_width:1});
 frame.row_spans.push({row:8,column:0,text:'⏺ Writing  ⎿ Tool'});
+if(process.env.POKEMUX_CANARY_TUI==='1'){
+ frame.active_screen='alternate';
+ frame.modes=[{code:1000,on:true,ansi:false}];
+ for(let row=0;row<frame.rows;row++)frame.row_spans.push({row,column:30,text:'TUI | swipe horizontally to reach either drawer',cell_width:47});
+}
 const recordedTree=process.env.POKEMUX_CANARY_TREE?JSON.parse(await readFile(process.env.POKEMUX_CANARY_TREE,'utf8')):null;
 if(process.env.POKEMUX_CANARY_FONT_FAILURE==='1')frame.row_spans.push({row:9,column:0,text:'⏺︎ Text ⏺️ Emoji ⏹ ⏸ ⚠',style_id:1});
 const echoMode=process.env.POKEMUX_CANARY_ECHO==='1';

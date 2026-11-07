@@ -4,12 +4,12 @@ import { test } from 'node:test';
 import vm from 'node:vm';
 const html=readFileSync(new URL('../index.html',import.meta.url),'utf8');
 const compactSource=html.match(/^function compactLayout\(\).*$/m)[0];
-const source=html.slice(html.indexOf('let portraitReanchorPending='),html.indexOf('function insertText('));
+const source=html.slice(html.indexOf('function viewportDiagnostic('),html.indexOf('function insertText('));
 function fixture(restoreOverview=true,scrolling=false,geometry={width:390,layoutWidth:390,layoutHeight:844},device={width:390,height:844,coarse:true},standalone=false){
- const input={},properties={},frames=[],rootScroll=[],root={set scrollTop(value){rootScroll.push(value)},clientHeight:geometry.layoutHeight,clientWidth:geometry.layoutWidth,style:{setProperty:(k,v)=>properties[k]=v},classList:{contains:k=>!!properties[k],toggle:(k,v)=>properties[k]=v}};
- const context=vm.createContext({screen:device,matchMedia:query=>({matches:query==='(display-mode: standalone)'?standalone:device.coarse}),navigator:{standalone},window:{innerHeight:geometry.layoutHeight,visualViewport:{width:geometry.width,height:844,scale:1,offsetTop:0,offsetLeft:0}},document:{documentElement:root,activeElement:input},inputSurface:()=>input,joystickSteering:false,edgeContact:scrolling?{scroll:{}}:undefined,customInput:()=>false,preferences:{restoreOverview},manualScale:1.3,terminalTyping:true,keyboardVisible:true,restingHeight:844,viewportWidth:geometry.layoutWidth,$:()=>({classList:{toggle:(k,v)=>properties[k]=v}}),connected:false,syncViewportLayer(){},syncSidebarState(){},syncTerminalEditing(){},fitTerminal(){},syncFloating(){},syncDock(){},syncPanelLayout(){},requestAnimationFrame:fn=>frames.push(fn),revealInputLine(){}});
+ const input={},properties={},root={clientHeight:geometry.layoutHeight,clientWidth:geometry.layoutWidth,style:{setProperty:(k,v)=>properties[k]=v},classList:{contains:k=>!!properties[k],toggle:(k,v)=>properties[k]=v}};
+ const context=vm.createContext({screen:device,matchMedia:query=>({matches:query==='(display-mode: standalone)'?standalone:device.coarse}),navigator:{standalone},window:{innerHeight:geometry.layoutHeight,visualViewport:{width:geometry.width,height:844,scale:1,offsetTop:0,offsetLeft:0,pageTop:0,pageLeft:0}},document:{documentElement:root,activeElement:input},inputSurface:()=>input,joystickSteering:false,edgeContact:scrolling?{scroll:{}}:undefined,customInput:()=>false,preferences:{restoreOverview},manualScale:1.3,terminalTyping:true,keyboardVisible:true,restingHeight:844,viewportWidth:geometry.layoutWidth,$:()=>({classList:{toggle:(k,v)=>properties[k]=v}}),connected:false,syncViewportLayer(){},syncSidebarState(){},syncTerminalEditing(){},fitTerminal(){},syncFloating(){},syncDock(){},syncPanelLayout(){},requestAnimationFrame(){},revealInputLine(){}});
  vm.runInContext(compactSource+'\n'+source,context);
- return {rootScroll,paint(){frames.splice(0).forEach(fn=>fn())},openKeyboard(){context.terminalTyping=true},resize(height,scale=1,layout=844,width=geometry.width/scale,layoutWidth=geometry.layoutWidth){root.clientHeight=layout;root.clientWidth=layoutWidth;context.window.visualViewport.width=width;context.window.visualViewport.height=height;context.window.visualViewport.scale=scale;context.syncViewport();return {...properties,manualScale:context.manualScale}}};
+ return {openKeyboard(){context.terminalTyping=true},resize(height,scale=1,layout=844,width=geometry.width/scale,layoutWidth=geometry.layoutWidth,pageTop=0,pageLeft=0){context.window.visualViewport.pageTop=pageTop;context.window.visualViewport.pageLeft=pageLeft;root.clientHeight=layout;root.clientWidth=layoutWidth;context.window.visualViewport.width=width;context.window.visualViewport.height=height;context.window.visualViewport.scale=scale;context.syncViewport();return {...properties,manualScale:context.manualScale}}};
 }
 test('keyboard reduces available layout height',()=>{const p=fixture().resize(430);assert.equal(p['--viewport-height'],'430px');assert.equal(p['keyboard-open'],true)});
 test('manual pinch does not masquerade as keyboard; pinch with keyboard retains reduced height',()=>{const f=fixture();assert.equal(f.resize(422,2)['keyboard-open'],false);assert.equal(f.resize(215,2)['keyboard-open'],true);assert.equal(f.resize(215,2)['--viewport-height'],'215px')});
@@ -31,25 +31,21 @@ test('iPhone rotation keeps the sidebar in drawer mode at the reported 1088-poin
  assert.equal(desktop.resize(500,1,500)['wide-layout'],true);
 });
 
-test('Home Screen return to portrait reanchors the document only after the full viewport settles',()=>{
+test('Home Screen layers follow the visible document origin through keyboard pan and rotation',()=>{
  const geometry={width:420,layoutWidth:840,layoutHeight:1688};
  const phone={width:420,height:912,coarse:true};
- for(const standalone of [true,false]){
-  const app=fixture(true,false,geometry,phone,standalone);
-  app.resize(1688,.5,1688);
-  app.resize(840,.5,840,1824,1824);
-  app.openKeyboard();
-  app.resize(172,1,840,912,1824);
-  app.resize(420,1,840,912,1824);
-  app.paint();
-  assert.deepEqual(app.rootScroll,[]);
-  app.resize(1824,.5,1688,840,840);
-  app.paint();
-  assert.deepEqual(app.rootScroll,[],'The transient full-screen measurement is not the settled portrait viewport');
-  app.resize(1688,.5,1688);
-  app.resize(1688,.5,1688);
-  assert.deepEqual(app.rootScroll,[],'Wait for the browser to commit the resize');
-  app.paint();
-  assert.deepEqual(app.rootScroll,standalone?[0]:[]);
- }
+ const app=fixture(true,false,geometry,phone,true);
+ app.resize(1688,.5,1688);
+ app.resize(840,.5,840,1824,1824);
+ app.openKeyboard();
+ const keyboard=app.resize(420,1,840,912,1824,420,18);
+ assert.equal(keyboard['document-viewport'],true);
+ assert.equal(keyboard['--page-top'],'420px');
+ assert.equal(keyboard['--page-left'],'18px');
+ assert.equal(keyboard['--viewport-top'],'0px','Top-layer dialog still uses the viewport offset');
+ app.resize(1824,.5,1688,840,840);
+ const portrait=app.resize(1688,.5,1688);
+ assert.equal(portrait['--page-top'],'0px');
+ assert.equal(portrait['--page-left'],'0px');
+ assert.equal(fixture(true,false,geometry,phone,false).resize(1688,.5,1688)['document-viewport'],false);
 });
