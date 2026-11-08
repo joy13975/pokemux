@@ -65,6 +65,22 @@ test('large cold replay remains connected and delivers subsequent terminal chang
   } finally {clearTimeout(timeout);abort.abort();bridge.close();server.closeAllConnections();await new Promise(resolve=>server.close(resolve));}
 });
 
+test('a phone viewport can reconnect cmux before the stream comes back',async()=>{
+ const bridge=new CmuxBridge();
+ bridge.connected=false;
+ bridge.rpc=async method=>{assert.equal(method,'system.ping');return {pong:true}};
+ bridge.action=async data=>{assert.equal(bridge.connected,true);assert.equal(data.action,'viewport');return {columns:52,rows:42}};
+ const auth={origin:'http://localhost',require:()=>({authenticated:true}),sameOrigin(){}};
+ const server=application({bridge,auth});
+ await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+ auth.origin=`http://localhost:${server.address().port}`;
+ try{
+  const response=await fetch(auth.origin+'/api/action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'viewport'})});
+  assert.equal(response.status,200,'Sizing recovers even if its request beats the SSE reconnect');
+  assert.deepEqual(await response.json(),{columns:52,rows:42});
+ }finally{bridge.close();await new Promise(resolve=>server.close(resolve))}
+});
+
 test('phone sizing covers a background gap and stops after Mac reclaim, expiry or explicit release',async t=>{
  t.mock.timers.enable({apis:['setTimeout','Date']});
  const advance=async seconds=>{for(let i=0;i<seconds;i++){t.mock.timers.tick(1000);await new Promise(setImmediate)}};
@@ -80,8 +96,9 @@ test('phone sizing covers a background gap and stops after Mac reclaim, expiry o
   if(method==='terminal.size_policy.set')policy={mode:params.mode,priority:params.priority??[]};
   if(method==='terminal.replay'){
    phoneReportedAt=Date.now();
-   phone={id:'mobile',priority_key:'owner/iphone/'+params.device_id,counts:params.counts_override===true||phone?.counts===true};
-   const owns=policy.mode==='priority'&&policy.priority[0]===phone.priority_key;
+   const counts_override=params.counts_override??phone?.counts_override??null;
+   phone={id:'mobile',priority_key:'owner/iphone/'+params.device_id,counts_override,counts:counts_override??policy.mode==='smallest'};
+   const owns=policy.mode==='priority'&&policy.priority[0]===phone.priority_key&&phone.counts;
    const cols=owns?params.viewport_columns:Math.min(params.viewport_columns,99);
    const rows=owns?params.viewport_rows:Math.min(params.viewport_rows,35);
    return {size_state:state(cols,rows),self_participant_id:phone.id};
@@ -108,7 +125,7 @@ test('phone sizing covers a background gap and stops after Mac reclaim, expiry o
  const afterReclaim=calls.length;
  await advance(6);
  assert.equal(calls.length,afterReclaim,'Background refresh stops after Mac reclaim');
- assert.deepEqual(await bridge.action({...action,viewport_generation:4,resume:true}),{released:true});
+ assert.deepEqual(await bridge.action({...action,viewport_generation:4}),{released:true});
  assert.ok(calls.slice(afterReclaim).every(([,params])=>!params.counts_override),'Resuming cannot count against the Mac override');
  assert.ok(calls.slice(before).every(([method])=>method!=='terminal.size_policy.set'));
  assert.deepEqual(await claim(5),{columns:55,rows:46},'An explicit foreground claim can retake the grid from Mac Size to My Window');
@@ -117,9 +134,13 @@ test('phone sizing covers a background gap and stops after Mac reclaim, expiry o
  await advance(6);
  assert.equal(calls.length,afterExpiry,'An abandoned phone view stops renewing on its own');
  phone=undefined;
- assert.deepEqual(await bridge.action({...action,viewport_generation:7,resume:true}),{columns:55,rows:46},'Returning after expiry can restore only the same phone’s sizing priority');
- await bridge.action({...target,action:'viewport',client_id,viewport_generation:8,clear:true});
- assert.deepEqual(calls.at(-1),['terminal.viewport',{...target,client_id,viewport_generation:8,clear:true}]);
+ const expired=await bridge.action({...action,viewport_generation:7});
+ const restored=expired.pending?await bridge.action({...action,viewport_generation:8}):expired;
+ assert.deepEqual(restored,{columns:55,rows:46},'An ordinary phone report restores its expired viewport without needing an activation event');
+ phone.counts=false;phone.counts_override=false;
+ assert.deepEqual(await bridge.action({...action,viewport_generation:9}),{released:true},'A deliberate cmux viewer setting still takes effect');
+ await bridge.action({...target,action:'viewport',client_id,viewport_generation:10,clear:true});
+ assert.deepEqual(calls.at(-1),['terminal.viewport',{...target,client_id,viewport_generation:10,clear:true}]);
  const afterRelease=calls.length;
  await advance(6);
  assert.equal(calls.length,afterRelease,'A delayed renew cannot reattach after explicit release');

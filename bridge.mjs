@@ -193,42 +193,40 @@ export class CmuxBridge extends EventEmitter {
     if (health.workspace_id !== params.workspace_id || !surface || params.action !== 'reorder' && surface.type !== 'terminal') throw new RequestError(404, 'Terminal is no longer in this workspace');
     return health;
   }
-  async phoneViewport(target, body) {
+  async phoneViewport(target, body, restoreCounting = true) {
     const { client_id, viewport_generation, viewport_columns, viewport_rows } = body;
     if (!uuid.test(client_id || '') || !Number.isSafeInteger(viewport_generation) || viewport_generation < 1) throw new RequestError(400, 'Invalid phone sizing lease');
     const lease = { ...target, client_id, viewport_generation };
     if (body.clear === true) { await this.rpc('terminal.viewport', { ...lease, clear: true }); return { released: true }; }
     if (![viewport_columns, viewport_rows].every(value => Number.isSafeInteger(value) && value > 0)) throw new RequestError(400, 'Invalid phone terminal dimensions');
-    const device_id = 'pokemux-' + client_id;
     const claim = body.claim === true;
-    let countsOverride = claim;
-    if (claim || body.resume === true) {
+    if (claim) {
       const { size_state: state } = await this.rpc('terminal.size_state', target);
-      const { mode, priority } = state.policy;
-      if (claim && !['latest', 'smallest', 'priority'].includes(mode)) {
+      if (!['latest', 'smallest', 'priority'].includes(state.policy.mode)) {
         throw new RequestError(409, 'Choose Last Active or Fit Everyone in the cmux terminal size menu first');
       }
-      if (!claim && mode === 'priority' && priority[0]?.split('/').at(-1) === device_id) {
-        countsOverride = !state.participants.some(view => view.priority_key === priority[0]);
-      }
     }
-    let replay;
+    const report = { ...lease, viewport_columns, viewport_rows, anchor: 'screen', max_scrollback_rows: 0, device_kind: 'iphone', device_name: 'Pokemux', device_id: 'pokemux-' + client_id };
     try {
-      replay = await this.rpc('terminal.replay', { ...lease, viewport_columns, viewport_rows, anchor: 'screen', max_scrollback_rows: 0, device_kind: 'iphone', device_name: 'Pokemux', device_id, ...(countsOverride ? { counts_override: true } : {}) });
+      const replay = await this.rpc('terminal.replay', claim ? { ...report, counts_override: true } : report);
+      const state = replay.size_state;
+      const participant = state?.participants?.find(view => view.id === replay.self_participant_id);
+      if (!participant?.priority_key) throw new RequestError(502, 'cmux did not confirm the phone sizing participant');
+      const ownsSize = state.policy.mode === 'priority' && state.policy.priority[0] === participant.priority_key;
+      if (claim && !ownsSize) {
+        await this.rpc('terminal.size_policy.set', { ...target, mode: 'priority', priority: [participant.priority_key] });
+        return { pending: true, claimed: true };
+      }
+      if (restoreCounting && !claim && ownsSize && !participant.counts && participant.counts_override === null) {
+        await this.rpc('terminal.replay', { ...report, counts_override: true });
+        return { pending: true };
+      }
+      if (!ownsSize || !participant.counts) return { released: true };
+      return { columns: state.cols, rows: state.rows };
     } catch (error) {
       if (error.cmuxCode === 'viewport_transition') return { pending: true };
       throw error;
     }
-    const state = replay.size_state;
-    const participant = state?.participants?.find(view => view.id === replay.self_participant_id);
-    if (!participant?.priority_key) throw new RequestError(502, 'cmux did not confirm the phone sizing participant');
-    const ownsSize = state.policy.mode === 'priority' && state.policy.priority[0] === participant.priority_key;
-    if (claim && !ownsSize) {
-      await this.rpc('terminal.size_policy.set', { ...target, mode: 'priority', priority: [participant.priority_key] });
-      return { pending: true, claimed: true };
-    }
-    if (!ownsSize || !participant.counts) return { released: true };
-    return { columns: state.cols, rows: state.rows };
   }
   async leasePhoneViewport(target, body) {
     const key = target.surface_id + '/' + body.client_id;
@@ -242,7 +240,7 @@ export class CmuxBridge extends EventEmitter {
       const timer = setTimeout(async () => {
         try {
           if (Date.now() >= deadline || this.phoneViewTimers.get(key) !== timer) return;
-          const refreshed = await this.phoneViewport(target, { ...body, claim: false, resume: false });
+          const refreshed = await this.phoneViewport(target, { ...body, claim: false }, false);
           if (!refreshed.released && this.phoneViewTimers.get(key) === timer) schedule();
         } catch (error) {
           if (this.phoneViewTimers.get(key) === timer) console.error('Phone sizing refresh failed:', error.message);

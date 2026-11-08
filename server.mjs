@@ -67,9 +67,12 @@ export function application({ bridge, auth }) {
         if (req.method === 'GET' && path === '/api/status') return json(await bridge.status());
         if (req.method === 'POST' && path === '/api/connect') { await bridge.connect(); return json({ connected: true }); }
         if (req.method === 'GET' && path === '/api/events') { await bridge.connect(); bridge.observeMetadata(); }
+        const terminalAction = req.method === 'POST' && path === '/api/action';
+        const command = terminalAction ? await body(req) : null;
+        if (!bridge.connected && command?.action === 'viewport') await bridge.connect();
         if (!bridge.connected) throw new RequestError(409, 'Connect the cmux host first');
         if (req.method === 'GET' && path === '/api/tree') return json(await bridge.tree());
-        if (req.method === 'POST' && path === '/api/action') return json(await bridge.action(await body(req)));
+        if (terminalAction) return json(await bridge.action(command));
         if (req.method === 'POST' && path === '/api/manage') return json(await bridge.manage(await body(req)));
         if (req.method === 'GET' && path === '/api/events') {
           const target = { workspace_id: url.searchParams.get('workspace'), surface_id: url.searchParams.get('surface') };

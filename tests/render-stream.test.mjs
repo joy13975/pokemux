@@ -80,6 +80,33 @@ test('returning to the phone app claims mobile sizing again after a release',asy
  }finally{w.close()}
 });
 
+test('a resumed phone holds its mobile frame while cmux restores the phone size',async()=>{
+ const dom=phoneClient(),w=dom.window,d=w.document;
+ try{
+  const fetch=w.fetch;
+  w.fetch=async(path,options)=>{
+   const response=await fetch(path,options);
+   if(path==='/api/action'&&JSON.parse(options.body).action==='viewport')return {...response,json:async()=>({columns:52,rows:42})};
+   return response;
+  };
+  const stream=w.streams[0],terminal=d.querySelector('.terminal');
+  const frame=(revision,text,columns,rows)=>({...w.fixture.frame(revision,text),columns,rows,active_screen:'alternate'});
+  stream.readyState=1;stream.onopen();
+  stream.emit('terminal.render_grid',frame(1,'phone before',52,42));
+  await tick(w);
+  Object.defineProperty(d,'hidden',{configurable:true,value:true});d.dispatchEvent(new w.Event('visibilitychange'));
+  stream.emit('terminal.render_grid',frame(2,'desktop',99,35));
+  Object.defineProperty(d,'hidden',{configurable:true,value:false});d.dispatchEvent(new w.Event('visibilitychange'));
+  await tick(w);
+  assert.ok(terminal.textContent.includes('phone before'),'A desktop frame must not replace the visible phone grid during resume');
+  stream.emit('terminal.render_grid',frame(3,'phone after',52,42));
+  assert.ok(terminal.textContent.includes('phone after'),'The fresh mobile-sized frame replaces the retained frame');
+  stream.emit('terminal.render_grid',frame(4,'desktop again',99,35));
+  d.querySelector('#appActions').click();d.querySelector('#menuPhoneFit').click();
+  assert.ok(terminal.textContent.includes('desktop again'),'Explicit release shows the latest desktop frame');
+ }finally{w.close()}
+});
+
 test('a slow viewport transition retries the phone sizing claim',async()=>{
  const dom=phoneClient(),w=dom.window;
  try{
@@ -101,6 +128,28 @@ test('a slow viewport transition retries the phone sizing claim',async()=>{
   const deadline=Date.now()+4000;
   while(viewportActions(w).length<2&&Date.now()<deadline)await new Promise(resolve=>setTimeout(resolve,40));
   assert.equal(viewportActions(w)[1]?.claim,true,'The phone retries its claim without another activation');
+ }finally{w.close()}
+});
+
+test('an unavailable sizing bridge is retried without releasing the phone viewport',async()=>{
+ const dom=phoneClient(),w=dom.window;
+ try{
+  const fetch=w.fetch;
+  let first=true;
+  w.fetch=async(path,options)=>{
+   const response=await fetch(path,options);
+   if(path==='/api/action'&&JSON.parse(options.body).action==='viewport'&&first){
+    first=false;
+    return {ok:false,status:502,json:async()=>{throw new w.SyntaxError('Temporary proxy response')}};
+   }
+   return response;
+  };
+  startPhoneStream(w);
+  await tick(w);
+  assert.ok(viewportActions(w).every(action=>!action.clear),'A failed proxy response must not clear phone sizing');
+  const deadline=Date.now()+4000;
+  while(viewportActions(w).length<2&&Date.now()<deadline)await new Promise(resolve=>setTimeout(resolve,40));
+  assert.equal(viewportActions(w)[1]?.claim,true,'The original phone claim is retried when the bridge is available again');
  }finally{w.close()}
 });
 

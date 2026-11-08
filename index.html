@@ -210,7 +210,7 @@ function render(){if(phoneFit&&(phoneFit.target.workspace_id!==current?.id||phon
 
  terminalResize.disconnect();const wrap=$('content').querySelector('.panebox.focused .terminalwrap');if(wrap)terminalResize.observe(wrap);if(!retainedTerminal)bindSwipes();syncPanelLayout();scrollHintResize.disconnect();scrollHintResize.observe($('dialogBody'));const rail=$('viewportDock').querySelector('.keygroups');if(rail){rail.onscroll=updateScrollHints;scrollHintResize.observe(rail)}updateScrollHints();paintTerminal();subscribeTerminal();
 }
-function terminalWheelMode(){const grid=grids.get(activeSurface().id);return connected&&grid?.activeScreen==='alternate'&&grid.modes?.some(m=>!m.ansi&&m.on&&[9,1000,1002,1003,1007].includes(m.code))}
+function terminalWheelMode(){const grid=grids.get(activeSurface().id);return connected&&grid?.activeScreen==='alternate'&&phoneGridReady(grid)&&grid.modes?.some(m=>!m.ansi&&m.on&&[9,1000,1002,1003,1007].includes(m.code))}
 let scrollMomentum,scrollGeneration=0;
 function stopTerminalScroll(){scrollGeneration++;if(scrollMomentum)cancelAnimationFrame(scrollMomentum.frame);scrollMomentum=null}
 document.addEventListener('pointerdown',stopTerminalScroll,true);window.addEventListener('blur',stopTerminalScroll);document.addEventListener('visibilitychange',()=>{if(document.hidden)stopTerminalScroll()});
@@ -374,7 +374,7 @@ function releasePhoneFit(){
   if(!document.hidden)say('Phone sizing will expire. '+error.message);
  });
 }
-function pausePhoneFit(){phoneFitPaused=inputSurface();releasePhoneFit()}
+function pausePhoneFit(){phoneFitPaused=inputSurface();releasePhoneFit();paintTerminal()}
 function syncPhoneFit(){
  const output=inputSurface();
  if(!phoneFit&&phoneLayout()&&output&&output!==phoneFitPaused)startPhoneFit(false);
@@ -396,18 +396,17 @@ async function refreshPhoneFit(fit){
  const height=keyboardVisible?(fit.screen===screen?fit.height:visibleHeight+Math.max(0,restingHeight-viewport.height*viewport.scale)):visibleHeight;
  const geometry=[screen,height].join('/');
  if(fit.geometry!==geometry&&(!fit.geometry||!scratchpadOpen)){
-  const grid=grids.get(fit.target.surface_id),font=getComputedStyle(output),scale=textSize/parseFloat(font.fontSize);
-  const cell=parseFloat(font.width)/grid.columns*scale,line=parseFloat(getComputedStyle(output.firstElementChild).height)*scale;
+  const font=getComputedStyle(output),scale=textSize/parseFloat(font.fontSize);
+  const cell=parseFloat(font.width)/parseFloat(output.style.width)*scale,line=parseFloat(getComputedStyle(output.firstElementChild).height)*scale;
   if(!(cell>0&&line>0&&width>=cell&&height>=line)){pausePhoneFit();say('Phone terminal size is unavailable');return}
   fit.geometry=geometry;fit.screen=screen;fit.height=height;fit.columns=Math.floor(width/cell);fit.rows=Math.floor(height/line);fit.deadline=Date.now()+4000;
  }
- const {claim,resume}=fit;
+ const {claim}=fit;
  fit.refreshing=true;
  try{
-  const result=await api('action',{...fit.target,action:'viewport',client_id:phoneClientId,viewport_generation:++phoneGeneration,viewport_columns:fit.columns,viewport_rows:fit.rows,claim,resume});
+  const result=await api('action',{...fit.target,action:'viewport',client_id:phoneClientId,viewport_generation:++phoneGeneration,viewport_columns:fit.columns,viewport_rows:fit.rows,claim});
   if(fit!==phoneFit)return;
   if(result.claimed||!result.pending)fit.claim=false;
-  if(resume&&!result.pending)fit.resume=false;
   if(result.released){pausePhoneFit();say('cmux took back terminal sizing');return}
   if(result.pending){
    const waiting=Date.now()>fit.deadline;
@@ -417,20 +416,24 @@ async function refreshPhoneFit(fit){
    return;
   }
   fit.waiting=false;
-  if(!fit.confirmed){fit.confirmed=true;if(fit.manual)say(`Phone fit · ${result.columns} × ${result.rows}`)}
+  if(!fit.size||fit.size.columns!==result.columns||fit.size.rows!==result.rows){
+   if(!fit.size&&fit.manual)say(`Phone fit · ${result.columns} × ${result.rows}`);
+   fit.size=result;
+   paintTerminal();
+  }
   fit.timer=setTimeout(()=>refreshPhoneFit(fit),2000);
  }catch(error){
   if(fit!==phoneFit)return;
-  if(error instanceof TypeError){
+  if(error instanceof TypeError||[502,503,504].includes(error.status)){
    console.error('Phone sizing request failed',error);
-   fit.resume=true;
+   if(!fit.waiting)say('Waiting for cmux to refit the phone terminal…');
+   fit.waiting=true;
    fit.timer=setTimeout(()=>refreshPhoneFit(fit),2000);
   }else{pausePhoneFit();say(error.message)}
  }finally{fit.refreshing=false}
 }
 function resumePhoneFit(){
  if(!phoneFit){syncPhoneFit();return}
- phoneFit.resume=true;
  phoneFit.deadline=Date.now()+4000;
  refreshPhoneFit(phoneFit);
 }
@@ -689,8 +692,20 @@ function insertText(text){if(!text)return;consumeModifiers();return sendTerminal
 window.visualViewport.addEventListener('resize',()=>{syncViewport();if(connected)viewportDiagnostic('resize')});window.visualViewport.addEventListener('scroll',syncViewport);syncViewport();
 async function reviewDialog(){const response=await fetch('REVIEW.md');if(!response.ok)throw new Error('Review ledger HTTP '+response.status);openDialog('Review changes',`<pre class="reviewtext">${esc(await response.text())}</pre>`)}
 function fullscreenDialog(){const standalone=matchMedia('(display-mode: standalone)').matches||navigator.standalone;openDialog('Use the whole display',standalone?'<p>Already running as a Home Screen web app.</p>':'<p>In Safari, open Share → Add to Home Screen. Enable Open as Web App if shown, then tap Add. Launch Pokemux from that icon to remove Safari’s address and navigation bars.</p><p style="margin-top:12px">The website cannot add its own Home Screen icon. <a href="https://support.apple.com/guide/iphone/open-as-web-app-iphea86e5236/ios" target="_blank" rel="noopener">Apple’s instructions</a></p>')}
-async function api(path,data,keepalive=false){const response=await fetch('/api/'+path,data===undefined?{}:{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data),keepalive});if(response.status===401){location.replace('/setup');throw new Error('Session expired')}const result=await response.json();if(!response.ok)throw new Error(result.error);return result}
-function paintTerminal(){const output=inputSurface(),grid=current&&grids.get(activeSurface().id);if(!output||!grid)return;output.closest('.terminalwrap').classList.toggle('terminal-wheel',terminalWheelMode());const focused=document.activeElement===output;if(grid.paint(output)){if(output.paintedScreen!==grid.activeScreen&&grid.activeScreen==='alternate')output.closest('.terminalwrap').scrollTop=0;output.paintedScreen=grid.activeScreen;if(!customInput()&&focused&&!getSelection()?.toString())caretToEnd(output)}fitTerminal();revealInputLine();syncPhoneFit()}
+async function api(path,data,keepalive=false){
+ const response=await fetch('/api/'+path,data===undefined?{}:{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data),keepalive});
+ if(response.status===401){location.replace('/setup');throw new Error('Session expired')}
+ let result;
+ try{result=await response.json()}
+ catch(error){
+  if(response.ok||!(error instanceof SyntaxError))throw error;
+  throw Object.assign(new Error('Pokemux request failed (HTTP '+response.status+')',{cause:error}),{status:response.status});
+ }
+ if(!response.ok)throw Object.assign(new Error(result.error),{status:response.status});
+ return result;
+}
+function phoneGridReady(grid){const size=phoneFit?.size;return !size||grid.columns===size.columns&&grid.rows===size.rows}
+function paintTerminal(){const output=inputSurface(),grid=current&&grids.get(activeSurface().id);if(!output||!grid)return;output.closest('.terminalwrap').classList.toggle('terminal-wheel',terminalWheelMode());if(!phoneGridReady(grid))return;const focused=document.activeElement===output;if(grid.paint(output)){if(output.paintedScreen!==grid.activeScreen&&grid.activeScreen==='alternate')output.closest('.terminalwrap').scrollTop=0;output.paintedScreen=grid.activeScreen;if(!customInput()&&focused&&!getSelection()?.toString())caretToEnd(output)}fitTerminal();revealInputLine();syncPhoneFit()}
 function setConnection(value){if(!value)stopTerminalScroll();connected=value;document.querySelectorAll('.panebox .notice').forEach(notice=>notice.hidden=value);if(!value){connectionGeneration++;clearKana();mods.clear();cancelKeyboardContacts();$('workspaceList').cancelWorkspaceDrag?.()}document.querySelectorAll('[data-key],[data-shortcut],[data-snippet]').forEach(button=>button.disabled=!value);syncTerminalEditing();syncModsUI();syncDock()}
 function subscribeTerminal(force=false){
  if(!current||activeSurface().kind!=='terminal')return;
