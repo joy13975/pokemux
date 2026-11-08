@@ -65,19 +65,22 @@ test('large cold replay remains connected and delivers subsequent terminal chang
   } finally {clearTimeout(timeout);abort.abort();bridge.close();server.closeAllConnections();await new Promise(resolve=>server.close(resolve));}
 });
 
-test('phone sizing owns both axes and leaves Mac reclaim in control',async()=>{
+test('phone sizing covers a background gap and stops after Mac reclaim, expiry or explicit release',async t=>{
+ t.mock.timers.enable({apis:['setTimeout','Date']});
+ const advance=async seconds=>{for(let i=0;i<seconds;i++){t.mock.timers.tick(1000);await new Promise(setImmediate)}};
  const bridge=new CmuxBridge(),calls=[];
  const target={workspace_id:'11111111-1111-4111-8111-111111111111',surface_id:'22222222-2222-4222-8222-222222222222'};
  const client_id='33333333-3333-4333-8333-333333333333';
  const mac={id:'mac',priority_key:'owner/mac/desktop',counts:true};
- let policy={mode:'smallest',priority:[]},phone;
+ let policy={mode:'smallest',priority:[]},phone,phoneReportedAt;
  const state=(cols=99,rows=35)=>({policy,cols,rows,participants:phone?[mac,phone]:[mac]});
  bridge.target=async()=>({});
  bridge.rpc=async(method,params)=>{
   calls.push([method,params]);
   if(method==='terminal.size_policy.set')policy={mode:params.mode,priority:params.priority??[]};
   if(method==='terminal.replay'){
-   phone={id:'mobile',priority_key:'owner/iphone/'+params.device_id,counts:true};
+   phoneReportedAt=Date.now();
+   phone={id:'mobile',priority_key:'owner/iphone/'+params.device_id,counts:params.counts_override===true||phone?.counts===true};
    const owns=policy.mode==='priority'&&policy.priority[0]===phone.priority_key;
    const cols=owns?params.viewport_columns:Math.min(params.viewport_columns,99);
    const rows=owns?params.viewport_rows:Math.min(params.viewport_rows,35);
@@ -94,11 +97,31 @@ test('phone sizing owns both axes and leaves Mac reclaim in control',async()=>{
  assert.ok(calls.some(([method,params])=>method==='terminal.replay'&&params.counts_override===true));
  assert.ok(calls.every(([method,params])=>method!=='terminal.viewport'||params.clear===true),'A view report must expire without keepalives');
  assert.deepEqual(await bridge.action({...action,viewport_columns:121,viewport_rows:16,viewport_generation:3}),{columns:121,rows:16});
+ const beforeBackground=calls.length;
+ await advance(6);
+ const backgroundCalls=calls.slice(beforeBackground);
+ assert.ok(Date.now()-phoneReportedAt<5000,'Sizing survives past the stock five-second cmux lease when the phone stops polling');
+ assert.ok(backgroundCalls.every(([method,params])=>method==='terminal.replay'&&params.viewport_columns===121&&params.viewport_rows===16&&!params.counts_override));
  policy={...policy,priority:[mac.priority_key,...policy.priority]};
  const before=calls.length;
- assert.deepEqual(await bridge.action({...action,viewport_generation:4}),{released:true});
+ await advance(6);
+ const afterReclaim=calls.length;
+ await advance(6);
+ assert.equal(calls.length,afterReclaim,'Background refresh stops after Mac reclaim');
+ assert.deepEqual(await bridge.action({...action,viewport_generation:4,resume:true}),{released:true});
+ assert.ok(calls.slice(afterReclaim).every(([,params])=>!params.counts_override),'Resuming cannot count against the Mac override');
  assert.ok(calls.slice(before).every(([method])=>method!=='terminal.size_policy.set'));
  assert.deepEqual(await claim(5),{columns:55,rows:46});
- await bridge.action({...target,action:'viewport',client_id,viewport_generation:7,clear:true});
- assert.deepEqual(calls.at(-1),['terminal.viewport',{...target,client_id,viewport_generation:7,clear:true}]);
+ await advance(40);
+ const afterExpiry=calls.length;
+ await advance(6);
+ assert.equal(calls.length,afterExpiry,'An abandoned phone view stops renewing on its own');
+ phone=undefined;
+ assert.deepEqual(await bridge.action({...action,viewport_generation:7,resume:true}),{columns:55,rows:46},'Returning after expiry can restore only the same phone’s sizing priority');
+ await bridge.action({...target,action:'viewport',client_id,viewport_generation:8,clear:true});
+ assert.deepEqual(calls.at(-1),['terminal.viewport',{...target,client_id,viewport_generation:8,clear:true}]);
+ const afterRelease=calls.length;
+ await advance(6);
+ assert.equal(calls.length,afterRelease,'A delayed renew cannot reattach after explicit release');
+ bridge.close();
 });

@@ -387,7 +387,8 @@ function startPhoneFit(manual=true){
  syncPhoneFitButton();refreshPhoneFit(phoneFit);
 }
 async function refreshPhoneFit(fit){
- if(fit!==phoneFit)return;
+ if(fit!==phoneFit||fit.refreshing||document.hidden||!connected)return;
+ clearTimeout(fit.timer);
  const output=inputSurface(),wrap=output.closest('.terminalwrap'),style=getComputedStyle(wrap),viewport=window.visualViewport;
  const width=wrap.clientWidth-parseFloat(style.paddingLeft)-parseFloat(style.paddingRight);
  const textSize=terminalTextSize(),screen=[width,restingHeight,textSize].join('/');
@@ -400,18 +401,33 @@ async function refreshPhoneFit(fit){
   if(!(cell>0&&line>0&&width>=cell&&height>=line)){pausePhoneFit();say('Phone terminal size is unavailable');return}
   fit.geometry=geometry;fit.screen=screen;fit.height=height;fit.columns=Math.floor(width/cell);fit.rows=Math.floor(height/line);fit.deadline=Date.now()+4000;
  }
- const claim=fit.claim;
+ const {claim,resume}=fit;
+ fit.refreshing=true;
  try{
-  const result=await api('action',{...fit.target,action:'viewport',client_id:phoneClientId,viewport_generation:++phoneGeneration,viewport_columns:fit.columns,viewport_rows:fit.rows,claim});
+  const result=await api('action',{...fit.target,action:'viewport',client_id:phoneClientId,viewport_generation:++phoneGeneration,viewport_columns:fit.columns,viewport_rows:fit.rows,claim,resume});
   if(fit!==phoneFit)return;
   if(result.claimed||!result.pending)fit.claim=false;
+  if(resume&&!result.pending)fit.resume=false;
   if(result.released){pausePhoneFit();say('cmux took back terminal sizing');return}
   if(result.pending&&Date.now()>fit.deadline)throw new Error('cmux did not settle at the phone size');
   if(!result.pending&&!fit.confirmed){fit.confirmed=true;if(fit.manual)say(`Phone fit · ${result.columns} × ${result.rows}`)}
   fit.timer=setTimeout(()=>refreshPhoneFit(fit),result.pending?200:2000);
- }catch(error){if(fit===phoneFit){pausePhoneFit();say(error.message)}}
+ }catch(error){
+  if(fit!==phoneFit)return;
+  if(error instanceof TypeError){
+   console.error('Phone sizing request failed',error);
+   fit.resume=true;
+   fit.timer=setTimeout(()=>refreshPhoneFit(fit),2000);
+  }else{pausePhoneFit();say(error.message)}
+ }finally{fit.refreshing=false}
 }
-document.addEventListener('visibilitychange',()=>{if(document.hidden)releasePhoneFit();else syncPhoneFit()});
+function resumePhoneFit(){
+ if(!phoneFit){syncPhoneFit();return}
+ phoneFit.resume=true;
+ phoneFit.deadline=Date.now()+4000;
+ refreshPhoneFit(phoneFit);
+}
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)resumePhoneFit()});
 window.addEventListener('pagehide',releasePhoneFit);
 function fitTerminal(){const output=inputSurface();if(!output?.style.width)return;const wrap=output.closest('.terminalwrap'),canvas=output.parentElement,style=getComputedStyle(wrap),available=wrap.clientWidth-parseFloat(style.paddingLeft)-parseFloat(style.paddingRight),width=parseFloat(getComputedStyle(output).width);if(available>0){const scale=manualScale??(terminalTextSize())/16;output.style.transform=`scale(${scale})`;canvas.style.width=width*scale+'px';canvas.style.height=Math.max(output.scrollHeight*scale,wrap.clientHeight-parseFloat(style.paddingTop)-parseFloat(style.paddingBottom))+'px'}}
 function revealInputLine(force=false){if((force!==true&&!cursorFollowing&&document.activeElement!==inputSurface())||getSelection()?.toString())return;const wrap=$('content').querySelector('.panebox.focused .terminalwrap'),cursor=inputSurface()?.querySelector('.remote-cursor');if(!wrap||!cursor)return;const box=cursor.getBoundingClientRect(),view=wrap.getBoundingClientRect();const scale=window.visualViewport.scale;if(box.bottom>view.bottom)wrap.scrollTop+=(box.bottom-view.bottom)*scale+8;else if(box.top<view.top)wrap.scrollTop-=(view.top-box.top)*scale+8;}
@@ -660,7 +676,7 @@ async function reviewDialog(){const response=await fetch('REVIEW.md');if(!respon
 function fullscreenDialog(){const standalone=matchMedia('(display-mode: standalone)').matches||navigator.standalone;openDialog('Use the whole display',standalone?'<p>Already running as a Home Screen web app.</p>':'<p>In Safari, open Share → Add to Home Screen. Enable Open as Web App if shown, then tap Add. Launch Pokemux from that icon to remove Safari’s address and navigation bars.</p><p style="margin-top:12px">The website cannot add its own Home Screen icon. <a href="https://support.apple.com/guide/iphone/open-as-web-app-iphea86e5236/ios" target="_blank" rel="noopener">Apple’s instructions</a></p>')}
 async function api(path,data,keepalive=false){const response=await fetch('/api/'+path,data===undefined?{}:{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data),keepalive});if(response.status===401){location.replace('/setup');throw new Error('Session expired')}const result=await response.json();if(!response.ok)throw new Error(result.error);return result}
 function paintTerminal(){const output=inputSurface(),grid=current&&grids.get(activeSurface().id);if(!output||!grid)return;output.closest('.terminalwrap').classList.toggle('terminal-wheel',terminalWheelMode());const focused=document.activeElement===output;if(grid.paint(output)){if(output.paintedScreen!==grid.activeScreen&&grid.activeScreen==='alternate')output.closest('.terminalwrap').scrollTop=0;output.paintedScreen=grid.activeScreen;if(!customInput()&&focused&&!getSelection()?.toString())caretToEnd(output)}fitTerminal();revealInputLine();syncPhoneFit()}
-function setConnection(value){if(!value){stopTerminalScroll();releasePhoneFit()}connected=value;document.querySelectorAll('.panebox .notice').forEach(notice=>notice.hidden=value);if(!value){connectionGeneration++;clearKana();mods.clear();cancelKeyboardContacts();$('workspaceList').cancelWorkspaceDrag?.()}document.querySelectorAll('[data-key],[data-shortcut],[data-snippet]').forEach(button=>button.disabled=!value);syncTerminalEditing();syncModsUI();syncDock()}
+function setConnection(value){if(!value)stopTerminalScroll();connected=value;document.querySelectorAll('.panebox .notice').forEach(notice=>notice.hidden=value);if(!value){connectionGeneration++;clearKana();mods.clear();cancelKeyboardContacts();$('workspaceList').cancelWorkspaceDrag?.()}document.querySelectorAll('[data-key],[data-shortcut],[data-snippet]').forEach(button=>button.disabled=!value);syncTerminalEditing();syncModsUI();syncDock()}
 function subscribeTerminal(force=false){
  if(!current||activeSurface().kind!=='terminal')return;
  const target=activeSurface().id;if(!force&&subscribedTarget===target&&eventStream?.readyState!==EventSource.CLOSED)return;
@@ -670,7 +686,7 @@ function subscribeTerminal(force=false){
  stream.addEventListener('workspace.updated',event=>{if(active())try{applyTree(JSON.parse(event.data))}catch(error){setConnection(false);stream.close();say(error.message)}});
  stream.onerror=async()=>{if(!active())return;stream.interrupted=true;setConnection(false);if(!document.hidden)say('Stream interrupted. Reconnecting…');try{const auth=await api('auth');if(active()&&!auth.authenticated){stream.close();location.replace('/setup')}}catch(error){if(active())say(error.message)}};
  stream.addEventListener('disconnected',()=>stream.onerror());
- stream.onopen=()=>{stream.interrupted=false;if(active())setConnection(true)};
+ stream.onopen=()=>{stream.interrupted=false;if(active()){setConnection(true);resumePhoneFit()}};
 }
 function resumeStream(){if(!document.hidden&&current&&(!eventStream||eventStream.readyState===EventSource.CLOSED||eventStream.readyState===EventSource.CONNECTING&&eventStream.interrupted))subscribeTerminal(true)}
 document.addEventListener('visibilitychange',resumeStream);window.addEventListener('pageshow',()=>{resumeStream();if(connected)viewportDiagnostic('pageshow')});
