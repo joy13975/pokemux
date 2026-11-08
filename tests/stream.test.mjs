@@ -102,7 +102,7 @@ test('phone sizing covers a background gap and stops after Mac reclaim, expiry o
  const backgroundCalls=calls.slice(beforeBackground);
  assert.ok(Date.now()-phoneReportedAt<5000,'Sizing survives past the stock five-second cmux lease when the phone stops polling');
  assert.ok(backgroundCalls.every(([method,params])=>method==='terminal.replay'&&params.viewport_columns===121&&params.viewport_rows===16&&!params.counts_override));
- policy={...policy,priority:[mac.priority_key,...policy.priority]};
+ policy={...policy,priority:[mac.priority_key]};
  const before=calls.length;
  await advance(6);
  const afterReclaim=calls.length;
@@ -111,7 +111,7 @@ test('phone sizing covers a background gap and stops after Mac reclaim, expiry o
  assert.deepEqual(await bridge.action({...action,viewport_generation:4,resume:true}),{released:true});
  assert.ok(calls.slice(afterReclaim).every(([,params])=>!params.counts_override),'Resuming cannot count against the Mac override');
  assert.ok(calls.slice(before).every(([method])=>method!=='terminal.size_policy.set'));
- assert.deepEqual(await claim(5),{columns:55,rows:46});
+ assert.deepEqual(await claim(5),{columns:55,rows:46},'An explicit foreground claim can retake the grid from Mac Size to My Window');
  await advance(40);
  const afterExpiry=calls.length;
  await advance(6);

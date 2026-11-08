@@ -199,13 +199,13 @@ export class CmuxBridge extends EventEmitter {
     const lease = { ...target, client_id, viewport_generation };
     if (body.clear === true) { await this.rpc('terminal.viewport', { ...lease, clear: true }); return { released: true }; }
     if (![viewport_columns, viewport_rows].every(value => Number.isSafeInteger(value) && value > 0)) throw new RequestError(400, 'Invalid phone terminal dimensions');
-    const devicePrefix = 'pokemux-', device_id = devicePrefix + client_id;
+    const device_id = 'pokemux-' + client_id;
     const claim = body.claim === true;
     let countsOverride = claim;
     if (claim || body.resume === true) {
       const { size_state: state } = await this.rpc('terminal.size_state', target);
       const { mode, priority } = state.policy;
-      if (claim && !['latest', 'smallest'].includes(mode) && !(mode === 'priority' && priority.some(key => { const device = key.split('/').at(-1); return device.startsWith(devicePrefix) && uuid.test(device.slice(devicePrefix.length)); }))) {
+      if (claim && !['latest', 'smallest', 'priority'].includes(mode)) {
         throw new RequestError(409, 'Choose Last Active or Fit Everyone in the cmux terminal size menu first');
       }
       if (!claim && mode === 'priority' && priority[0]?.split('/').at(-1) === device_id) {

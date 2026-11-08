@@ -364,7 +364,7 @@ async function lock(){await releasePhoneFit();await api('logout',{});eventStream
 $('lockButton').onclick=lock;$('hostButton').onclick=hostDialog;$('inboxButton').onclick=inboxDialog;$('dialogClose').onclick=()=>$('dialog').close();document.addEventListener('pointerdown',e=>{if($('dialog').open&&$('dialog').classList.contains('keyboard')&&!$('dialog').contains(e.target)&&!e.target.closest('.inputdock')&&edgeContact?.id!==e.pointerId)$('dialog').close()});$('dialog').addEventListener('pointerdown',e=>{const box=$('dialog').getBoundingClientRect();dialogOutside=e.target===$('dialog')&&(e.clientX<box.left||e.clientX>box.right||e.clientY<box.top||e.clientY>box.bottom)});$('dialog').onclick=e=>{if(dialogOutside&&e.target===$('dialog'))$('dialog').close();dialogOutside=false};$('scrim').onclick=closeSidebar;$('newWorkspace').onclick=newWorkspaceMenu;$('search').oninput=renderSidebar;$('searchClear').onclick=()=>{$('search').value='';renderSidebar();$('search').focus({preventScroll:true})};$('windowSelect').onchange=e=>{selectedWindow=e.target.value;current=workspaces.find(w=>w.window===selectedWindow);mods.clear();render();closeSidebar()};
 
 function overviewScale(output){const wrap=output.closest('.terminalwrap'),style=getComputedStyle(wrap),width=wrap.clientWidth-parseFloat(style.paddingLeft)-parseFloat(style.paddingRight),height=wrap.clientHeight-parseFloat(style.paddingTop)-parseFloat(style.paddingBottom);return Math.min(1,width/parseFloat(getComputedStyle(output).width),Math.max(1,height)/Math.max(1,output.scrollHeight))}
-let phoneFit,phoneFitPaused,phoneClientId,phoneGeneration=0;
+let phoneFit,phoneFitPaused,phoneClientId,phoneGeneration=0,phoneForeground=false;
 function syncPhoneFitButton(){const button=$('menuPhoneFit');if(button)button.textContent=phoneFit?'Release phone sizing':'Fit terminal to phone'}
 function releasePhoneFit(){
  const fit=phoneFit;if(!fit)return;
@@ -427,8 +427,16 @@ function resumePhoneFit(){
  phoneFit.deadline=Date.now()+4000;
  refreshPhoneFit(phoneFit);
 }
-document.addEventListener('visibilitychange',()=>{if(!document.hidden)resumePhoneFit()});
-window.addEventListener('pagehide',releasePhoneFit);
+function activatePhoneFit(){
+ if(phoneForeground||document.hidden||!phoneLayout())return;
+ phoneForeground=true;phoneFitPaused=null;
+ if(!phoneFit){syncPhoneFit();return}
+ clearTimeout(phoneFit.timer);
+ phoneFit={...phoneFit,claim:true,refreshing:false,deadline:Date.now()+4000};
+ refreshPhoneFit(phoneFit);
+}
+window.addEventListener('blur',()=>{phoneForeground=false});
+window.addEventListener('pagehide',()=>{phoneForeground=false;releasePhoneFit()});
 function fitTerminal(){const output=inputSurface();if(!output?.style.width)return;const wrap=output.closest('.terminalwrap'),canvas=output.parentElement,style=getComputedStyle(wrap),available=wrap.clientWidth-parseFloat(style.paddingLeft)-parseFloat(style.paddingRight),width=parseFloat(getComputedStyle(output).width);if(available>0){const scale=manualScale??(terminalTextSize())/16;output.style.transform=`scale(${scale})`;canvas.style.width=width*scale+'px';canvas.style.height=Math.max(output.scrollHeight*scale,wrap.clientHeight-parseFloat(style.paddingTop)-parseFloat(style.paddingBottom))+'px'}}
 function revealInputLine(force=false){if((force!==true&&!cursorFollowing&&document.activeElement!==inputSurface())||getSelection()?.toString())return;const wrap=$('content').querySelector('.panebox.focused .terminalwrap'),cursor=inputSurface()?.querySelector('.remote-cursor');if(!wrap||!cursor)return;const box=cursor.getBoundingClientRect(),view=wrap.getBoundingClientRect();const scale=window.visualViewport.scale;if(box.bottom>view.bottom)wrap.scrollTop+=(box.bottom-view.bottom)*scale+8;else if(box.top<view.top)wrap.scrollTop-=(view.top-box.top)*scale+8;}
 function syncPanelLayout(){document.documentElement.style.setProperty('--topbar-height',($('content').querySelector('.workspacehead')?.offsetHeight||0)+'px');const dialog=$('dialog'),open=dialog.open&&dialog.classList.contains('keyboard');$('content').classList.toggle('shortcuts-open',open);syncDock();syncFloating();requestAnimationFrame(revealInputLine)}
@@ -689,7 +697,10 @@ function subscribeTerminal(force=false){
  stream.onopen=()=>{stream.interrupted=false;if(active()){setConnection(true);resumePhoneFit()}};
 }
 function resumeStream(){if(!document.hidden&&current&&(!eventStream||eventStream.readyState===EventSource.CLOSED||eventStream.readyState===EventSource.CONNECTING&&eventStream.interrupted))subscribeTerminal(true)}
-document.addEventListener('visibilitychange',resumeStream);window.addEventListener('pageshow',()=>{resumeStream();if(connected)viewportDiagnostic('pageshow')});
+function activateApp(){resumeStream();activatePhoneFit()}
+document.addEventListener('visibilitychange',()=>{if(document.hidden)phoneForeground=false;else activateApp()});
+window.addEventListener('focus',activateApp);
+window.addEventListener('pageshow',()=>{activateApp();if(connected)viewportDiagnostic('pageshow')});
 async function loadTree(){applyTree(await api('tree'))}
 function applyTree(tree){const unread=tree.notifications.filter(n=>!n.is_read),oldWorkspace=current?.id||location.hash.slice(1).split('/')[1],oldSurface=(current&&activeSurface().id)||location.hash.slice(1).split('/')[2],collapsed=new Map(groups.map(g=>[g.id,g.collapsed]));groups.length=0;workspaces.length=0;for(const win of tree.windows){for(const g of win.groups){groups.push({id:g.id,name:g.name,anchor:g.is_empty?null:g.anchor_workspace_id,collapsed:collapsed.get(g.id)??false,window:win.id});}for(const ws of win.workspaces){const parts=ws.panes.filter(p=>p.surfaces.length).map(p=>({id:p.id,active:p.surfaces.some(s=>s.id===oldSurface)?oldSurface:p.selected_surface_id||p.surfaces[0].id,tabs:p.surfaces.map(s=>surface(s.id,s.title||'Terminal',s.type,unread.find(n=>n.workspace_id===ws.id&&n.surface_id===s.id),s.url||''))}));if(!parts.length)continue;const group=win.groups.find(g=>g.member_workspace_ids.includes(ws.id)||g.anchor_workspace_id===ws.id);const w=workspace(ws.id,ws.title,group?.id||null,'',ws.description||'',parts,win.id);w.notification=unread.find(n=>n.workspace_id===ws.id&&n.surface_id===null);w.activePane=parts.find(p=>p.active===oldSurface)?.id||parts[0].id;workspaces.push(w)}}current=workspaces.find(w=>w.id===oldWorkspace)||workspaces.find(w=>w.window===selectedWindow)||workspaces[0];selectedWindow=current?.window||tree.windows[0]?.id;$('windowSelect').innerHTML=tree.windows.map((w,i)=>`<option value="${w.id}">Window ${i+1}</option>`).join('');$('windowSelect').value=selectedWindow;render();}
 document.addEventListener('selectionchange',()=>{const selection=getSelection();for(const output of document.querySelectorAll('.terminal'))output.classList.toggle('native-selection',!!selection&&!selection.isCollapsed&&output.contains(selection.anchorNode)&&output.contains(selection.focusNode));if(current&&!selection?.toString())paintTerminal()});

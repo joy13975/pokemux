@@ -38,6 +38,37 @@ test('foreground resume replaces interrupted transport once and paints a fresh c
  const dom=client(),w=dom.window,d=w.document;
  try{const first=w.streams[0];first.readyState=1;first.onopen();first.emit('terminal.render_grid',w.fixture.frame(1,'before'));Object.defineProperty(d,'hidden',{configurable:true,value:true});d.dispatchEvent(new w.Event('visibilitychange'));assert.equal(first.closed,undefined,'App must not voluntarily close on app switching');first.readyState=0;first.onerror();Object.defineProperty(d,'hidden',{configurable:true,value:false});d.dispatchEvent(new w.Event('visibilitychange'));assert.equal(w.streams.length,2);d.dispatchEvent(new w.Event('visibilitychange'));assert.equal(w.streams.length,2,'Repeated resume events must not replace a new pending connection');const second=w.streams[1];second.readyState=1;second.onopen();d.dispatchEvent(new w.Event('visibilitychange'));assert.equal(w.streams.length,2);second.emit('terminal.render_grid',w.fixture.frame(2,'after'));assert.ok(d.querySelector('.terminal').textContent.includes('after'));assert.ok(!d.querySelector('.terminal').textContent.includes('before'));first.onerror();await tick(w);assert.equal(w.fixture.connected,true,'Superseded transport cannot change active state')}finally{w.close()}
 });
+test('returning to the phone app claims mobile sizing again after a release',async()=>{
+ const dom=client(),w=dom.window,d=w.document;
+ try{
+  Object.defineProperties(w.screen,{width:{value:428},height:{value:926}});
+  const wrap=d.querySelector('.terminalwrap');
+  wrap.style.padding='0';wrap.querySelector('.terminal').style.fontSize='16px';
+  Object.defineProperties(wrap,{clientWidth:{value:428},clientHeight:{value:810}});
+  const computedStyle=w.getComputedStyle.bind(w);
+  w.getComputedStyle=element=>element.classList.contains('terminal-row')?{height:'24px'}:computedStyle(element);
+  const viewport=()=>w.actions.filter(action=>action.action==='viewport');
+  const stream=w.streams[0];stream.readyState=1;stream.onopen();stream.emit('terminal.render_grid',w.fixture.frame(1,'ready'));
+  await tick(w);
+  assert.equal(viewport().at(-1)?.claim,true,'Opening the phone view requests phone sizing');
+  d.querySelector('#appActions').click();
+  const toggle=d.querySelector('#menuPhoneFit');
+  assert.equal(toggle.textContent,'Release phone sizing');
+  toggle.click();
+  await tick(w);
+  assert.equal(viewport().at(-1)?.clear,true);
+  const before=viewport().length;
+  Object.defineProperty(d,'hidden',{configurable:true,value:true});d.dispatchEvent(new w.Event('visibilitychange'));
+  assert.equal(viewport().length,before,'The hidden view must not reclaim the terminal');
+  Object.defineProperty(d,'hidden',{configurable:true,value:false});d.dispatchEvent(new w.Event('visibilitychange'));
+  w.dispatchEvent(new w.Event('focus'));
+  await tick(w);
+  const resumed=viewport().slice(before);
+  assert.equal(resumed.length,1,'Visibility and focus describe the same app activation');
+  assert.equal(resumed[0].claim,true,'The new foreground view requests ownership of phone sizing');
+ }finally{w.close()}
+});
+
 test('closed EventSource can reopen the same selected surface',()=>{const dom=client(),w=dom.window;try{w.streams[0].close();w.fixture.subscribeTerminal();assert.equal(w.streams.length,2)}finally{w.close()}});
 test('Powerline prompt symbols have an explicit licensed browser font',()=>{
  const font=readFileSync(new URL('../vendor/powerline/PowerlineSymbols.otf',import.meta.url));const tables=Array.from({length:font.readUInt16BE(4)},(_,i)=>12+i*16),entry=tables.find(offset=>font.toString('ascii',offset,offset+4)==='cmap'),cmap=font.readUInt32BE(entry+8),subtable=cmap+font.readUInt32BE(cmap+8),count=font.readUInt16BE(subtable+6)/2,end=subtable+14,start=end+count*2+2,delta=start+count*2;for(const codepoint of [0xe0a0,0xe0a1,0xe0a2,0xe0b0,0xe0b1,0xe0b2,0xe0b3]){const index=Array.from({length:count},(_,i)=>i).find(i=>codepoint>=font.readUInt16BE(start+i*2)&&codepoint<=font.readUInt16BE(end+i*2));assert.notEqual(index,undefined);assert.notEqual((codepoint+font.readInt16BE(delta+index*2))&65535,0,'Prompt symbol must map to an actual glyph')}
