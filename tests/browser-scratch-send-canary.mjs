@@ -16,15 +16,16 @@ export async function verifyScratchSend(tab){
  const pull=async(distance,reverse=false)=>{
   const {x,y}=await center(grip);
   await press({x,y});await move({x,y:y+distance});
-  if(reverse){assert.equal(await visible(editor),true,'Upward pull reveals the draft before release');await move({x,y})}
+  const previewHeight=(await box(editor)).height;
+  if(reverse)await move({x,y});
   await mouse.up();
+  return previewHeight;
  };
  const hold=async()=>{
   await press(await center(send));
   await tab.playwright.locator(menu).waitFor({state:'visible'});
-  const button=await box(send),choices=await box(menu),expand=await box('#scratchExpand');
+  const button=await box(send),choices=await box(menu);
   assert.ok(Math.abs(choices.right-button.right)<=1&&Math.abs(choices.bottom-button.top)<=1,'Choices sit against the top right of Send');
-  assert.ok(choices.top<=expand.top&&choices.bottom>=expand.bottom&&choices.left<=expand.left&&choices.right>=expand.right,'The menu covers Expand');
  };
  const readDraft=()=>tab.playwright.locator('#scratchText').evaluate(e=>e.value);
  const type=async text=>{await tap('#scratchText');await tab.playwright.locator('#scratchText').press('Meta+A');await tab.playwright.keyboard.insertText(text);assert.equal(await readDraft(),text)};
@@ -36,10 +37,22 @@ export async function verifyScratchSend(tab){
  };
  await tap(`[data-surface="${info.secondSurfaceId}"]`);
  assert.equal(await visible(editor),false);
- await pull(-68,true);assert.equal(await visible(editor),false);
+ assert.ok(await pull(-68,true)>0,'Upward pull reveals the editor before release');
+ assert.equal(await visible(editor),false);
  await pull(-68);assert.equal(await visible(editor),true);
  assert.equal(await tab.playwright.locator('.inputdock').evaluate(e=>e.hidden),true);
  const text='Scratchpad Send 日本語';await type(text);
+ const compact=(await box(editor)).height;
+ assert.ok(await pull(-68,true)>compact,'The editor grows with the finger before release');
+ assert.equal((await box(editor)).height,compact,'Reversing a pull leaves the editor compact');
+ await pull(-68);
+ assert.ok((await box(editor)).height>compact+68,'Releasing past the threshold maximizes the editor');
+ assert.ok((await box('.terminalwrap')).bottom<=(await box(grip)).top+1,'The terminal stays above the maximized drawer');
+ assert.equal(await readDraft(),text);
+ await pull(68);
+ assert.equal((await box(editor)).height,compact,'One down pull shrinks the maximized editor to compact');
+ assert.equal(await readDraft(),text);
+
  const button=await box(send),pad=await box('#scratchpad');assert.ok(button.x>=pad.x&&button.right<=pad.right&&button.height>0&&button.height<44);
  await pull(68);assert.equal(await visible(editor),false);
  await pull(-68);assert.equal(await readDraft(),text);
@@ -57,5 +70,5 @@ export async function verifyScratchSend(tab){
  assert.deepEqual(await bytes(info.log),first,'Inactive tab unchanged');
  assert.equal(await visible(editor),true);
  await pull(68);assert.equal(await visible(editor),false);
- const sourceSha256={};for(const file of ['index.html','server.mjs','bridge.mjs'])sourceSha256[file]=createHash('sha256').update(await readFile(new URL(file,root))).digest('hex');const result={passed:true,time:new Date().toISOString(),scope:'phone layout, trusted pointer gestures, authenticated app through stock cmux into owned raw-input terminal; no existing workspace input',target:'second owned tab',drawerReversible:true,heldSendCancels:true,heldChoicePastesWithoutEnter:true,draftCleared:true,enterFollowsPaste:true,inactiveTabUnchanged:true,button,pad,sourceSha256};await writeFile(new URL('state/scratch-drawer-result.json',root),JSON.stringify(result,null,2)+'\n');return result;
+ const sourceSha256={};for(const file of ['index.html','server.mjs','bridge.mjs'])sourceSha256[file]=createHash('sha256').update(await readFile(new URL(file,root))).digest('hex');const result={passed:true,time:new Date().toISOString(),scope:'phone layout, trusted pointer gestures, authenticated app through stock cmux into owned raw-input terminal; no existing workspace input',target:'second owned tab',drawerReversible:true,drawerMaximizes:true,heldSendCancels:true,heldChoicePastesWithoutEnter:true,draftCleared:true,enterFollowsPaste:true,inactiveTabUnchanged:true,button,pad,sourceSha256};await writeFile(new URL('state/scratch-drawer-result.json',root),JSON.stringify(result,null,2)+'\n');return result;
 }

@@ -29,18 +29,17 @@
 .key svg.shift-icon,.typing-key svg.shift-icon{stroke-width:2}.key svg{width:var(--shortcut-icon-size);height:var(--shortcut-icon-size);flex-shrink:0;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}.viewport-dock .dialog.keyboard .dialogheader{touch-action:none}.dialog.keyboard .dialogheader .iconbtn:focus-visible{outline-offset:-3px}.navigationkeys{margin-top:5px;padding-top:5px;border-top:1px solid var(--line)}.panel-pulling .scrollcue{display:none}
 .edge-layer{position:fixed;left:0;top:0;z-index:11;transform-origin:0 0;pointer-events:none}.edge-zone{position:absolute;top:0;bottom:var(--edge-dock-height,0px);width:18px;pointer-events:auto;touch-action:none}.edge-zone[data-edge="left"]{left:0}.edge-zone[data-edge="right"]{right:0}.menu-scrim{position:fixed;inset:0;z-index:9;border:0;background:#0008;opacity:var(--drawer-opacity,0);touch-action:none}.dialog.app-drawer{position:fixed;z-index:10;top:var(--viewport-top,0px);right:calc(100% - var(--viewport-left,0px) - var(--viewport-width,100%));bottom:auto;left:auto;margin:0;width:var(--drawer-width);max-width:none;height:var(--ui-height,100dvh);max-height:none;border-radius:10px 0 0 10px;transform-origin:top right;transform:scale(var(--ui-compensation,1)) translateX(calc((1 - var(--drawer-progress,1))*100%));z-index:10;touch-action:pan-y}.dialog.app-drawer::backdrop{background:rgb(0 0 0 / calc(var(--drawer-opacity,1)*.55))}.dialog.app-drawer .dialogbody{max-height:calc(var(--ui-height,100dvh) - 72px)}.edge-dragging .sidebar,.edge-dragging .app-drawer{transition:none!important}.compact-layout .sidebar{touch-action:pan-y}.compact-layout .shell.sidebar-open .sidebar,.compact-layout .shell.sidebar-preview .sidebar{transform:translateX(calc((var(--sidebar-progress,1) - 1)*100%))}.compact-layout .shell.sidebar-preview .scrim{display:block}.compact-layout .scrim{opacity:var(--sidebar-opacity,1)}.wide-layout .edge-layer{display:none}@media(prefers-reduced-motion:no-preference){.app-drawer{transition:transform .17s ease-out}.scrim{transition:opacity .17s ease-out}.edge-dragging .scrim{transition:none}}
 .scratch-layer{position:fixed;left:0;top:0;z-index:7;transform-origin:0 0;pointer-events:none}
-.scratchpad{--scratch-top:max(4px,env(safe-area-inset-top,0px));--scratch-bottom:max(4px,var(--dock-safe-area),var(--scratch-software-height,0px));--scratch-line-height:calc(var(--scratch-font-size,16px) * var(--terminal-leading));--scratch-available:calc(var(--scratch-space) - var(--scratch-top) - var(--scratch-bottom) - var(--scratch-grip-height));--scratch-compact-height:min(calc(3 * var(--scratch-line-height) + 16px),var(--scratch-available));--scratch-editor-height:var(--scratch-compact-height);--scratch-grip-height:26px;position:absolute;left:max(4px,var(--safe-left,0px));right:max(4px,var(--safe-right,0px));bottom:var(--scratch-bottom)}
-.scratchpad.expanded{--scratch-editor-height:max(var(--scratch-compact-height),calc(var(--scratch-space) - var(--scratch-bottom) - var(--scratch-grip-height) - max(var(--scratch-top),var(--topbar-height,0px) + 2 * (var(--terminal-block-padding) + var(--scratch-line-height)))))}
+.scratchpad{--scratch-top:max(4px,env(safe-area-inset-top,0px));--scratch-bottom:max(4px,var(--dock-safe-area),var(--scratch-software-height,0px));--scratch-line-height:calc(var(--scratch-font-size,16px) * var(--terminal-leading));--scratch-available:calc(var(--scratch-space) - var(--scratch-top) - var(--scratch-bottom) - var(--scratch-grip-height));--scratch-compact-height:min(calc(3 * var(--scratch-line-height) + 16px),var(--scratch-available));--scratch-max-height:max(var(--scratch-compact-height),calc(var(--scratch-space) - var(--scratch-bottom) - var(--scratch-grip-height) - max(var(--scratch-top),var(--topbar-height,0px) + 2 * (var(--terminal-block-padding) + var(--scratch-line-height)))));--scratch-editor-height:var(--scratch-compact-height);--scratch-pull-max:var(--scratch-max-height);--scratch-grip-height:26px;position:absolute;left:max(4px,var(--safe-left,0px));right:max(4px,var(--safe-right,0px));bottom:var(--scratch-bottom)}
+.scratchpad.expanded{--scratch-editor-height:var(--scratch-max-height);--scratch-pull-min:var(--scratch-compact-height)}
+.scratchpad:has(.scratch-grip[aria-expanded="false"]){--scratch-pull-max:var(--scratch-compact-height)}
 .scratch-grip{display:flex;align-items:center;justify-content:center;gap:7px;width:100%;height:var(--scratch-grip-height);padding:0 8px;border:0;border-radius:7px 7px 0 0;background:var(--chrome);color:var(--muted);font-size:11px;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;pointer-events:auto}
-.scratch-grip:focus-visible,.scratch-actions button:focus-visible{outline-offset:-2px}
-.scratch-editor{height:clamp(0px,var(--scratch-reveal,var(--scratch-editor-height)),var(--scratch-editor-height));display:grid;grid-template-columns:minmax(0,1fr) auto;background:var(--paper);border:1px solid var(--line);border-radius:0 0 9px 9px;pointer-events:auto}
+.scratch-grip:focus-visible,#scratchSend:focus-visible{outline-offset:-2px}
+.scratch-editor{height:clamp(var(--scratch-pull-min,0px),var(--scratch-reveal,var(--scratch-editor-height)),var(--scratch-pull-max));display:grid;grid-template-columns:minmax(0,1fr) auto;background:var(--paper);border:1px solid var(--line);border-radius:0 0 9px 9px;pointer-events:auto}
 .scratchpad.pulling .scratch-editor{overflow:clip;pointer-events:none}
 .scratchpad textarea{min-height:0;width:100%;padding:7px 9px;border:0;border-radius:0 0 0 8px;background:var(--paper);font:var(--scratch-font-size,16px)/var(--terminal-leading) var(--mono);color:var(--ink);caret-color:var(--blue);resize:none;user-select:text;-webkit-user-select:text;-webkit-touch-callout:default;touch-action:pan-y;overscroll-behavior:contain;overflow:auto}
 .scratchpad textarea::selection{background:var(--blue);color:var(--bg)}.scratchpad textarea:focus-visible{outline:none}.scratch-editor:focus-within{border-color:var(--blue)}
-.scratch-actions{display:grid;grid-template-rows:repeat(2,minmax(0,1fr));align-self:end;gap:3px;padding:4px;background:var(--chrome);border-left:1px solid var(--line);border-radius:0 0 8px 0;height:100%;max-height:68px;width:78px}
-.scratch-actions button{min-width:0;min-height:0;padding:0;border-radius:5px}.scratch-actions svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
-.scratch-send-anchor{position:relative;display:grid}
-#scratchSend{touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+.scratch-send-anchor{position:relative;align-self:end;display:grid;margin:4px;width:69px}
+#scratchSend{min-height:30px;padding:0;border-radius:5px;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
 .scratch-layer:has(.scratch-send-choices:not([hidden])){z-index:9}.scratch-send-choices{position:absolute;right:0;bottom:100%;z-index:1;display:flex;gap:4px;padding:4px;border:1px solid var(--line);border-radius:10px;background:var(--chrome);box-shadow:0 4px 16px #0008;width:max-content;max-width:calc(var(--ui-width) - max(4px,var(--safe-left,0px)) - max(4px,var(--safe-right,0px)) - 10px)}.scratch-send-choices button{min-height:40px;padding:0 10px}
 .scratch-send-choices button.armed{background:var(--action);border-color:var(--blue);color:white}
 .language-popover{position:fixed;inset:auto;left:0;top:0;margin:0;padding:0;border:0;background:transparent;color:var(--ink);transform-origin:0 0;pointer-events:none;overflow:visible}.language-popover::backdrop{background:transparent;pointer-events:none}.language-choices{position:absolute;width:228px;max-width:calc(100% - 16px);padding:4px;border:1px solid var(--line);border-radius:12px;background:var(--raised);box-shadow:0 8px 28px #0008;pointer-events:auto;user-select:none;-webkit-user-select:none}.language-choices button{display:flex;align-items:center;justify-content:space-between;width:100%;min-height:44px;padding:0 12px;border:0;border-radius:7px;text-align:left;font-size:14px;background:transparent}.language-choices button[aria-pressed="true"]{background:var(--action);color:var(--blue)}.language-choices small{font-size:10px;color:var(--muted)}
@@ -68,7 +67,7 @@
 <div class="shell-layer" id="shellLayer"><div class="shell" id="shell"><button class="scrim" id="scrim" aria-label="Close workspace sidebar"></button><aside class="sidebar" id="sidebar" aria-label="Grouped workspaces"><header class="brandbar"><div class="brand"><img class="mark" src="app-icon.png?v=3" width="26" height="26" alt="">Pokemux</div><button class="iconbtn" id="newWorkspace" aria-label="Create workspace or group">+</button></header><div class="windowselect"><label class="sr-only" for="windowSelect">cmux window</label><select id="windowSelect"><option value="work">Work · Joy’s MacBook</option><option value="personal">Personal · Joy’s MacBook</option></select><p class="hostline"><span class="dot" id="hostdot"></span><span id="hostline">Tailscale</span></p></div><div class="searchbar"><svg class="icon"><use href="#i-search"/></svg><label class="sr-only" for="search">Search workspaces</label><input id="search" placeholder="Find a workspace…" autocomplete="off"><button class="iconbtn" id="searchClear" aria-label="Clear search" hidden><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m18 6-12 12M6 6l12 12"/></svg></button></div><nav class="workspacearea" id="workspaceList" aria-label="Workspaces"></nav><footer class="sidebarfooter"><button class="footerbutton" id="inboxButton"><svg class="icon"><use href="#i-inbox"/></svg><span>Inbox <b class="badge" id="inboxCount">2</b></span></button><button class="footerbutton" id="hostButton"><svg class="icon"><use href="#i-host"/></svg>Host</button><button class="footerbutton" id="lockButton"><svg class="icon"><use href="#i-lock"/></svg>Lock</button></footer></aside><main class="content" id="content"></main></div></div>
 <dialog class="dialog" id="dialog" aria-labelledby="dialogTitle"><div class="dialogheader"><h2 id="dialogTitle"></h2><button class="iconbtn" id="dialogClose" aria-label="Close dialog">×</button></div><div class="dialogbody" id="dialogBody"></div><div class="scrollcue" id="dialogScrollCue" hidden aria-hidden="true">⌄</div></dialog>
 <div class="viewport-dock" id="viewportDock"><section id="softwareKeyboard" class="software-keyboard" aria-label="Terminal keyboard" hidden></section></div><div class="floating-layer" id="floatingLayer"><div class="floating-functions" id="floatingFunctions"><button class="floating-handle" id="floatingHandle" aria-label="Floating functions" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6v12a3 3 0 1 0 3-3H6a3 3 0 1 0 3 3V6a3 3 0 1 0-3 3h12a3 3 0 1 0-3-3"/></svg></button><button data-function="0"></button><button data-function="1"></button><button data-function="2"></button><button data-function="3"></button><button data-function="4"></button></div><div id="cursorWings" class="cursor-wings" role="group" aria-label="Cursor steps" hidden></div><button class="cursor-joystick" id="cursorJoystick" aria-label="Cursor arrows" aria-controls="cursorWings" aria-expanded="false"><svg viewBox="0 0 44 44" aria-hidden="true"><path d="m18 13 4-4 4 4m5 5 4 4-4 4m-5 5-4 4-4-4m-5-5-4-4 4-4"/><circle cx="22" cy="22" r="2.5"/></svg></button></div>
-<div id="scratchLayer" class="scratch-layer" hidden><section id="scratchpad" class="scratchpad" aria-label="Scratchpad"><button type="button" id="scratchGrip" class="scratch-grip" aria-controls="scratchEditor" aria-expanded="false"><span aria-hidden="true"></span>Scratchpad</button><div id="scratchEditor" class="scratch-editor" hidden><textarea id="scratchText" aria-label="Scratchpad text" placeholder="Write here…" inputmode="text" autocorrect="on" autocapitalize="sentences" autocomplete="on" spellcheck="true"></textarea><div class="scratch-actions"><button type="button" id="scratchExpand" class="iconbtn" aria-label="Expand scratchpad" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3H3v6m0-6 7 7m5 11h6v-6m0 6-7-7"/></svg></button><div class="scratch-send-anchor"><button type="button" id="scratchSend" class="primary" title="Hold for send options" aria-controls="scratchSendChoices" aria-expanded="false" disabled>Send</button><div class="scratch-send-choices" id="scratchSendChoices" role="group" aria-label="Scratchpad send options" hidden><button type="button" class="secondarybutton" data-scratch-send="enter">Send and press Enter</button><button type="button" class="secondarybutton" data-scratch-send="paste">Send without Enter</button></div></div></div></div></section></div>
+<div id="scratchLayer" class="scratch-layer" hidden><section id="scratchpad" class="scratchpad" aria-label="Scratchpad"><button type="button" id="scratchGrip" class="scratch-grip" aria-controls="scratchEditor" aria-expanded="false" aria-keyshortcuts="ArrowUp ArrowDown" aria-description="Pull up or press Up to open"><span aria-hidden="true"></span>Scratchpad</button><div id="scratchEditor" class="scratch-editor" hidden><textarea id="scratchText" aria-label="Scratchpad text" placeholder="Write here…" inputmode="text" autocorrect="on" autocapitalize="sentences" autocomplete="on" spellcheck="true"></textarea><div class="scratch-send-anchor"><button type="button" id="scratchSend" class="primary" title="Hold for send options" aria-controls="scratchSendChoices" aria-expanded="false" disabled>Send</button><div class="scratch-send-choices" id="scratchSendChoices" role="group" aria-label="Scratchpad send options" hidden><button type="button" class="secondarybutton" data-scratch-send="enter">Send and press Enter</button><button type="button" class="secondarybutton" data-scratch-send="paste">Send without Enter</button></div></div></div></section></div>
 <div id="languagePopover" class="language-popover" popover="auto" aria-label="Keyboard language"><div class="language-choices" role="group" aria-label="Choose keyboard language"><button type="button" id="languageEnglish" data-language="english">English</button><button type="button" id="languageHiragana" data-language="hiragana">日本語 · ひらがな</button><button type="button" id="languageKatakana" data-language="katakana">日本語 · カタカナ</button><button type="button" id="languageSystem" data-language="system">System keyboard <small>Kanji & dictation</small></button></div></div>
 <div class="edge-layer" id="edgeLayer"><div class="edge-zone" data-edge="left" aria-hidden="true"></div><div class="edge-zone" data-edge="right" aria-hidden="true"></div></div><button id="menuScrim" class="menu-scrim" aria-label="Close app menu" hidden></button>
 <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
@@ -478,14 +477,10 @@ function syncScratchpad(softwareHeight){
  return layer.clientHeight-pad.offsetTop;
 }
 function setScratchExpanded(expanded){
- const button=$('scratchExpand');
  $('scratchpad').classList.toggle('expanded',expanded);
- button.setAttribute('aria-expanded',String(expanded));
- button.setAttribute('aria-label',expanded?'Shrink scratchpad':'Expand scratchpad');
- button.querySelector('path').setAttribute('d',expanded?'M3 9h6V3M3 3l6 6m12 6h-6v6m6 0-6-6':'M9 3H3v6m0-6 7 7m5 11h6v-6m0 6-7-7');
- syncDock();syncFloating();
+ syncScratchDrawer();syncDock();syncFloating();requestAnimationFrame(revealInputLine);
 }
-function openScratchpad(){if(!scratchpadOpen)scratchReturnTyping=terminalTyping;scratchpadOpen=true;cursorFollowing=true;syncScratchDrawer();if($('dialog').open)$('dialog').close();if($('languagePopover').dataset.open==='true')$('languagePopover').hidePopover();setScratchExpanded(false);$('scratchText').focus({preventScroll:true});requestAnimationFrame(revealInputLine)}
+function openScratchpad(){if(!scratchpadOpen)scratchReturnTyping=terminalTyping;scratchpadOpen=true;cursorFollowing=true;if($('dialog').open)$('dialog').close();if($('languagePopover').dataset.open==='true')$('languagePopover').hidePopover();setScratchExpanded(false);$('scratchText').focus({preventScroll:true})}
 function hideScratchpad(){
  saveScratchpad();
  if(keyboardVisible||scratchReturnTyping)focusInput();
@@ -510,20 +505,30 @@ async function sendScratchpad(withEnter){
  }finally{scratchSending=false;syncScratchSend()}
 }
 function syncScratchDrawer(){
- $('scratchGrip').setAttribute('aria-expanded',String(scratchpadOpen));
+ const grip=$('scratchGrip'),pad=$('scratchpad');
+ if(!scratchpadOpen)pad.classList.remove('expanded');
+ grip.setAttribute('aria-expanded',String(scratchpadOpen));
+ grip.setAttribute('aria-description',!scratchpadOpen?'Pull up or press Up to open':pad.classList.contains('expanded')?'Pull down or press Down to shrink':'Pull up or press Up to maximize, or down to stow');
  $('scratchEditor').hidden=!scratchpadOpen;
 }
 function bindScratchGrip(){
  const grip=$('scratchGrip'),pad=$('scratchpad'),editor=$('scratchEditor');
- let pull;
+ let pull,touchPointerId;
  const toggle=()=>scratchpadOpen?hideScratchpad():openScratchpad();
+ const expanded=()=>pad.classList.contains('expanded');
+ const canPull=dy=>dy>0?!expanded():scratchpadOpen;
+ const step=dy=>{
+  if(dy>0){if(scratchpadOpen)setScratchExpanded(true);else openScratchpad()}
+  else if(expanded())setScratchExpanded(false);
+  else hideScratchpad();
+ };
  const offset=e=>({dx:(e.clientX-pull.x)*visualViewport.scale,dy:(pull.y-e.clientY)*visualViewport.scale});
  const finish=(e,release=false)=>{
   if(pull?.id!==e.pointerId)return;
-  const {dx,dy}=offset(e),vertical=Math.abs(dx)<=Math.abs(dy),distance=scratchpadOpen?-dy:dy;
-  const commit=release&&(pull.height===null&&Math.hypot(dx,dy)<=8||(pull.height!==null||vertical)&&distance>=dockPullCommit);
-  pull=null;pad.classList.remove('pulling');pad.style.removeProperty('--scratch-reveal');
-  if(commit)toggle();
+  const {dx,dy}=offset(pull.releasePoint??e),dragged=pull.height!==null;
+  pull=null;touchPointerId=null;pad.classList.remove('pulling');pad.style.removeProperty('--scratch-reveal');
+  if(release&&!dragged&&Math.hypot(dx,dy)<=8)toggle();
+  else if(release&&(dragged||Math.abs(dx)<=Math.abs(dy))&&Math.abs(dy)>=dockPullCommit&&canPull(dy))step(dy);
   else{syncScratchDrawer();syncDock();syncFloating()}
  };
  const start=e=>{
@@ -536,29 +541,39 @@ function bindScratchGrip(){
   if(pull?.id!==e.pointerId)return;
   const {dx,dy}=offset(e);
   if(pull.height===null){
-   if(Math.abs(dy)<=8||Math.abs(dx)>Math.abs(dy)||!(scratchpadOpen?dy<0:dy>0))return;
+   if(Math.abs(dy)<=8||Math.abs(dx)>Math.abs(dy)||!canPull(dy))return;
    editor.hidden=false;pull.height=editor.offsetHeight;
    pad.classList.add('pulling');
   }
   pad.style.setProperty('--scratch-reveal',Math.max(0,(scratchpadOpen?pull.height:0)+dy)+'px');
   syncDock();syncFloating();
  };
- grip.onpointerdown=e=>{if(e.pointerType!=='touch')start(e)};
+ grip.onpointerdown=e=>{
+  if(e.pointerType!=='touch')start(e);
+  else if(e.isPrimary)touchPointerId=e.pointerId;
+ };
  grip.onpointermove=e=>{if(e.pointerType!=='touch')move(e)};
- grip.onpointerup=e=>{if(e.pointerType!=='touch')finish(e,true)};
+ grip.onpointerup=e=>{
+  if(e.pointerType!=='touch')finish(e,true);
+  else if(pull&&touchPointerId===e.pointerId)pull.releasePoint=e;
+ };
  grip.onpointercancel=grip.onlostpointercapture=e=>{if(e.pointerType!=='touch')finish(e)};
  for(const [type,handle] of Object.entries({touchstart:start,touchmove:move,touchend:e=>finish(e,true),touchcancel:finish})){
   grip.addEventListener(type,e=>{for(const touch of e.changedTouches)handle(touchPointer(e,touch))},{passive:false});
  }
  grip.onclick=e=>{if(e.detail===0)toggle()};
+ grip.onkeydown=e=>{
+  if(e.key!=='ArrowUp'&&e.key!=='ArrowDown')return;
+  e.preventDefault();
+  const dy=e.key==='ArrowUp'?1:-1;
+  if(canPull(dy))step(dy);
+ };
 }
 function bindScratchpad(){
  const input=$('scratchText');input.value=localStorage.getItem(scratchDraftKey)||'';
  input.oninput=()=>{scratchRevision++;clearTimeout(scratchSaveTimer);scratchSaveTimer=setTimeout(saveScratchpad,200);syncScratchSend()};
  input.onkeydown=e=>{if(e.key==='Escape'){e.preventDefault();hideScratchpad()}};
- $('scratchExpand').onpointerdown=e=>e.preventDefault();
  bindScratchGrip();bindScratchSend();
- $('scratchExpand').onclick=()=>setScratchExpanded(!$('scratchpad').classList.contains('expanded'));
  window.addEventListener('pagehide',saveScratchpad);
 }
 function bindScratchSend(){

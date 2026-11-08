@@ -77,9 +77,38 @@ test('Settings persists a reassigned Scratchpad action and dispatches it after r
  const refreshed=client(saved);try{const d=refreshed.window.document;d.querySelector('#floatingHandle').click();d.querySelector('[data-function="0"]').click();assert.equal(d.querySelector('#scratchEditor').hidden,false);assert.equal(d.activeElement,d.querySelector('#scratchText'))}finally{refreshed.window.close()}
 });
 
-test('scratchpad expansion tracks the viewport under zoom and keyboard changes',()=>{
- const dom=client({keyboardMode:'custom'}),w=dom.window,d=w.document;
- try{open(w);d.querySelector('#scratchExpand').click();assert.equal(d.querySelector('#scratchExpand').getAttribute('aria-expanded'),'true');assert.equal(d.querySelector('#scratchpad').classList.contains('expanded'),true);for(const [height,scale,top]of [[926,1,0],[440,1,0],[220,2,42]]){Object.assign(w.visualViewport,{height,scale,offsetTop:top});w.fixture.syncDock();const layer=d.querySelector('#scratchLayer');assert.equal(parseFloat(layer.style.getPropertyValue('--scratch-space')),height*scale);assert.ok(layer.style.transform.includes(`translate(0px,${top}px) scale(${1/scale})`));assert.equal(d.querySelector('#softwareKeyboard').hidden,true)}d.querySelector('#scratchGrip').click();open(w);assert.equal(d.querySelector('#scratchpad').classList.contains('expanded'),false);assert.equal(d.querySelector('#scratchExpand').getAttribute('aria-expanded'),'false')}finally{w.close()}
+test('pulling the compact Scratchpad past the threshold maximizes it until pulled back down',()=>{
+ const dom=client({keyboardMode:'custom'},'Keep editing'),w=dom.window,d=w.document;
+ try{
+  open(w);
+  const grip=d.querySelector('#scratchGrip'),pad=d.querySelector('#scratchpad'),area=d.querySelector('#scratchText');
+  const event=y=>({button:0,isPrimary:true,pointerId:1,clientX:150,clientY:y,preventDefault(){}});
+  grip.onpointerdown(event(820));grip.onpointermove(event(760));grip.onpointerup(event(800));
+  assert.equal(pad.classList.contains('expanded'),false,'Pulling back below the threshold cancels the resize');
+  const touch=(type,y)=>grip.dispatchEvent(new w.TouchEvent(type,{changedTouches:[{identifier:0,target:grip,clientX:150,clientY:y}],cancelable:true}));
+  grip.onpointerdown({...event(820),pointerType:'touch'});
+  touch('touchstart',820);
+  grip.onpointerup({...event(804),pointerType:'touch'});
+  touch('touchend',820);
+  assert.equal(d.querySelector('#scratchEditor').hidden,false,'A short pull with stale touchend coordinates does not stow the editor');
+  grip.onpointerdown(event(820));grip.onpointerup(event(765));
+  assert.equal(pad.classList.contains('expanded'),true);
+  assert.equal(d.querySelector('#scratchExpand'),null);
+  for(const [height,scale,top]of [[926,1,0],[440,1,0],[220,2,42]]){
+   Object.assign(w.visualViewport,{height,scale,offsetTop:top});w.fixture.syncDock();
+   const layer=d.querySelector('#scratchLayer');
+   assert.equal(parseFloat(layer.style.getPropertyValue('--scratch-space')),height*scale);
+   assert.ok(layer.style.transform.includes(`translate(0px,${top}px) scale(${1/scale})`));
+   assert.equal(d.querySelector('#softwareKeyboard').hidden,true);
+  }
+  grip.onpointerdown(event(60));grip.onpointerup(event(90));
+  assert.equal(pad.classList.contains('expanded'),false);
+  assert.equal(d.querySelector('#scratchEditor').hidden,false);
+  assert.equal(d.activeElement,area);
+  assert.equal(area.value,'Keep editing');
+  grip.onclick({detail:0});
+  assert.equal(d.querySelector('#scratchEditor').hidden,true);
+ }finally{w.close()}
 });
 
 test('all five expanded floating actions remain distinct and inside the keyboard viewport at each corner',()=>{
