@@ -409,9 +409,16 @@ async function refreshPhoneFit(fit){
   if(result.claimed||!result.pending)fit.claim=false;
   if(resume&&!result.pending)fit.resume=false;
   if(result.released){pausePhoneFit();say('cmux took back terminal sizing');return}
-  if(result.pending&&Date.now()>fit.deadline)throw new Error('cmux did not settle at the phone size');
-  if(!result.pending&&!fit.confirmed){fit.confirmed=true;if(fit.manual)say(`Phone fit · ${result.columns} × ${result.rows}`)}
-  fit.timer=setTimeout(()=>refreshPhoneFit(fit),result.pending?200:2000);
+  if(result.pending){
+   const waiting=Date.now()>fit.deadline;
+   if(waiting&&!fit.waiting)say('Still fitting the terminal to your phone…');
+   fit.waiting=waiting;
+   fit.timer=setTimeout(()=>refreshPhoneFit(fit),waiting?2000:200);
+   return;
+  }
+  fit.waiting=false;
+  if(!fit.confirmed){fit.confirmed=true;if(fit.manual)say(`Phone fit · ${result.columns} × ${result.rows}`)}
+  fit.timer=setTimeout(()=>refreshPhoneFit(fit),2000);
  }catch(error){
   if(fit!==phoneFit)return;
   if(error instanceof TypeError){

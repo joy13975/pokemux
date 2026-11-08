@@ -38,17 +38,28 @@ test('foreground resume replaces interrupted transport once and paints a fresh c
  const dom=client(),w=dom.window,d=w.document;
  try{const first=w.streams[0];first.readyState=1;first.onopen();first.emit('terminal.render_grid',w.fixture.frame(1,'before'));Object.defineProperty(d,'hidden',{configurable:true,value:true});d.dispatchEvent(new w.Event('visibilitychange'));assert.equal(first.closed,undefined,'App must not voluntarily close on app switching');first.readyState=0;first.onerror();Object.defineProperty(d,'hidden',{configurable:true,value:false});d.dispatchEvent(new w.Event('visibilitychange'));assert.equal(w.streams.length,2);d.dispatchEvent(new w.Event('visibilitychange'));assert.equal(w.streams.length,2,'Repeated resume events must not replace a new pending connection');const second=w.streams[1];second.readyState=1;second.onopen();d.dispatchEvent(new w.Event('visibilitychange'));assert.equal(w.streams.length,2);second.emit('terminal.render_grid',w.fixture.frame(2,'after'));assert.ok(d.querySelector('.terminal').textContent.includes('after'));assert.ok(!d.querySelector('.terminal').textContent.includes('before'));first.onerror();await tick(w);assert.equal(w.fixture.connected,true,'Superseded transport cannot change active state')}finally{w.close()}
 });
-test('returning to the phone app claims mobile sizing again after a release',async()=>{
+function phoneClient(){
  const dom=client(),w=dom.window,d=w.document;
+ Object.defineProperties(w.screen,{width:{value:428},height:{value:926}});
+ const wrap=d.querySelector('.terminalwrap');
+ wrap.style.padding='0';wrap.querySelector('.terminal').style.fontSize='16px';
+ Object.defineProperties(wrap,{clientWidth:{value:428},clientHeight:{value:810}});
+ const computedStyle=w.getComputedStyle.bind(w);
+ w.getComputedStyle=element=>element.classList.contains('terminal-row')?{height:'24px'}:computedStyle(element);
+ return dom;
+}
+
+function startPhoneStream(w){
+ const stream=w.streams[0];
+ stream.readyState=1;stream.onopen();stream.emit('terminal.render_grid',w.fixture.frame(1,'ready'));
+}
+const viewportActions=w=>w.actions.filter(action=>action.action==='viewport');
+
+test('returning to the phone app claims mobile sizing again after a release',async()=>{
+ const dom=phoneClient(),w=dom.window,d=w.document;
  try{
-  Object.defineProperties(w.screen,{width:{value:428},height:{value:926}});
-  const wrap=d.querySelector('.terminalwrap');
-  wrap.style.padding='0';wrap.querySelector('.terminal').style.fontSize='16px';
-  Object.defineProperties(wrap,{clientWidth:{value:428},clientHeight:{value:810}});
-  const computedStyle=w.getComputedStyle.bind(w);
-  w.getComputedStyle=element=>element.classList.contains('terminal-row')?{height:'24px'}:computedStyle(element);
-  const viewport=()=>w.actions.filter(action=>action.action==='viewport');
-  const stream=w.streams[0];stream.readyState=1;stream.onopen();stream.emit('terminal.render_grid',w.fixture.frame(1,'ready'));
+  const viewport=()=>viewportActions(w);
+  startPhoneStream(w);
   await tick(w);
   assert.equal(viewport().at(-1)?.claim,true,'Opening the phone view requests phone sizing');
   d.querySelector('#appActions').click();
@@ -66,6 +77,30 @@ test('returning to the phone app claims mobile sizing again after a release',asy
   const resumed=viewport().slice(before);
   assert.equal(resumed.length,1,'Visibility and focus describe the same app activation');
   assert.equal(resumed[0].claim,true,'The new foreground view requests ownership of phone sizing');
+ }finally{w.close()}
+});
+
+test('a slow viewport transition retries the phone sizing claim',async()=>{
+ const dom=phoneClient(),w=dom.window;
+ try{
+  const now=w.Date.now.bind(w.Date),fetch=w.fetch;
+  let delayed=false;
+  w.fetch=async(path,options)=>{
+   const response=await fetch(path,options);
+   if(path==='/api/action'&&JSON.parse(options.body).action==='viewport'&&!delayed){
+    delayed=true;
+    w.Date.now=()=>now()+5000;
+    return {...response,json:async()=>({pending:true})};
+   }
+   return response;
+  };
+  startPhoneStream(w);
+  await tick(w);
+  assert.equal(delayed,true,'The initial phone claim reached cmux');
+  assert.ok(viewportActions(w).every(action=>!action.clear),'A pending resize must not release the claim after a slow response');
+  const deadline=Date.now()+4000;
+  while(viewportActions(w).length<2&&Date.now()<deadline)await new Promise(resolve=>setTimeout(resolve,40));
+  assert.equal(viewportActions(w)[1]?.claim,true,'The phone retries its claim without another activation');
  }finally{w.close()}
 });
 
