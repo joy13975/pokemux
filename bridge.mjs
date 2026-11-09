@@ -233,21 +233,31 @@ export class CmuxBridge extends EventEmitter {
     clearTimeout(this.phoneViewTimers.get(key));
     this.phoneViewTimers.delete(key);
     const result = await this.phoneViewport(target, body);
-    if (result.released || result.pending) return result;
+    if (body.clear === true) return result;
+    const release = () => this.phoneViewport(target, { ...body, clear: true });
+    if (result.released) return release();
 
-    const deadline = Date.now() + 30_000;
+    const renewInterval = 3000;
+    const deadline = Date.now() + (result.pending ? renewInterval : 30_000);
     const schedule = () => {
       const timer = setTimeout(async () => {
         try {
-          if (Date.now() >= deadline || this.phoneViewTimers.get(key) !== timer) return;
+          if (this.phoneViewTimers.get(key) !== timer) return;
+          // Stock cmux can publish Mac ownership on TTL expiry without resizing its PTY.
+          if (Date.now() >= deadline) {
+            await release();
+            return;
+          }
           const refreshed = await this.phoneViewport(target, { ...body, claim: false }, false);
-          if (!refreshed.released && this.phoneViewTimers.get(key) === timer) schedule();
+          if (this.phoneViewTimers.get(key) !== timer) return;
+          if (refreshed.released) await release();
+          else schedule();
         } catch (error) {
-          if (this.phoneViewTimers.get(key) === timer) console.error('Phone sizing refresh failed:', error.message);
+          if (this.phoneViewTimers.get(key) === timer) console.error('Phone sizing lease failed:', error.message);
         } finally {
           if (this.phoneViewTimers.get(key) === timer) this.phoneViewTimers.delete(key);
         }
-      }, 3000);
+      }, Math.min(renewInterval, Math.max(0, deadline - Date.now())));
       timer.unref();
       this.phoneViewTimers.set(key, timer);
     };

@@ -123,6 +123,7 @@ test('phone sizing covers a background gap and stops after Mac reclaim, expiry o
  const before=calls.length;
  await advance(6);
  const afterReclaim=calls.length;
+ assert.deepEqual(calls.at(-1),['terminal.viewport',{...target,client_id,viewport_generation:3,clear:true}],'Mac reclaim explicitly releases the background lease');
  await advance(6);
  assert.equal(calls.length,afterReclaim,'Background refresh stops after Mac reclaim');
  assert.deepEqual(await bridge.action({...action,viewport_generation:4}),{released:true});
@@ -131,6 +132,7 @@ test('phone sizing covers a background gap and stops after Mac reclaim, expiry o
  assert.deepEqual(await claim(5),{columns:55,rows:46},'An explicit foreground claim can retake the grid from Mac Size to My Window');
  await advance(40);
  const afterExpiry=calls.length;
+ assert.deepEqual(calls.at(-1),['terminal.viewport',{...target,client_id,viewport_generation:6,clear:true}],'The bridge explicitly releases an abandoned fit before native expiry');
  await advance(6);
  assert.equal(calls.length,afterExpiry,'An abandoned phone view stops renewing on its own');
  phone=undefined;
@@ -144,5 +146,9 @@ test('phone sizing covers a background gap and stops after Mac reclaim, expiry o
  const afterRelease=calls.length;
  await advance(6);
  assert.equal(calls.length,afterRelease,'A delayed renew cannot reattach after explicit release');
+ policy={mode:'priority',priority:[mac.priority_key]};
+ assert.deepEqual(await bridge.action({...action,viewport_generation:11,claim:true}),{pending:true,claimed:true});
+ await advance(4);
+ assert.deepEqual(calls.at(-1),['terminal.viewport',{...target,client_id,viewport_generation:11,clear:true}],'Leaving before a claim settles still releases its report');
  bridge.close();
 });
