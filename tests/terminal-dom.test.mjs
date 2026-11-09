@@ -379,6 +379,23 @@ test('typing keeps a hidden hardware cursor’s composer row above the keyboard'
  }finally{w.close()}
 });
 
+test('typing reveals a Pi-style footer when it fits below the composer',()=>{
+ const dom=terminal(),w=dom.window,d=w.document,wrap=d.querySelector('.terminalwrap');
+ try{
+  w.fixture.focusInput();
+  wrap.getBoundingClientRect=()=>({top:46,bottom:400});
+  const measure=w.HTMLElement.prototype.getBoundingClientRect;
+  w.HTMLElement.prototype.getBoundingClientRect=function(){
+   const top={'Pi composer\n':369,'Pi footer\n':410}[this.textContent];
+   return top===undefined?measure.call(this):{top:top-wrap.scrollTop,bottom:top+20-wrap.scrollTop};
+  };
+  w.fixture.model.apply({format:'cmux.render-grid.v1',render_epoch:'owned-epoch',render_revision:2,full:true,rows:3,columns:30,row_spans:[{row:0,column:0,text:'Pi composer'},{row:2,column:0,text:'Pi footer'}],cursor:{row:0,column:11,visible:false}});
+  w.fixture.paintTerminal();
+  assert.ok(wrap.scrollTop>=30,'The last footer row was brought above the dock');
+  assert.ok(wrap.scrollTop<=323,'The composer stays visible');
+ }finally{w.close()}
+});
+
 test('hardware arrows do not duplicate rail modifiers',async()=>{
  const dom=terminal(),w=dom.window,d=w.document,output=d.querySelector('.terminal');
  try{d.querySelector('[data-key="Ctrl"]').click();output.dispatchEvent(new w.KeyboardEvent('keydown',{key:'ArrowRight',ctrlKey:true,shiftKey:true,bubbles:true,cancelable:true}));await new Promise(r=>w.setTimeout(r,0));assert.equal(w.actions.at(-1).key,'Ctrl-Shift-Right');assert.equal(d.querySelector('[data-key="Ctrl"]').getAttribute('aria-pressed'),'false')}finally{w.close()}

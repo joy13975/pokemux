@@ -60,7 +60,7 @@ test('both dock handles toggle independently without opening or moving the keybo
  const dom=client(),w=dom.window,d=w.document;
  try{
   const rail=d.querySelector('.inputdock'),shortcut=rail.querySelector('.shortcut-grip'),scratch=d.querySelector('#scratchGrip'),editor=d.querySelector('#scratchEditor'),terminal=d.querySelector('.terminal');
-  assert.equal(w.getComputedStyle(rail).display,'block','The shortcuts handle is present without the keyboard');
+  assert.notEqual(w.getComputedStyle(rail).display,'none','The shortcuts handle is present without the keyboard');
   const initial=d.activeElement;
   shortcut.click();
   assert.equal(shortcut.getAttribute('aria-expanded'),'true');
@@ -76,6 +76,29 @@ test('both dock handles toggle independently without opening or moving the keybo
   scratch.click();
   assert.equal(editor.hidden,true);
   assert.equal(d.activeElement,terminal);
+ }finally{w.close()}
+});
+
+test('the dock keyboard toggle opens the terminal or the open Scratchpad and can dismiss either',()=>{
+ const dom=client(),w=dom.window,d=w.document;
+ try{
+  const toggle=d.querySelector('#dockKeyboard'),terminal=d.querySelector('.terminal'),scratch=d.querySelector('#scratchGrip'),editor=d.querySelector('#scratchText');
+  assert.ok(toggle&&!toggle.hidden&&!toggle.disabled);
+  toggle.click();
+  assert.equal(d.activeElement,terminal);
+  Object.assign(w.visualViewport,{height:450});w.fixture.syncViewport();
+  assert.equal(toggle.getAttribute('aria-pressed'),'true');
+  toggle.click();
+  assert.notEqual(d.activeElement,terminal);
+  Object.assign(w.visualViewport,{height:926});w.fixture.syncViewport();
+  scratch.click();
+  assert.notEqual(d.activeElement,editor);
+  toggle.click();
+  assert.equal(d.activeElement,editor);
+  Object.assign(w.visualViewport,{height:450});w.fixture.syncViewport();
+  toggle.click();
+  assert.notEqual(d.activeElement,editor);
+  assert.equal(scratch.getAttribute('aria-expanded'),'true');
  }finally{w.close()}
 });
 
