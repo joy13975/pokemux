@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
 import { CmuxBridge, RequestError } from './bridge.mjs';
 import { Passkeys } from './auth.mjs';
+const nerdFont = '/vendor/nerd/SymbolsNerdFontMono-v3.5.1.woff2';
 const assets = new Map([
   ['/', ['index.html', 'text/html; charset=utf-8']],
   ['/setup', ['setup.html', 'text/html; charset=utf-8']],
@@ -12,6 +13,7 @@ const assets = new Map([
   ['/vendor/english/model.mjs', ['vendor/english/model.mjs', 'text/javascript']],
   ['/vendor/symbols/NotoSansSymbols2-Regular.ttf', ['vendor/symbols/NotoSansSymbols2-Regular.ttf', 'font/ttf']],
   ['/vendor/powerline/PowerlineSymbols.otf', ['vendor/powerline/PowerlineSymbols.otf', 'font/otf']],
+  [nerdFont, [nerdFont.slice(1), 'font/woff2', 'private, max-age=31536000, immutable']],
   ['/kana.mjs', ['kana.mjs', 'text/javascript']],
   ['/vendor/kana/wanakana.js', ['vendor/kana/wanakana.js', 'text/javascript']],
   ['/passkeys.js', ['node_modules/@simplewebauthn/browser/dist/bundle/index.umd.min.js', 'text/javascript']],
@@ -96,6 +98,7 @@ export function application({ bridge, auth }) {
       const asset = req.method === 'GET' && assets.get(path);
       if (!asset) throw new RequestError(404, 'Not found');
       if (path === '/' && !auth.session(req)?.authenticated) { res.writeHead(302, { Location: '/setup' }); res.end(); return; }
+      if (asset[2]) res.setHeader('Cache-Control', asset[2]);
       res.setHeader('Content-Type', asset[1]); res.end(await readFile(new URL(asset[0], import.meta.url)));
     } catch (error) {
       if (!res.headersSent) { res.writeHead(error.status || 502, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: error instanceof RequestError ? error.message : 'cmux operation failed; check the bridge diagnostic log' })); }

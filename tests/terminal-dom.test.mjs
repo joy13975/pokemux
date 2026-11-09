@@ -1132,6 +1132,24 @@ const cursorWing=(d,direction,step)=>d.querySelector(`[data-cursor-direction="${
 function cursorContact(w,button,type,x=130,y=300){
  const event=new w.Event(type,{bubbles:true,cancelable:true});Object.assign(event,{pointerId:42,isPrimary:true,button:0,clientX:x,clientY:y});button.dispatchEvent(event);
 }
+test('floating arrow contacts suppress browser focus changes even when a second finger is ignored',()=>{
+ const dom=terminal(),w=dom.window,d=w.document,output=d.querySelector('.terminal'),handle=d.querySelector('#cursorJoystick');
+ try{
+  w.fixture.focusInput();handle.click();
+  const wing=cursorWing(d,'Right','near');
+  for(const button of [handle,wing]){
+   const touch=new w.TouchEvent('touchstart',{bubbles:true,cancelable:true,changedTouches:[{target:button,identifier:9}],touches:[{target:button,identifier:9}]});
+   if(button.dispatchEvent(touch))output.blur();
+   assert.equal(d.activeElement,output,'Touch compatibility events must leave the editor focused');
+   const secondary=new w.Event('pointerdown',{bubbles:true,cancelable:true});
+   Object.assign(secondary,{pointerId:9,button:0,isPrimary:false});
+   if(button.dispatchEvent(secondary))output.blur();
+   assert.equal(d.activeElement,output,'An ignored second finger must not take focus');
+  }
+  assert.equal(w.actions.length,0);
+ }finally{w.close()}
+});
+
 test('cursor repeat retains native keyboard focus, stops on release and stops on tab change',async()=>{
  const dom=terminal(),w=dom.window,d=w.document,output=d.querySelector('.terminal'),wait=ms=>new Promise(r=>w.setTimeout(r,ms));
  try{

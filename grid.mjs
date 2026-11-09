@@ -100,7 +100,7 @@ export class RenderGrid {
           if (/^[\x00-\x7f]+$/.test(segment)) { ascii += segment; continue; }
           if (ascii) { node.append(doc.createTextNode(ascii)); ascii = ''; }
           const cell = doc.createElement('span'), glyph = doc.createElement('span'); glyph.textContent = segment;
-          glyph.style.fontFamily = /\uFE0E/u.test(segment) || !/\p{Emoji_Presentation}|\uFE0F/u.test(segment) ? 'PokemuxPowerline, PokemuxMarks, PokemuxSymbols, monospace' : 'monospace';
+          glyph.style.fontFamily = /\uFE0E/u.test(segment) || !/\p{Emoji_Presentation}|\uFE0F/u.test(segment) ? 'PokemuxPowerline, PokemuxNerd, PokemuxMarks, PokemuxSymbols, monospace' : 'monospace';
           cell.append(glyph);
           Object.assign(cell.style, { display: 'inline-block', width: `${width(segment)}ch`, verticalAlign: 'top' }); node.append(cell);
         }
