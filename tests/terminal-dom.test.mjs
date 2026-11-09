@@ -362,6 +362,23 @@ test('streaming cursor follow preserves the user horizontal position while revea
  try{output.focus();wrap.scrollLeft=88;wrap.scrollTop=0;wrap.getBoundingClientRect=()=>({left:0,right:390,top:46,bottom:400});output.querySelector('.remote-cursor').getBoundingClientRect=()=>({left:800,right:810,top:410,bottom:430});w.fixture.paintTerminal();assert.equal(wrap.scrollLeft,88,'Typing must not pan to the right end of input');assert.ok(wrap.scrollTop>0,'Input row must remain above the keyboard')}finally{w.close()}
 });
 
+test('typing keeps a hidden hardware cursor’s composer row above the keyboard',()=>{
+ const dom=terminal(),w=dom.window,d=w.document,output=d.querySelector('.terminal'),wrap=d.querySelector('.terminalwrap');
+ try{
+  w.fixture.focusInput();
+  const measure=w.HTMLElement.prototype.getBoundingClientRect;
+  w.HTMLElement.prototype.getBoundingClientRect=function(){
+   if(this.textContent==='Pi composer\n')return {top:410,bottom:430};
+   return measure.call(this);
+  };
+  wrap.getBoundingClientRect=()=>({top:46,bottom:400});
+  w.fixture.model.apply({format:'cmux.render-grid.v1',render_epoch:'owned-epoch',render_revision:2,full:true,rows:3,columns:30,row_spans:[{row:2,column:0,text:'Pi composer'}],cursor:{row:2,column:11,visible:false}});
+  w.fixture.paintTerminal();
+  assert.equal(output.querySelector('.remote-cursor'),null,'The host hides its hardware cursor');
+  assert.ok(wrap.scrollTop>0,'The composer scrolls into view anyway');
+ }finally{w.close()}
+});
+
 test('hardware arrows do not duplicate rail modifiers',async()=>{
  const dom=terminal(),w=dom.window,d=w.document,output=d.querySelector('.terminal');
  try{d.querySelector('[data-key="Ctrl"]').click();output.dispatchEvent(new w.KeyboardEvent('keydown',{key:'ArrowRight',ctrlKey:true,shiftKey:true,bubbles:true,cancelable:true}));await new Promise(r=>w.setTimeout(r,0));assert.equal(w.actions.at(-1).key,'Ctrl-Shift-Right');assert.equal(d.querySelector('[data-key="Ctrl"]').getAttribute('aria-pressed'),'false')}finally{w.close()}
@@ -424,6 +441,7 @@ test('terminal horizontal gestures scroll without keys; sidebar button opens nav
   const gesture=(target,from,to)=>{for(const [type,point] of [['pointerdown',from],['pointermove',to],['pointerup',to]]){const e=new w.Event(type,{bubbles:true,cancelable:true});Object.assign(e,{pointerId:1,button:0,isPrimary:true,clientX:point[0],clientY:point[1]});target.dispatchEvent(e)}};
   const wrap=d.querySelector('.terminalwrap');Object.defineProperty(wrap,'clientWidth',{value:390});Object.defineProperty(wrap,'scrollWidth',{value:900});gesture(wrap,[300,120],[80,120]);assert.equal(wrap.scrollLeft,220);await new Promise(r=>w.setTimeout(r,0));assert.equal(w.actions.length,0);assert.equal(d.querySelector('#dialog').open,false);
   for(const [from,to] of [[[80,22],[300,22]],[[300,22],[80,22]]]){gesture(d.querySelector('.workspacehead'),from,to);assert.equal(d.querySelector('#shell').classList.contains('sidebar-open'),false)}d.querySelector('#sidebarToggle').click();assert.equal(d.querySelector('#shell').classList.contains('sidebar-open'),true);d.querySelector('#scrim').click();
+  d.querySelector('.shortcut-grip').click();
   gesture(d.querySelector('.inputdock'),[180,700],[180,600]);assert.equal(d.querySelector('#dialog').open,true);assert.equal(d.querySelector('#dialogTitle').textContent,'Shortcuts');assert.equal(d.querySelector('#dialog').parentElement.id,'viewportDock');assert.equal(w.actions.length,0);
  }finally{w.close()}
 });
@@ -630,7 +648,7 @@ test('shared metadata updates render the received inventory without fetching it 
 
 test('shortcut dock hides, restores and cancels pulls without sending keys',()=>{
  const dom=terminal(),w=dom.window,d=w.document;try{
-  const rail=d.querySelector('.inputdock'),grip=rail.querySelector('.shortcut-grip');assert.ok(grip);
+  const rail=d.querySelector('.inputdock'),grip=rail.querySelector('.shortcut-grip');assert.ok(grip);grip.click();
   const pointer=(type,x,y)=>{const e=new w.Event(type,{bubbles:true,cancelable:true});Object.assign(e,{pointerId:3,button:0,isPrimary:true,clientX:x,clientY:y});grip.dispatchEvent(e)};
   pointer('pointerdown',100,100);pointer('pointermove',100,155);assert.ok(rail.classList.contains('rail-pulling'));pointer('pointermove',100,105);pointer('pointerup',100,105);assert.equal(rail.classList.contains('strip-hidden'),false,'Reversal cancels hiding');
   pointer('pointerdown',100,100);pointer('pointermove',100,160);pointer('pointerup',100,160);assert.ok(rail.classList.contains('strip-hidden'));assert.equal(d.querySelector('#dialog').open,false);

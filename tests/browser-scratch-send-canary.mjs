@@ -40,7 +40,12 @@ export async function verifyScratchSend(tab){
  assert.ok(await pull(-68,true)>0,'Upward pull reveals the editor before release');
  assert.equal(await visible(editor),false);
  await pull(-68);assert.equal(await visible(editor),true);
- assert.equal(await tab.playwright.locator('.inputdock').evaluate(e=>e.hidden),true);
+ assert.equal(await visible('.shortcut-grip'),true);
+ await tap('.shortcut-grip');
+ assert.ok((await box('.keybar')).height>0);
+ assert.ok((await box('.inputdock')).bottom<=(await box(grip)).top+1,'Shortcuts and Scratchpad stack without overlap');
+ await tap('.shortcut-grip');
+ assert.equal((await box('.keybar')).height,0);
  const text='Scratchpad Send 日本語';await type(text);
  const compact=(await box(editor)).height;
  assert.ok(await pull(-68,true)>compact,'The editor grows with the finger before release');

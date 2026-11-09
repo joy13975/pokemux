@@ -18,10 +18,10 @@ function client(saved={},draft=''){
 }
 const tick=w=>new Promise(r=>w.setTimeout(r,0));
 function open(w){w.document.querySelector('#floatingHandle').click();w.document.querySelector('[data-function="4"]').click()}
-function enter(w,text){const area=w.document.querySelector('#scratchText');area.value=text;area.dispatchEvent(new w.InputEvent('input',{bubbles:true,inputType:'insertText',data:text}));return area}
+function enter(w,text){const area=w.document.querySelector('#scratchText');area.focus();area.value=text;area.dispatchEvent(new w.InputEvent('input',{bubbles:true,inputType:'insertText',data:text}));return area}
 
 test('fifth scratchpad action preserves existing choices and can be configured',()=>{
- for(const saved of [{},{floatingFunctions:['key:Ctrl-C','recent','paste']},{floatingFunctions:['key:Ctrl-W','key:Tab','paste','keyboard']}]){const dom=client(saved),w=dom.window,d=w.document;try{assert.equal(w.fixture.floatingChoices().length,5);assert.equal(w.fixture.floatingChoices()[4],'scratchpad');if(saved.floatingFunctions)assert.equal(w.fixture.floatingChoices()[0],saved.floatingFunctions[0]);open(w);assert.equal(d.querySelector('#scratchEditor').hidden,false);assert.equal(d.activeElement,d.querySelector('#scratchText'));d.querySelector('#scratchGrip').click();w.fixture.displaySettings();const setting=d.querySelector('[data-function-setting="4"]');assert.equal(setting.value,'scratchpad');assert.equal(setting.querySelector('option[value="scratchpad"]').textContent,'Scratchpad')}finally{w.close()}}
+ for(const saved of [{},{floatingFunctions:['key:Ctrl-C','recent','paste']},{floatingFunctions:['key:Ctrl-W','key:Tab','paste','keyboard']}]){const dom=client(saved),w=dom.window,d=w.document;try{assert.equal(w.fixture.floatingChoices().length,5);assert.equal(w.fixture.floatingChoices()[4],'scratchpad');if(saved.floatingFunctions)assert.equal(w.fixture.floatingChoices()[0],saved.floatingFunctions[0]);open(w);assert.equal(d.querySelector('#scratchEditor').hidden,false);assert.notEqual(d.activeElement,d.querySelector('#scratchText'));d.querySelector('#scratchGrip').click();w.fixture.displaySettings();const setting=d.querySelector('[data-function-setting="4"]');assert.equal(setting.value,'scratchpad');assert.equal(setting.querySelector('option[value="scratchpad"]').textContent,'Scratchpad')}finally{w.close()}}
 });
 
 test('native scratchpad typing, composition and Close stay local, retain selection/draft, and survive refresh',async()=>{
@@ -46,7 +46,7 @@ test('pulling the Scratchpad grip previews, reverses and commits without discard
   assert.equal(editor.hidden,true);
   grip.onpointerdown(event(870));grip.onpointerup(event(820));
   assert.equal(grip.getAttribute('aria-expanded'),'true');
-  assert.equal(d.activeElement,d.querySelector('#scratchText'));
+  assert.notEqual(d.activeElement,d.querySelector('#scratchText'));
   grip.onpointerdown(event(800));grip.onpointermove(event(848));grip.onpointercancel(event(848));
   assert.equal(editor.hidden,false);
   grip.onpointerdown(event(800));grip.onpointermove(event(848));grip.onpointerup(event(848));
@@ -56,25 +56,33 @@ test('pulling the Scratchpad grip previews, reverses and commits without discard
  }finally{w.close()}
 });
 
-test('opening the composer folds shortcuts and closing restores them',()=>{
+test('both dock handles toggle independently without opening or moving the keyboard',()=>{
  const dom=client(),w=dom.window,d=w.document;
  try{
-  const rail=d.querySelector('.inputdock');
+  const rail=d.querySelector('.inputdock'),shortcut=rail.querySelector('.shortcut-grip'),scratch=d.querySelector('#scratchGrip'),editor=d.querySelector('#scratchEditor'),terminal=d.querySelector('.terminal');
+  assert.equal(w.getComputedStyle(rail).display,'block','The shortcuts handle is present without the keyboard');
+  const initial=d.activeElement;
+  shortcut.click();
+  assert.equal(shortcut.getAttribute('aria-expanded'),'true');
+  scratch.click();
+  assert.equal(editor.hidden,false);
+  assert.equal(d.activeElement,initial);
   assert.equal(rail.hidden,false);
-  open(w);
-  assert.equal(rail.hidden,true);
-  assert.equal(d.querySelector('#floatingLayer').hidden,false);
-  assert.equal(d.querySelector('#cursorJoystick').hidden,false);
-  assert.equal(d.querySelector('#scratchCopy'),null);
-  d.querySelector('#scratchGrip').click();
-  assert.equal(rail.hidden,false);
+  w.fixture.focusInput();Object.assign(w.visualViewport,{height:450});w.fixture.syncViewport();
+  shortcut.click();
+  assert.equal(shortcut.getAttribute('aria-expanded'),'false');
+  assert.equal(editor.hidden,false);
+  assert.equal(d.activeElement,terminal);
+  scratch.click();
+  assert.equal(editor.hidden,true);
+  assert.equal(d.activeElement,terminal);
  }finally{w.close()}
 });
 
 test('Settings persists a reassigned Scratchpad action and dispatches it after reload',()=>{
  const dom=client(),w=dom.window,d=w.document;let saved;
  try{w.fixture.displaySettings();const setting=d.querySelector('[data-function-setting="0"]');setting.value='scratchpad';setting.dispatchEvent(new w.Event('change',{bubbles:true}));d.querySelector('#dialog').close();w.fixture.displaySettings();assert.equal(d.querySelector('[data-function-setting="0"]').value,'scratchpad');saved=JSON.parse(w.localStorage.getItem('cmux-pocket-customizations'))}finally{w.close()}
- const refreshed=client(saved);try{const d=refreshed.window.document;d.querySelector('#floatingHandle').click();d.querySelector('[data-function="0"]').click();assert.equal(d.querySelector('#scratchEditor').hidden,false);assert.equal(d.activeElement,d.querySelector('#scratchText'))}finally{refreshed.window.close()}
+ const refreshed=client(saved);try{const d=refreshed.window.document;d.querySelector('#floatingHandle').click();d.querySelector('[data-function="0"]').click();assert.equal(d.querySelector('#scratchEditor').hidden,false);assert.notEqual(d.activeElement,d.querySelector('#scratchText'))}finally{refreshed.window.close()}
 });
 
 test('pulling the compact Scratchpad past the threshold maximizes it until pulled back down',()=>{
@@ -82,6 +90,7 @@ test('pulling the compact Scratchpad past the threshold maximizes it until pulle
  try{
   open(w);
   const grip=d.querySelector('#scratchGrip'),pad=d.querySelector('#scratchpad'),area=d.querySelector('#scratchText');
+  area.focus();
   const event=y=>({button:0,isPrimary:true,pointerId:1,clientX:150,clientY:y,preventDefault(){}});
   grip.onpointerdown(event(820));grip.onpointermove(event(760));grip.onpointerup(event(800));
   assert.equal(pad.classList.contains('expanded'),false,'Pulling back below the threshold cancels the resize');
@@ -116,12 +125,12 @@ test('all five expanded floating actions remain distinct and inside the keyboard
  try{Object.assign(w.visualViewport,{height:300});for(const position of [[0,0],[1,0],[0,1],[1,1]]){w.fixture.preferences.floatingPosition=position;w.fixture.syncFloating();const control=d.querySelector('#floatingFunctions'),cx=parseFloat(control.style.left)+22,cy=parseFloat(control.style.top)+22,boxes=[...control.querySelectorAll('[data-function]')].map(b=>({x:cx+parseFloat(b.style.left),y:cy+parseFloat(b.style.top)}));for(const box of boxes){assert.ok(box.x>=48&&box.x<=428-48);assert.ok(box.y>=22&&box.y<=300-22)}for(let i=0;i<boxes.length;i++)for(let j=i+1;j<boxes.length;j++)assert.ok(Math.abs(boxes[i].x-boxes[j].x)>=96||Math.abs(boxes[i].y-boxes[j].y)>=44)} }finally{w.close()}
 });
 
-test('Send pastes the complete draft into the active tab then presses Enter',async()=>{const dom=client({},'Draft 日本語');const w=dom.window,d=w.document;try{w.fixture.switchSurface();open(w);const button=d.querySelector('#scratchSend');assert.ok(button,'Scratchpad needs Send');assert.equal(button.disabled,false);button.click();await tick(w);const actions=w.requests.filter(r=>r.path==='/api/action').map(r=>JSON.parse(r.body));assert.deepEqual(actions,[{action:'paste',workspace_id:'owned-workspace',surface_id:'other-surface',text:'Draft 日本語'},{action:'key',workspace_id:'owned-workspace',surface_id:'other-surface',key:'Enter'}]);assert.equal(d.querySelector('#scratchEditor').hidden,false);assert.equal(d.activeElement,d.querySelector('#scratchText'));assert.equal(d.querySelector('#scratchText').value,'');assert.equal(w.localStorage.getItem('pokemux-scratchpad'),'');assert.equal(button.disabled,true);enter(w,'Retained');w.fixture.setConnection(false);assert.equal(button.disabled,true);button.click();await tick(w);assert.equal(w.requests.filter(r=>r.path==='/api/action').length,2);assert.equal(d.querySelector('#scratchText').value,'Retained')}finally{w.close()}});
+test('Send pastes the complete draft into the active tab then presses Enter',async()=>{const dom=client({},'Draft 日本語');const w=dom.window,d=w.document;try{w.fixture.switchSurface();open(w);d.querySelector('#scratchText').focus();const button=d.querySelector('#scratchSend');assert.ok(button,'Scratchpad needs Send');assert.equal(button.disabled,false);button.click();await tick(w);const actions=w.requests.filter(r=>r.path==='/api/action').map(r=>JSON.parse(r.body));assert.deepEqual(actions,[{action:'paste',workspace_id:'owned-workspace',surface_id:'other-surface',text:'Draft 日本語'},{action:'key',workspace_id:'owned-workspace',surface_id:'other-surface',key:'Enter'}]);assert.equal(d.querySelector('#scratchEditor').hidden,false);assert.equal(d.activeElement,d.querySelector('#scratchText'));assert.equal(d.querySelector('#scratchText').value,'');assert.equal(w.localStorage.getItem('pokemux-scratchpad'),'');assert.equal(button.disabled,true);enter(w,'Retained');w.fixture.setConnection(false);assert.equal(button.disabled,true);button.click();await tick(w);assert.equal(w.requests.filter(r=>r.path==='/api/action').length,2);assert.equal(d.querySelector('#scratchText').value,'Retained')}finally{w.close()}});
 
 test('Close hands an open native keyboard directly from the composer to the terminal',()=>{
  const dom=client(),w=dom.window,d=w.document;
  try{
-  open(w);
+  open(w);d.querySelector('#scratchText').focus();
   Object.assign(w.visualViewport,{height:450});w.fixture.syncViewport();
   const area=d.querySelector('#scratchText'),terminal=d.querySelector('.terminal');
   let previousFocus;
@@ -138,7 +147,7 @@ test('Close hands an open native keyboard directly from the composer to the term
 test('holding Send can cancel or deliver the draft without Return',async()=>{
  const dom=client({},'Saved draft'),w=dom.window,d=w.document;
  try{
-  open(w);const button=d.querySelector('#scratchSend'),choices=d.querySelector('#scratchSendChoices');
+  open(w);d.querySelector('#scratchText').focus();const button=d.querySelector('#scratchSend'),choices=d.querySelector('#scratchSendChoices');
   const point=x=>({button:0,isPrimary:true,pointerId:1,clientX:x,clientY:10,preventDefault(){}});
   const hold=async()=>{button.onpointerdown(point(0));await new Promise(r=>w.setTimeout(r,380));assert.equal(choices.hidden,false)};
   d.elementFromPoint=x=>x===50?choices.querySelector('[data-scratch-send="paste"]'):d.body;

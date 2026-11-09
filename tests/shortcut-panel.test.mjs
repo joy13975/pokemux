@@ -39,7 +39,7 @@ test('scrolling to the panel top never dismisses it without an active downward p
 });
 test('rail expansion tracks the finger before release and can reverse without opening',()=>{
  const dom=terminal(),w=dom.window,d=w.document;
- try{const rail=d.querySelector('.inputdock'),dialog=d.querySelector('#dialog');pointer(w,rail,'pointerdown',120,700);pointer(w,rail,'pointermove',120,650);assert.equal(dialog.open,true,'Content previews while pulling');const first=parseFloat(dialog.style.getPropertyValue('--panel-height'));assert.ok(first>0);pointer(w,rail,'pointermove',120,690);assert.ok(parseFloat(dialog.style.getPropertyValue('--panel-height'))<first);pointer(w,rail,'pointerup',120,690);assert.equal(dialog.open,false);assert.equal(w.actions.length,0)}finally{w.close()}
+ try{const rail=d.querySelector('.inputdock'),dialog=d.querySelector('#dialog');rail.querySelector('.shortcut-grip').click();pointer(w,rail,'pointerdown',120,700);pointer(w,rail,'pointermove',120,650);assert.equal(dialog.open,true,'Content previews while pulling');const first=parseFloat(dialog.style.getPropertyValue('--panel-height'));assert.ok(first>0);pointer(w,rail,'pointermove',120,690);assert.ok(parseFloat(dialog.style.getPropertyValue('--panel-height'))<first);pointer(w,rail,'pointerup',120,690);assert.equal(dialog.open,false);assert.equal(w.actions.length,0)}finally{w.close()}
 });
 test('panel pull collapses gradually, reversal restores it, and a fresh deliberate pull stows it',()=>{
  const dom=terminal(),w=dom.window,d=w.document;
@@ -75,7 +75,7 @@ test('expanded defaults use unselectable vector Mac key symbols while retaining 
 });
 
 test('a continuing pull retains capture on a visible host when preview keeps the rail',()=>{
- const dom=terminal(),w=dom.window,d=w.document;try{const rail=d.querySelector('.inputdock'),dialog=d.querySelector('#dialog');pointer(w,rail,'pointerdown',120,712);pointer(w,rail,'pointermove',120,688);const host=w.captureHost;assert.ok(host);if(host===rail)pointer(w,rail,'lostpointercapture',120,688);pointer(w,host,'pointermove',120,602);assert.equal(dialog.open,true,'preview survives the next actual held-finger move');assert.ok(parseFloat(dialog.style.getPropertyValue('--panel-height'))>=110);pointer(w,host,'pointerup',120,602);assert.equal(dialog.open,true)}finally{w.close()}
+ const dom=terminal(),w=dom.window,d=w.document;try{const rail=d.querySelector('.inputdock'),dialog=d.querySelector('#dialog');rail.querySelector('.shortcut-grip').click();pointer(w,rail,'pointerdown',120,712);pointer(w,rail,'pointermove',120,688);const host=w.captureHost;assert.ok(host);if(host===rail)pointer(w,rail,'lostpointercapture',120,688);pointer(w,host,'pointermove',120,602);assert.equal(dialog.open,true,'preview survives the next actual held-finger move');assert.ok(parseFloat(dialog.style.getPropertyValue('--panel-height'))>=110);pointer(w,host,'pointerup',120,602);assert.equal(dialog.open,true)}finally{w.close()}
 });
 test('capture transfer from an implicit button contact does not cancel its panel swipe',()=>{
  const dom=terminal(),w=dom.window,d=w.document;try{open(w);const button=d.querySelector('[data-panel="keys"]');pointer(w,button,'pointerdown',320,430);pointer(w,button,'pointermove',70,430);pointer(w,button,'lostpointercapture',70,430);pointer(w,w.captureHost,'pointerup',70,430);assert.equal(d.querySelector('[data-panel].active').dataset.panel,'snippets')}finally{w.close()}
