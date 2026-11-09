@@ -402,6 +402,22 @@ test('hardware arrows do not duplicate rail modifiers',async()=>{
 });
 
 
+test('switching terminal tabs keeps the native editor mounted and sends typing to the new tab',async()=>{
+ const dom=terminal(),w=dom.window,d=w.document;
+ try{
+  w.fixture.focusInput();
+  const editor=d.activeElement;
+  assert.equal(editor,d.querySelector('.terminal'));
+  w.fixture.otherTerminal();
+  assert.equal(d.activeElement,editor);
+  assert.equal(editor.dataset.surfaceId,'owned-surface-two');
+  assert.equal(editor.getAttribute('contenteditable'),'plaintext-only');
+  editor.dispatchEvent(new w.InputEvent('beforeinput',{inputType:'insertText',data:'q',bubbles:true,cancelable:true}));
+  await new Promise(resolve=>w.setTimeout(resolve,0));
+  assert.deepEqual(w.actions.filter(a=>a.action==='input').map(a=>[a.surface_id,a.text]),[['owned-surface-two','q']]);
+ }finally{w.close()}
+});
+
 test('selecting a terminal tab preserves reading mode',()=>{
  const dom=terminal(),w=dom.window,d=w.document;
  try{assert.notEqual(d.activeElement,d.querySelector('.terminal'));d.querySelector('[data-surface]').click();assert.notEqual(d.activeElement,d.querySelector('.terminal'));assert.equal(d.querySelector('#viewportDock').classList.contains('typing'),false)}finally{w.close()}
@@ -1088,6 +1104,28 @@ test('opening and stowing either drawer keeps the active native terminal editabl
   assert.equal(dialog.open,false);
   assert.equal(d.activeElement,output);
   assert.equal(output.getAttribute('contenteditable'),'plaintext-only');
+ }finally{w.close()}
+});
+
+test('opening and stowing either drawer preserves native Scratchpad editing',()=>{
+ const dom=terminal(),w=dom.window,d=w.document;
+ try{
+  const scratch=d.querySelector('#scratchText'),dialog=d.querySelector('#dialog');
+  const show=dialog.show.bind(dialog);
+  dialog.show=dialog.showModal=()=>{show();d.querySelector('#dialogClose').focus()};
+  d.querySelector('#scratchGrip').click();
+  scratch.focus();
+  assert.equal(d.activeElement,scratch);
+  d.querySelector('#sidebarToggle').click();
+  assert.equal(d.querySelector('#shell').classList.contains('sidebar-open'),true);
+  assert.equal(d.activeElement,scratch);
+  d.querySelector('#scrim').click();
+  d.querySelector('#appActions').click();
+  assert.equal(dialog.open,true);
+  assert.equal(d.activeElement,scratch);
+  d.querySelector('#menuScrim').click();
+  assert.equal(dialog.open,false);
+  assert.equal(d.activeElement,scratch);
  }finally{w.close()}
 });
 

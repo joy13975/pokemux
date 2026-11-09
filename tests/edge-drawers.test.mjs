@@ -5,7 +5,7 @@ import { JSDOM, VirtualConsole } from 'jsdom';
 import { RenderGrid } from '../grid.mjs';
 import { KanaComposer } from '../kana.mjs';
 const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
-function terminal(standalone=false,width=390) {
+function terminal(standalone=false,width=390,tabCount=1) {
   const virtualConsole=new VirtualConsole();virtualConsole.on('jsdomError',error=>{if(error.type==='unhandled-exception')throw error});
   const dom = new JSDOM(html, { virtualConsole, url: 'https://pokemux-test.invalid', runScripts: 'outside-only', pretendToBeVisual: true }), w = dom.window;
   w.localStorage.setItem("cmux-pocket-customizations",JSON.stringify({shortcuts:[],snippets:[],keyboardMode:"custom",}));
@@ -14,6 +14,7 @@ function terminal(standalone=false,width=390) {
   w.document.elementFromPoint=(x,y)=>[...w.document.querySelectorAll('body *')].reverse().find(element=>{const r=element.getBoundingClientRect();return !element.closest('[hidden]')&&r.width>0&&r.height>0&&x>=r.left&&x<r.right&&y>=r.top&&y<r.bottom})||null;
   w.matchMedia = query => ({ matches:query.includes('max-width')&&width<1000||query.includes('max-height')||standalone&&query.includes('display-mode') });
   w.visualViewport = { width, height: 844, scale: 1, offsetTop: 0, offsetLeft:0, addEventListener() {} };
+  w.document.querySelector('#edgeLayer').getBoundingClientRect=()=>({top:w.visualViewport.offsetTop,bottom:w.visualViewport.offsetTop+w.visualViewport.height});
   w.EventSource = class { constructor() { w.fixtureStream=this; } addEventListener() {} close() { this.closed=true; } };
   w.HTMLDialogElement.prototype.showModal=function(){this.open=true;this.dataset.modal='true';};
   w.HTMLDialogElement.prototype.show=function(){this.open=true;delete this.dataset.modal;};
@@ -24,6 +25,7 @@ function terminal(standalone=false,width=390) {
   w.eval(script.slice(0, script.lastIndexOf('(async()=>{')) + `
     RenderGrid=window.__RenderGrid;KanaComposer=window.__KanaComposer;kana=new KanaComposer();
     const fixture=workspace('owned-workspace','Owned workspace',null,'','',[pane('owned-pane',[surface('owned-surface','Owned terminal')])],'owned-window');
+    if (${tabCount}>1)fixture.panes[0].tabs.push(surface('owned-next','Next terminal'));
     workspaces.push(fixture);current=fixture;selectedWindow=fixture.window;connected=true;
     const initialFrame={format:'cmux.render-grid.v1',render_epoch:'owned-epoch',render_revision:1,full:true,rows:3,columns:30,row_spans:[{row:0,column:0,text:'hello 日本語',cell_width:12}],cursor:{row:0,column:12,visible:true,style:'bar'}};const model=new RenderGrid();model.apply(initialFrame);grids.set('owned-surface',model);
     render();window.fixtureUI={openDialog,keyboardDialog,openSidebar};
@@ -115,4 +117,78 @@ test('a brief second contact on the joystick cancels a stationary terminal drawe
 
 test('final pointer position can complete an interior pull without intermediate moves',()=>{
  const dom=terminal(),w=dom.window,d=w.document;try{const wrap=scroller(w);pan(w,wrap,'touchstart',[[100,250]]);pan(w,wrap,'touchend',[[300,250]]);assert.equal(d.querySelector('#shell').classList.contains('sidebar-open'),true);assert.equal(w.actions.length,0)}finally{w.close()}
+});
+
+
+test('horizontal content swipes choose their action from the visible terminal half at touch-down',()=>{
+ const dom=terminal(true,390,2),w=dom.window,d=w.document;
+ try{
+  Object.assign(w.visualViewport,{height:420,offsetTop:80});
+  const active=()=>d.querySelector('.surfacetab.active').dataset.surface;
+  const viewport=()=>{
+   const wrap=scroller(w,0,0);
+   wrap.getBoundingClientRect=()=>({top:110,bottom:450});
+   return wrap;
+  };
+  let wrap=viewport();
+  pointer(w,wrap,'pointerdown',300,230);
+  pointer(w,wrap,'pointermove',150,300);
+  const cue=d.querySelector('#swipeGuide');
+  assert.ok(cue&&!cue.hidden,'Upper drag shows the live edge guide');
+  assert.equal(cue.dataset.side,'right');
+  assert.equal(cue.dataset.action,'tabs');
+  assert.equal(active(),'owned-surface','Tabs change only on release');
+  assert.equal(d.querySelector('#dialog').open,false);
+  pointer(w,wrap,'pointerup',150,300);
+  assert.equal(active(),'owned-next');
+  assert.equal(cue.hidden,true);
+  wrap=viewport();
+  pointer(w,wrap,'pointerdown',90,230);pointer(w,wrap,'pointerup',230,230);
+  assert.equal(active(),'owned-surface','Rightward swipe returns to the previous tab');
+  wrap=viewport();
+  pointer(w,wrap,'pointerdown',90,230);pointer(w,wrap,'pointerup',230,230);
+  assert.equal(active(),'owned-surface','No wrapping at the first tab');
+  pointer(w,wrap,'pointerdown',90,355);pointer(w,wrap,'pointermove',270,310);
+  assert.equal(cue.dataset.side,'left');
+  assert.equal(cue.dataset.action,'drawer');
+  assert.equal(d.querySelector('#shell').classList.contains('sidebar-preview'),true);
+  pointer(w,wrap,'pointerup',270,310);
+  assert.equal(d.querySelector('#shell').classList.contains('sidebar-open'),true);
+  assert.equal(cue.hidden,true);
+  assert.equal(active(),'owned-surface');
+  assert.equal(w.actions.length,0);
+ }finally{w.close()}
+});
+
+test('a reversed or interrupted upper swipe clears the guide and leaves the active tab in place',()=>{
+ const dom=terminal(true,390,2),w=dom.window,d=w.document;
+ try{
+  const wrap=scroller(w,30,200),active=()=>d.querySelector('.surfacetab.active').dataset.surface;
+  wrap.getBoundingClientRect=()=>({top:50,bottom:790});
+  const cue=d.querySelector('#swipeGuide');
+  pointer(w,wrap,'pointerdown',280,180);pointer(w,wrap,'pointermove',160,180);
+  assert.equal(wrap.scrollLeft,30,'Upper swipes leave horizontal terminal pan alone');
+  pointer(w,wrap,'pointermove',270,180);pointer(w,wrap,'pointerup',270,180);
+  assert.equal(active(),'owned-surface');assert.ok(cue?.hidden);
+  pointer(w,wrap,'pointerdown',280,180);pointer(w,wrap,'pointermove',160,180);
+  touch(w,wrap,'touchstart',[[160,180],[215,240]]);
+  pointer(w,wrap,'pointerup',160,180);
+  assert.equal(active(),'owned-surface');assert.equal(cue.hidden,true);
+ }finally{w.close()}
+});
+
+test('a keyboard-zoomed viewport still measures the split in the same coordinates as the touch',()=>{
+ const dom=terminal(true,390,2),w=dom.window,d=w.document;
+ try{
+  Object.assign(w.visualViewport,{height:325,scale:1.334,offsetTop:456});
+  const wrap=scroller(w,0,0),layer=d.querySelector('#edgeLayer');
+  layer.getBoundingClientRect=()=>({top:0,bottom:325});
+  wrap.getBoundingClientRect=()=>({top:35,bottom:222});
+  pointer(w,wrap,'pointerdown',65,175);
+  pointer(w,wrap,'pointermove',235,175);
+  assert.equal(d.querySelector('#swipeGuide').dataset.action,'drawer');
+  pointer(w,wrap,'pointerup',235,175);
+  assert.equal(d.querySelector('#shell').classList.contains('sidebar-open'),true);
+  assert.equal(d.querySelector('.surfacetab.active').dataset.surface,'owned-surface');
+ }finally{w.close()}
 });
