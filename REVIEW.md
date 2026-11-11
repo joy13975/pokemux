@@ -666,3 +666,5 @@ Read-only investigation: current custom handler tracks independent pointer IDs, 
 | 277 | Replace Ctrl-R with Ctrl-K and Ctrl-L with Ctrl-U in the default shortcut strip. | The replacements occupy the original slots, including with saved group orders. Ctrl-L and Ctrl-R remain available for custom and floating shortcuts. Verified both taps reached the correct terminal action in the browser-only fixture. |
 
 | 278 | Switch adjacent tabs with upper-half terminal swipes and keep drawer pulls in the lower half. | The gesture uses the starting point in the visible terminal, above the keyboard and bottom controls. A thin edge glow marks the active half with a chevron or drawer icon. Lower swipes pan wide output before pulling a drawer. Verified the split, keyboard focus, and input routing in Safari on the iPhone Simulator with a browser-only terminal fixture. |
+
+| 279 | Restore the Scratchpad Expand button above Send. | The button and the pull grip share the same size state. Verified that typing continues in the same draft after expanding and shrinking with the native keyboard open in iPhone Simulator Safari. |

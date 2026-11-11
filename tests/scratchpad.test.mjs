@@ -125,7 +125,7 @@ test('pulling the compact Scratchpad past the threshold maximizes it until pulle
   assert.equal(d.querySelector('#scratchEditor').hidden,false,'A short pull with stale touchend coordinates does not stow the editor');
   grip.onpointerdown(event(820));grip.onpointerup(event(765));
   assert.equal(pad.classList.contains('expanded'),true);
-  assert.equal(d.querySelector('#scratchExpand'),null);
+  assert.equal(d.querySelector('#scratchExpand').getAttribute('aria-label'),'Shrink scratchpad');
   for(const [height,scale,top]of [[926,1,0],[440,1,0],[220,2,42]]){
    Object.assign(w.visualViewport,{height,scale,offsetTop:top});w.fixture.syncDock();
    const layer=d.querySelector('#scratchLayer');
@@ -140,6 +140,30 @@ test('pulling the compact Scratchpad past the threshold maximizes it until pulle
   assert.equal(area.value,'Keep editing');
   grip.onclick({detail:0});
   assert.equal(d.querySelector('#scratchEditor').hidden,true);
+ }finally{w.close()}
+});
+
+test('the Scratchpad size button expands and shrinks without moving focus or changing the draft',()=>{
+ const dom=client({},'Keep editing'),w=dom.window,d=w.document;
+ try{
+  open(w);
+  const area=d.querySelector('#scratchText'),pad=d.querySelector('#scratchpad');
+  const resize=d.querySelector('button[aria-label="Expand scratchpad"]');
+  assert.ok(resize,'The open Scratchpad offers a visible size control');
+  area.focus();area.setSelectionRange(0,4);
+  Object.assign(w.visualViewport,{height:450});w.fixture.syncViewport();
+  assert.equal(resize.dispatchEvent(new w.Event('pointerdown',{bubbles:true,cancelable:true})),false);
+  resize.click();
+  assert.equal(pad.classList.contains('expanded'),true);
+  assert.equal(resize.getAttribute('aria-label'),'Shrink scratchpad');
+  resize.click();
+  assert.equal(pad.classList.contains('expanded'),false);
+  assert.equal(resize.getAttribute('aria-label'),'Expand scratchpad');
+  assert.equal(d.querySelector('#scratchEditor').hidden,false);
+  assert.equal(d.activeElement,area);
+  assert.equal(area.value,'Keep editing');
+  assert.deepEqual([area.selectionStart,area.selectionEnd],[0,4]);
+  assert.equal(w.requests.filter(r=>r.path==='/api/action').length,0);
  }finally{w.close()}
 });
 
