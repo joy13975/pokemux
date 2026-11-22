@@ -1,3 +1,4 @@
+import { homedir } from 'node:os';
 import assert from 'node:assert/strict';
 import {execFileSync} from 'node:child_process';
 import {readFile,writeFile} from 'node:fs/promises';
@@ -5,7 +6,7 @@ import {createHash} from 'node:crypto';
 
 export async function* verifySidebar(tab,cdp){
  const infoFile=new URL('../state/browser-fixture-info.json',import.meta.url),checks=[],steps=[];let touching=false;
- const rpc=(method,params)=>JSON.parse(execFileSync('/Applications/cmux.app/Contents/Resources/bin/cmux',['--socket','/Users/USER/.local/state/cmux/cmux.sock','--json','rpc',method,JSON.stringify(params)],{encoding:'utf8',stdio:['ignore','pipe','pipe']}));
+ const rpc=(method,params)=>JSON.parse(execFileSync('/Applications/cmux.app/Contents/Resources/bin/cmux',['--socket',`${homedir()}/.local/state/cmux/cmux.sock`,'--json','rpc',method,JSON.stringify(params)],{encoding:'utf8',stdio:['ignore','pipe','pipe']}));
  const inventory=async()=>{const info=JSON.parse(await readFile(infoFile,'utf8')),ids=new Set(info.ownedWorkspaceIds);assert.ok(info.ownedWorkspaceIds&&info.ownedGroupIds,'Run the dynamic-ownership fixture');const tree=rpc('system.tree',{all_windows:true}),window=tree.windows.find(w=>w.id===info.windowId),groups=rpc('workspace.group.list',{window_id:info.windowId}).groups.filter(g=>info.ownedGroupIds.includes(g.id));return{info,workspaces:window.workspaces.filter(w=>ids.has(w.id)),groups,existing:tree.windows.map(w=>({id:w.id,workspaces:w.workspaces.filter(ws=>!ids.has(ws.id)).map(ws=>({id:ws.id,title:ws.title,panes:ws.panes.map(p=>({id:p.id,surfaces:p.surfaces.map(s=>({id:s.id,title:s.title}))}))}))}))}};
  const box=s=>tab.playwright.locator(s).evaluate(e=>e.getBoundingClientRect().toJSON()),observe=()=>tab.getAXState({emit:false});
  const touch=async(type,points=[])=>{if(type==='touchEnd'&&!touching)return;steps.push({type,points});touching=!['touchEnd','touchCancel'].includes(type);await cdp.send('Input.dispatchTouchEvent',{type,touchPoints:points.map(([x,y])=>({id:1,x,y}))})};

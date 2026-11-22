@@ -670,3 +670,7 @@ Read-only investigation: current custom handler tracks independent pointer IDs, 
 | 279 | Restore the Scratchpad Expand button above Send. | The button and the pull grip share the same size state. Verified that typing continues in the same draft after expanding and shrinking with the native keyboard open in iPhone Simulator Safari. |
 
 | 280 | Align the keyboard toggle with Enter. | Both use the same shortcut column width and right edge. Verified in portrait and landscape in iPhone Simulator Safari, including with the keyboard open. |
+
+| 281 | Move the source to code/pokemux and clean its history. | Removed generated screenshots, traces, run reports and unused icon experiments from every retained source revision. Machine-specific source locations are redacted in historical revisions and current runtime paths use the current user's home directory. |
+
+| 282 | Align wider keyboard, Enter and Scratchpad actions. | Send is 45 pixels tall. Its hold menu stacks upward with Expand or Shrink and both Send choices. Expansion works with an empty draft. Backspace at an unselected Scratchpad caret at zero goes directly to the active terminal. Verified browser gestures, delivery and cancellation, plus native Safari deletion and portrait/landscape alignment. |

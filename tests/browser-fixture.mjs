@@ -1,3 +1,4 @@
+import { homedir } from 'node:os';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { readFile, writeFile, unlink } from 'node:fs/promises';
@@ -7,7 +8,7 @@ import { Passkeys } from '../auth.mjs';
 import { application } from '../server.mjs';
 import { validateFixtureRPC } from './fixture-ownership.mjs';
 const cli='/Applications/cmux.app/Contents/Resources/bin/cmux';
-const rpc=(method,params)=>JSON.parse(execFileSync(cli,['--socket','/Users/USER/.local/state/cmux/cmux.sock','--json','--id-format','both','rpc',method,JSON.stringify(params)],{encoding:'utf8',stdio:['ignore','pipe','pipe']}));
+const rpc=(method,params)=>JSON.parse(execFileSync(cli,['--socket',`${homedir()}/.local/state/cmux/cmux.sock`,'--json','--id-format','both','rpc',method,JSON.stringify(params)],{encoding:'utf8',stdio:['ignore','pipe','pipe']}));
 const before=rpc('system.tree',{all_windows:true}),window=before.windows[0],beforeWorkspaceIds=new Set(before.windows.flatMap(w=>w.workspaces.map(ws=>ws.id))),beforeGroups=rpc('workspace.group.list',{window_id:window.id}).groups;
 const ownership={windowId:window.id,workspaces:new Set(),groups:new Set(),surfaces:new Set(),panes:new Set()};let metadata;
 const persistInfo=()=>privateJSON(info,{...metadata,ownedWorkspaceIds:[...ownership.workspaces],ownedGroupIds:[...ownership.groups]});
@@ -48,7 +49,7 @@ const owned=()=>({workspace_id:workspaceId,surface_id:surfaceId});
 let ws;const deadline=Date.now()+10000;
 while(!ws){ws=rpc('system.tree',{all_windows:true}).windows.flatMap(w=>w.workspaces).find(w=>w.id===workspaceId);if(!ws){assert.ok(Date.now()<deadline);await new Promise(r=>setTimeout(r,50));}}
 const second=rpc('surface.create',{workspace_id:workspaceId,pane_id:ws.panes[0].id,type:'terminal',initial_command:command+'-second',focus:false}).surface_id;
-const shellSurfaceId=process.env.POKEMUX_CANARY_SHELL==='1'?rpc('surface.create',{workspace_id:workspaceId,pane_id:ws.panes[0].id,type:'terminal',initial_command:process.env.POKEMUX_CANARY_TUI==='1'?'/Users/USER/.local/bin/claude --bare':process.env.POKEMUX_CANARY_GLYPHS==='1'?`/bin/zsh -f -c 'printf "\\ue0a0 \\ue0b0 \\ue0b1 \\ue0b2 \\ue0b3\\n\\u23fa Writing \\u23fa\\ufe0e Text \\u23fa\\ufe0f Emoji\\n"; exec /bin/zsh -f'`:process.env.POKEMUX_CANARY_STYLED==='1'?`/bin/zsh -i -c '/usr/bin/python3 ${new URL('styled-output-fixture.py',import.meta.url).pathname}; exec /bin/zsh -i'`:'/bin/zsh -f',focus:false}).surface_id:undefined;
+const shellSurfaceId=process.env.POKEMUX_CANARY_SHELL==='1'?rpc('surface.create',{workspace_id:workspaceId,pane_id:ws.panes[0].id,type:'terminal',initial_command:process.env.POKEMUX_CANARY_TUI==='1'?`${homedir()}/.local/bin/claude --bare`:process.env.POKEMUX_CANARY_GLYPHS==='1'?`/bin/zsh -f -c 'printf "\\ue0a0 \\ue0b0 \\ue0b1 \\ue0b2 \\ue0b3\\n\\u23fa Writing \\u23fa\\ufe0e Text \\u23fa\\ufe0f Emoji\\n"; exec /bin/zsh -f'`:process.env.POKEMUX_CANARY_STYLED==='1'?`/bin/zsh -i -c '/usr/bin/python3 ${new URL('styled-output-fixture.py',import.meta.url).pathname}; exec /bin/zsh -i'`:'/bin/zsh -f',focus:false}).surface_id:undefined;
 let groupedSurfaceId;
 if(process.env.POKEMUX_CANARY_GROUP==='1'){
  const child=rpc('workspace.create',{window_id:window.id,title:'Pokemux grouped child',initial_command:'/bin/zsh -f',focus:false});groupedWorkspaceId=child.workspace_id;ownership.workspaces.add(groupedWorkspaceId);groupedSurfaceId=child.surface_id;

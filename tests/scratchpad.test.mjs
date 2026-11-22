@@ -125,7 +125,7 @@ test('pulling the compact Scratchpad past the threshold maximizes it until pulle
   assert.equal(d.querySelector('#scratchEditor').hidden,false,'A short pull with stale touchend coordinates does not stow the editor');
   grip.onpointerdown(event(820));grip.onpointerup(event(765));
   assert.equal(pad.classList.contains('expanded'),true);
-  assert.equal(d.querySelector('#scratchExpand').getAttribute('aria-label'),'Shrink scratchpad');
+  assert.equal(d.querySelector('[data-scratch-resize]').getAttribute('aria-label'),'Shrink scratchpad');
   for(const [height,scale,top]of [[926,1,0],[440,1,0],[220,2,42]]){
    Object.assign(w.visualViewport,{height,scale,offsetTop:top});w.fixture.syncDock();
    const layer=d.querySelector('#scratchLayer');
@@ -143,27 +143,60 @@ test('pulling the compact Scratchpad past the threshold maximizes it until pulle
  }finally{w.close()}
 });
 
-test('the Scratchpad size button expands and shrinks without moving focus or changing the draft',()=>{
- const dom=client({},'Keep editing'),w=dom.window,d=w.document;
+test('holding Send expands an empty Scratchpad and shrinking preserves a selected draft',async()=>{
+ const dom=client(),w=dom.window,d=w.document;
  try{
   open(w);
-  const area=d.querySelector('#scratchText'),pad=d.querySelector('#scratchpad');
-  const resize=d.querySelector('button[aria-label="Expand scratchpad"]');
-  assert.ok(resize,'The open Scratchpad offers a visible size control');
-  area.focus();area.setSelectionRange(0,4);
-  Object.assign(w.visualViewport,{height:450});w.fixture.syncViewport();
-  assert.equal(resize.dispatchEvent(new w.Event('pointerdown',{bubbles:true,cancelable:true})),false);
-  resize.click();
+  const area=d.querySelector('#scratchText'),pad=d.querySelector('#scratchpad'),send=d.querySelector('#scratchSend'),choices=d.querySelector('#scratchSendChoices');
+  assert.equal(d.querySelector('#scratchExpand'),null);
+  area.focus();
+  const point={button:0,isPrimary:true,pointerId:1,clientX:0,clientY:10,preventDefault(){}};
+  const resize=()=>choices.querySelector('[data-scratch-resize]');
+  d.elementFromPoint=()=>resize();
+  const chooseResize=async()=>{
+   send.onpointerdown(point);
+   await new Promise(resolve=>w.setTimeout(resolve,380));
+   assert.equal(choices.hidden,false);
+   send.onpointerup(point);
+  };
+  await chooseResize();
   assert.equal(pad.classList.contains('expanded'),true);
-  assert.equal(resize.getAttribute('aria-label'),'Shrink scratchpad');
-  resize.click();
+  assert.equal(resize().getAttribute('aria-label'),'Shrink scratchpad');
+  enter(w,'Keep editing');area.setSelectionRange(0,4);
+  await chooseResize();
   assert.equal(pad.classList.contains('expanded'),false);
-  assert.equal(resize.getAttribute('aria-label'),'Expand scratchpad');
-  assert.equal(d.querySelector('#scratchEditor').hidden,false);
+  assert.equal(resize().getAttribute('aria-label'),'Expand scratchpad');
   assert.equal(d.activeElement,area);
   assert.equal(area.value,'Keep editing');
   assert.deepEqual([area.selectionStart,area.selectionEnd],[0,4]);
   assert.equal(w.requests.filter(r=>r.path==='/api/action').length,0);
+ }finally{w.close()}
+});
+
+test('Backspace at a collapsed Scratchpad caret at zero goes directly to the active terminal',async()=>{
+ const dom=client({},'Local draft'),w=dom.window,d=w.document;
+ try{
+  open(w);const area=d.querySelector('#scratchText');area.focus();area.setSelectionRange(0,0);
+  const deletion=()=>new w.InputEvent('beforeinput',{inputType:'deleteContentBackward',bubbles:true,cancelable:true});
+  const first=deletion();area.dispatchEvent(first);
+  assert.equal(first.defaultPrevented,true);
+  await tick(w);
+  w.fixture.switchSurface();area.focus();area.setSelectionRange(0,0);
+  const key=new w.KeyboardEvent('keydown',{key:'Backspace',bubbles:true,cancelable:true});area.dispatchEvent(key);
+  assert.equal(key.defaultPrevented,true);
+  await tick(w);
+  assert.deepEqual(w.requests.filter(r=>r.path==='/api/action').map(r=>JSON.parse(r.body)),[
+   {action:'key',workspace_id:'owned-workspace',surface_id:'owned-surface',key:'Backspace'},
+   {action:'key',workspace_id:'owned-workspace',surface_id:'other-surface',key:'Backspace'}
+  ]);
+  for(const [start,end,composing] of [[1,1,false],[0,4,false],[0,0,true]]){
+   area.setSelectionRange(start,end);
+   const event=new w.InputEvent('beforeinput',{inputType:'deleteContentBackward',isComposing:composing,bubbles:true,cancelable:true});
+   area.dispatchEvent(event);assert.equal(event.defaultPrevented,false);
+  }
+  assert.equal(area.value,'Local draft');
+  assert.equal(d.activeElement,area);
+  assert.equal(d.querySelector('#scratchEditor').hidden,false);
  }finally{w.close()}
 });
 
@@ -172,7 +205,7 @@ test('all five expanded floating actions remain distinct and inside the keyboard
  try{Object.assign(w.visualViewport,{height:300});for(const position of [[0,0],[1,0],[0,1],[1,1]]){w.fixture.preferences.floatingPosition=position;w.fixture.syncFloating();const control=d.querySelector('#floatingFunctions'),cx=parseFloat(control.style.left)+22,cy=parseFloat(control.style.top)+22,boxes=[...control.querySelectorAll('[data-function]')].map(b=>({x:cx+parseFloat(b.style.left),y:cy+parseFloat(b.style.top)}));for(const box of boxes){assert.ok(box.x>=48&&box.x<=428-48);assert.ok(box.y>=22&&box.y<=300-22)}for(let i=0;i<boxes.length;i++)for(let j=i+1;j<boxes.length;j++)assert.ok(Math.abs(boxes[i].x-boxes[j].x)>=96||Math.abs(boxes[i].y-boxes[j].y)>=44)} }finally{w.close()}
 });
 
-test('Send pastes the complete draft into the active tab then presses Enter',async()=>{const dom=client({},'Draft 日本語');const w=dom.window,d=w.document;try{w.fixture.switchSurface();open(w);d.querySelector('#scratchText').focus();const button=d.querySelector('#scratchSend');assert.ok(button,'Scratchpad needs Send');assert.equal(button.disabled,false);button.click();await tick(w);const actions=w.requests.filter(r=>r.path==='/api/action').map(r=>JSON.parse(r.body));assert.deepEqual(actions,[{action:'paste',workspace_id:'owned-workspace',surface_id:'other-surface',text:'Draft 日本語'},{action:'key',workspace_id:'owned-workspace',surface_id:'other-surface',key:'Enter'}]);assert.equal(d.querySelector('#scratchEditor').hidden,false);assert.equal(d.activeElement,d.querySelector('#scratchText'));assert.equal(d.querySelector('#scratchText').value,'');assert.equal(w.localStorage.getItem('pokemux-scratchpad'),'');assert.equal(button.disabled,true);enter(w,'Retained');w.fixture.setConnection(false);assert.equal(button.disabled,true);button.click();await tick(w);assert.equal(w.requests.filter(r=>r.path==='/api/action').length,2);assert.equal(d.querySelector('#scratchText').value,'Retained')}finally{w.close()}});
+test('Send pastes the complete draft into the active tab then presses Enter',async()=>{const dom=client({},'Draft 日本語');const w=dom.window,d=w.document;try{w.fixture.switchSurface();open(w);d.querySelector('#scratchText').focus();const button=d.querySelector('#scratchSend');assert.ok(button,'Scratchpad needs Send');assert.equal(button.disabled,false);button.click();await tick(w);const actions=w.requests.filter(r=>r.path==='/api/action').map(r=>JSON.parse(r.body));assert.deepEqual(actions,[{action:'paste',workspace_id:'owned-workspace',surface_id:'other-surface',text:'Draft 日本語'},{action:'key',workspace_id:'owned-workspace',surface_id:'other-surface',key:'Enter'}]);assert.equal(d.querySelector('#scratchEditor').hidden,false);assert.equal(d.activeElement,d.querySelector('#scratchText'));assert.equal(d.querySelector('#scratchText').value,'');assert.equal(w.localStorage.getItem('pokemux-scratchpad'),'');assert.equal(d.querySelector('[data-scratch-send="enter"]').disabled,true);enter(w,'Retained');w.fixture.setConnection(false);assert.equal(d.querySelector('[data-scratch-send="enter"]').disabled,true);button.click();await tick(w);assert.equal(w.requests.filter(r=>r.path==='/api/action').length,2);assert.equal(d.querySelector('#scratchText').value,'Retained')}finally{w.close()}});
 
 test('Close hands an open native keyboard directly from the composer to the terminal',()=>{
  const dom=client(),w=dom.window,d=w.document;

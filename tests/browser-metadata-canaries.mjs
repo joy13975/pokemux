@@ -1,3 +1,4 @@
+import { homedir } from 'node:os';
 import assert from 'node:assert/strict';
 import {execFileSync} from 'node:child_process';
 import {readFile,writeFile} from 'node:fs/promises';
@@ -6,7 +7,7 @@ import {createHash} from 'node:crypto';
 export async function verifyMetadata(tab,cdp){
  const info=JSON.parse(await readFile(new URL('../state/browser-fixture-info.json',import.meta.url),'utf8')),checks=[],steps=[];
  assert.ok(info.groupId&&info.groupedWorkspaceId,'Run the owned group fixture');
- const rpc=(method,params)=>JSON.parse(execFileSync('/Applications/cmux.app/Contents/Resources/bin/cmux',['--socket','/Users/USER/.local/state/cmux/cmux.sock','--json','rpc',method,JSON.stringify(params)],{encoding:'utf8',stdio:['ignore','pipe','pipe']}));
+ const rpc=(method,params)=>JSON.parse(execFileSync('/Applications/cmux.app/Contents/Resources/bin/cmux',['--socket',`${homedir()}/.local/state/cmux/cmux.sock`,'--json','rpc',method,JSON.stringify(params)],{encoding:'utf8',stdio:['ignore','pipe','pipe']}));
  const tap=async selector=>{let last;await wait(async()=>{const r=await tab.playwright.locator(selector).evaluate(e=>e.getBoundingClientRect().toJSON()),stable=last&&['x','y','width','height'].every(k=>Math.abs(r[k]-last[k])<.1);last=r;return stable});const r=await tab.playwright.locator(selector).evaluate(e=>e.getBoundingClientRect().toJSON());assert.ok(r.width&&r.height&&r.top>=0&&r.bottom<=926,'Visible '+selector);const x=r.x+r.width/2,y=r.y+r.height/2;await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{id:1,x,y}]});await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});steps.push({selector,x,y});await tab.getAXState({emit:false})};
  const wait=async f=>{const end=Date.now()+5000;while(!await f()){assert.ok(Date.now()<end,'Expected live metadata change');await new Promise(r=>setTimeout(r,25))}};
  let notice;

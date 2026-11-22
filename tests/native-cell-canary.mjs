@@ -1,3 +1,4 @@
+import { homedir } from 'node:os';
 import assert from 'node:assert/strict';
 import {readFile,writeFile} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
@@ -16,7 +17,7 @@ export async function verifyNativeCells(inspector,{receipt='NATIVE_CELL_RESULT.j
 
 export async function verifyNativeEditing(simulator,inspector,points){
  const {execFileSync}=await import('node:child_process'),info=JSON.parse(await readFile(new URL('../state/browser-fixture-info.json',import.meta.url),'utf8')),steps=[],checks=[];
- const replay=()=>JSON.parse(execFileSync('/Applications/cmux.app/Contents/Resources/bin/cmux',['--socket','/Users/USER/.local/state/cmux/cmux.sock','--json','rpc','terminal.replay',JSON.stringify({workspace_id:info.workspaceId,surface_id:info.shellSurfaceId,anchor:'screen'})],{encoding:'utf8'})).render_grid;
+ const replay=()=>JSON.parse(execFileSync('/Applications/cmux.app/Contents/Resources/bin/cmux',['--socket',`${homedir()}/.local/state/cmux/cmux.sock`,'--json','rpc','terminal.replay',JSON.stringify({workspace_id:info.workspaceId,surface_id:info.shellSurfaceId,anchor:'screen'})],{encoding:'utf8'})).render_grid;
  const tap=async key=>{assert.ok(points[key],'Observed key coordinate '+key);await simulator.click(points[key]);await simulator.getAXState({emit:false});steps.push({tap:key,point:points[key]})};
  const hardware=async key=>{await simulator.pressKey(key);await simulator.getAXState({emit:false});steps.push({hardware:key})};
  await tap('Ctrl');await tap('u');const base=replay().cursor.column;

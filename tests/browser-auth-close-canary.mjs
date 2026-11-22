@@ -1,3 +1,4 @@
+import { homedir } from 'node:os';
 import assert from 'node:assert/strict';
 import {readFile,writeFile} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
@@ -7,7 +8,7 @@ export async function* verifyAuthAndClose(tab,cdp){
  const wait=async f=>{const end=Date.now()+7000;while(!await f()){assert.ok(Date.now()<end,'Expected terminal navigation/close outcome');await new Promise(r=>setTimeout(r,25))}};
  const touch=async(type,x,y)=>{await cdp.send('Input.dispatchTouchEvent',{type,touchPoints:type==='touchEnd'?[]:[{id:1,x,y}]});steps.push({type,x,y})};
  const press=async(selector,hold=0)=>{let last;await wait(async()=>{const r=await tab.playwright.locator(selector).evaluate(e=>e.getBoundingClientRect().toJSON()),stable=last&&['x','y','width','height'].every(k=>Math.abs(r[k]-last[k])<.1);last=r;return stable});assert.ok(last.width&&last.top>=0&&last.bottom<=926,'Visible '+selector);await touch('touchStart',last.x+last.width/2,last.y+last.height/2);if(hold)await new Promise(r=>setTimeout(r,hold));await touch('touchEnd');await tab.getAXState({emit:false})};
- const tree=()=>JSON.parse(execFileSync('/Applications/cmux.app/Contents/Resources/bin/cmux',['--socket','/Users/USER/.local/state/cmux/cmux.sock','--json','rpc','system.tree','{"all_windows":true}'],{encoding:'utf8',stdio:['ignore','pipe','pipe']}));
+ const tree=()=>JSON.parse(execFileSync('/Applications/cmux.app/Contents/Resources/bin/cmux',['--socket',`${homedir()}/.local/state/cmux/cmux.sock`,'--json','rpc','system.tree','{"all_windows":true}'],{encoding:'utf8',stdio:['ignore','pipe','pipe']}));
  await tab.goto(info.origin+'/fixture');await tab.getAXState({emit:false});await tab.goto(info.origin+'/setup');
  await wait(async()=>new URL(await tab.url()).pathname==='/');await tab.getAXState({emit:false});assert.equal(await tab.playwright.locator('.surfacetab').count(),3);
  checks.push('Authenticated setup automatically connects and opens real terminals without pressing Open terminals');yield checks.at(-1);

@@ -1,9 +1,10 @@
+import { homedir } from 'node:os';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
 import { CmuxBridge } from '../bridge.mjs';
 const cli='/Applications/cmux.app/Contents/Resources/bin/cmux';
-const socket='/Users/USER/.local/state/cmux/cmux.sock';
+const socket=`${homedir()}/.local/state/cmux/cmux.sock`;
 const call=(...args)=>JSON.parse(execFileSync(cli,['--socket',socket,'--json','--id-format','both',...args],{encoding:'utf8',timeout:15000,stdio:['ignore','pipe','pipe']}));
 const rpc=(method,params)=>call('rpc',method,JSON.stringify(params));
 const tree=()=>call('tree','--all');

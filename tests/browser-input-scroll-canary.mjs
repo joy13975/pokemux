@@ -1,3 +1,4 @@
+import { homedir } from 'node:os';
 import assert from 'node:assert/strict';
 import { readFile, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
@@ -32,7 +33,7 @@ export async function* verifyInputScroll(tab, cdp) {
   await tap('#sidebarToggle');const add=`[data-new-workspace="${info.groupId}"]`;await wait(async()=>Math.abs((await box('#sidebar')).left)<.1);
   await tap(add);await tap('#saveName');await wait(async()=>{const fresh=JSON.parse(await readFile(new URL('../state/browser-fixture-info.json',import.meta.url),'utf8'));return fresh.ownedWorkspaceIds.length>info.ownedWorkspaceIds.length});
   const fresh=JSON.parse(await readFile(new URL('../state/browser-fixture-info.json',import.meta.url),'utf8')),created=fresh.ownedWorkspaceIds.filter(id=>!info.ownedWorkspaceIds.includes(id));assert.equal(created.length,1);
-  const native=JSON.parse(execFileSync('/Applications/cmux.app/Contents/Resources/bin/cmux',['--socket','/Users/USER/.local/state/cmux/cmux.sock','--json','rpc','workspace.group.list',JSON.stringify({window_id:info.windowId})],{encoding:'utf8'}));assert.ok(native.groups.find(g=>g.id===info.groupId).member_workspace_ids.includes(created[0]));
+  const native=JSON.parse(execFileSync('/Applications/cmux.app/Contents/Resources/bin/cmux',['--socket',`${homedir()}/.local/state/cmux/cmux.sock`,'--json','rpc','workspace.group.list',JSON.stringify({window_id:info.windowId})],{encoding:'utf8'}));assert.ok(native.groups.find(g=>g.id===info.groupId).member_workspace_ids.includes(created[0]));
   await wait(async()=>(await tab.url()).includes('/'+created[0]+'/'));
   await wait(async()=>await tab.playwright.locator('.terminal').getAttribute('aria-readonly')==='false'&&(await screen()).length>0);
   await tap('[data-typing-key="q"]');await wait(async()=>(await screen()).includes('q'));

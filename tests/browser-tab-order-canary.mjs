@@ -1,3 +1,4 @@
+import { homedir } from 'node:os';
 import assert from 'node:assert/strict';
 import {readFile,writeFile} from 'node:fs/promises';
 import {execFileSync} from 'node:child_process';
@@ -34,7 +35,7 @@ export async function* verifyTabOrder(tab,cdp){
 
 export async function snapshotNativeTabOrder(reorder=false){
  const root=new URL('../',import.meta.url),info=JSON.parse(await readFile(new URL('state/browser-fixture-info.json',root),'utf8'));
- const rpc=(method,params)=>JSON.parse(execFileSync('/Applications/cmux.app/Contents/Resources/bin/cmux',['--socket','/Users/USER/.local/state/cmux/cmux.sock','--json','rpc',method,JSON.stringify(params)],{encoding:'utf8'}));
+ const rpc=(method,params)=>JSON.parse(execFileSync('/Applications/cmux.app/Contents/Resources/bin/cmux',['--socket',`${homedir()}/.local/state/cmux/cmux.sock`,'--json','rpc',method,JSON.stringify(params)],{encoding:'utf8'}));
  let panes=rpc('pane.list',{workspace_id:info.workspaceId}).panes;
  if(reorder){const params={workspace_id:info.workspaceId,surface_id:info.secondSurfaceId,before_surface_id:info.surfaceId,focus:false};validateFixtureRPC('surface.reorder',params,{windowId:info.windowId,workspaces:new Set([info.workspaceId]),groups:new Set(),panes:new Set(panes.map(p=>p.id)),surfaces:new Set([info.surfaceId,info.secondSurfaceId])});rpc('surface.reorder',params);panes=rpc('pane.list',{workspace_id:info.workspaceId}).panes}
  await writeFile(new URL('state/tab-order-native.json',root),JSON.stringify({time:new Date().toISOString(),panes:panes.map(p=>({id:p.id,active:p.selected_surface_id,tabs:p.surface_ids}))},null,2)+'\n');

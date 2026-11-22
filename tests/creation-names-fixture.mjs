@@ -1,3 +1,4 @@
+import { homedir } from 'node:os';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { readFile, writeFile, unlink, mkdir } from 'node:fs/promises';
@@ -7,7 +8,7 @@ import { Passkeys } from '../auth.mjs';
 import { application } from '../server.mjs';
 import { validateFixtureRPC } from './fixture-ownership.mjs';
 const cli='/Applications/cmux.app/Contents/Resources/bin/cmux';
-const native=(method,params)=>JSON.parse(execFileSync(cli,['--socket','/Users/USER/.local/state/cmux/cmux.sock','--json','--id-format','both','rpc',method,JSON.stringify(params)],{encoding:'utf8',stdio:['ignore','pipe','pipe']}));
+const native=(method,params)=>JSON.parse(execFileSync(cli,['--socket',`${homedir()}/.local/state/cmux/cmux.sock`,'--json','--id-format','both','rpc',method,JSON.stringify(params)],{encoding:'utf8',stdio:['ignore','pipe','pipe']}));
 const before=native('system.tree',{all_windows:true}),window=before.windows[0],beforeWorkspaceIds=new Set(before.windows.flatMap(w=>w.workspaces.map(ws=>ws.id))),beforeGroups=native('workspace.group.list',{window_id:window.id}).groups;
 const ownership={windowId:window.id,workspaces:new Set(),groups:new Set(),surfaces:new Set(),panes:new Set()};let metadata;
 const rpc=(method,params)=>{validateFixtureRPC(method,params,ownership);return native(method,params)};
@@ -52,7 +53,7 @@ while(!ws){ws=rpc('system.tree',{all_windows:true}).windows.flatMap(w=>w.workspa
 rememberTree(rpc('system.tree',{all_windows:true}));
 const second=rpc('surface.create',{workspace_id:workspaceId,pane_id:ws.panes[0].id,type:'terminal',initial_command:command+'-second',focus:false}).surface_id;
 ownership.surfaces.add(second);
-const shellSurfaceId=process.env.POKEMUX_CANARY_SHELL==='1'?rpc('surface.create',{workspace_id:workspaceId,pane_id:ws.panes[0].id,type:'terminal',initial_command:process.env.POKEMUX_CANARY_TUI==='1'?`/bin/zsh -f -c 'cd "${tuiDirectory}" && export CLAUDE_CODE_NO_FLICKER=1 && exec /Users/USER/.local/bin/claude --bare'`:process.env.POKEMUX_CANARY_GLYPHS==='1'?`/bin/zsh -f -c 'printf "\\ue0a0 \\ue0b0 \\ue0b1 \\ue0b2 \\ue0b3\\n\\u23fa Writing \\u23fa\\ufe0e Text \\u23fa\\ufe0f Emoji\\n"; exec /bin/zsh -f'`:process.env.POKEMUX_CANARY_STYLED==='1'?`/bin/zsh -i -c '/usr/bin/python3 ${new URL('styled-output-fixture.py',import.meta.url).pathname}; exec /bin/zsh -i'`:'/bin/zsh -f',focus:false}).surface_id:undefined;
+const shellSurfaceId=process.env.POKEMUX_CANARY_SHELL==='1'?rpc('surface.create',{workspace_id:workspaceId,pane_id:ws.panes[0].id,type:'terminal',initial_command:process.env.POKEMUX_CANARY_TUI==='1'?`/bin/zsh -f -c 'cd "${tuiDirectory}" && export CLAUDE_CODE_NO_FLICKER=1 && exec ${homedir()}/.local/bin/claude --bare'`:process.env.POKEMUX_CANARY_GLYPHS==='1'?`/bin/zsh -f -c 'printf "\\ue0a0 \\ue0b0 \\ue0b1 \\ue0b2 \\ue0b3\\n\\u23fa Writing \\u23fa\\ufe0e Text \\u23fa\\ufe0f Emoji\\n"; exec /bin/zsh -f'`:process.env.POKEMUX_CANARY_STYLED==='1'?`/bin/zsh -i -c '/usr/bin/python3 ${new URL('styled-output-fixture.py',import.meta.url).pathname}; exec /bin/zsh -i'`:'/bin/zsh -f',focus:false}).surface_id:undefined;
 if(shellSurfaceId)ownership.surfaces.add(shellSurfaceId);
 let groupedSurfaceId;
 if(process.env.POKEMUX_CANARY_GROUP==='1'){

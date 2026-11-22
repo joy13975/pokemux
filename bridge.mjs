@@ -1,3 +1,4 @@
+import { homedir } from 'node:os';
 import { EventEmitter } from 'node:events';
 import { createInterface } from 'node:readline';
 import { createConnection } from 'node:net';
@@ -60,7 +61,7 @@ export class CmuxBridge extends EventEmitter {
   queues = new Map();
   watches = new Set();
   phoneViewTimers = new Map();
-  constructor({ socketPath = '/Users/USER/.local/state/cmux/cmux.sock' } = {}) {
+  constructor({ socketPath = `${homedir()}/.local/state/cmux/cmux.sock` } = {}) {
     super(); this.socketPath = socketPath; this.local = new LocalSocket(socketPath);
     this.local.on('disconnected', () => { this.connected = false; this.emit('disconnected'); });
   }

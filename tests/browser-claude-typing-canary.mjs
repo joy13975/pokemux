@@ -1,3 +1,4 @@
+import { homedir } from 'node:os';
 import assert from 'node:assert/strict';
 import {readFile,writeFile} from 'node:fs/promises';
 import {execFileSync} from 'node:child_process';
@@ -5,7 +6,7 @@ import {createHash} from 'node:crypto';
 
 export async function snapshotClaudeTyping(){
  const root=new URL('../',import.meta.url),info=JSON.parse(await readFile(new URL('state/claude-typing-info.json',root),'utf8'));
- const rpc=(method,params)=>JSON.parse(execFileSync('/Applications/cmux.app/Contents/Resources/bin/cmux',['--socket','/Users/USER/.local/state/cmux/cmux.sock','--json','rpc',method,JSON.stringify(params)],{encoding:'utf8'}));
+ const rpc=(method,params)=>JSON.parse(execFileSync('/Applications/cmux.app/Contents/Resources/bin/cmux',['--socket',`${homedir()}/.local/state/cmux/cmux.sock`,'--json','rpc',method,JSON.stringify(params)],{encoding:'utf8'}));
  const params={workspace_id:info.workspaceId,surface_id:info.tuiSurfaceId},inventory=rpc('surface.list',{workspace_id:info.workspaceId});assert.ok(inventory.surfaces.some(s=>s.id===info.tuiSurfaceId));
  const native=rpc('surface.read_text',params);await writeFile(new URL('state/claude-native-typing.json',root),JSON.stringify({time:new Date().toISOString(),surfaceId:info.tuiSurfaceId,text:native.text},null,2)+'\n');
 }
