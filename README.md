@@ -25,6 +25,17 @@ for the available screen size, including after rotating to landscape.
 
 <img src="docs/screenshots/terminal-landscape.png" alt="The same Vim terminal redrawn to use the wider landscape display" width="900">
 
+## Image paste
+
+Copy an image on your phone, then open **⌘ → Paste**. Confirm Safari's Paste
+prompt if shown. Native Paste also works in the terminal and Scratchpad.
+Pasting an image into the Scratchpad sends it to the active terminal while
+keeping your text draft.
+
+Pokemux transfers the image to a private temporary file on your Mac and inserts
+its path. The TUI must support images from local file paths. Image paste does
+not press Enter.
+
 ## Let your agent install it
 
 Install and sign in to Tailscale on your Mac and phone using the same account.

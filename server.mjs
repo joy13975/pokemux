@@ -1,7 +1,7 @@
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
-import { CmuxBridge, RequestError } from './bridge.mjs';
+import { CmuxBridge, RequestError, maxImageBytes } from './bridge.mjs';
 import { Passkeys } from './auth.mjs';
 const nerdFont = '/vendor/nerd/SymbolsNerdFontMono-v3.5.1.woff2';
 const assets = new Map([
@@ -22,10 +22,14 @@ const assets = new Map([
   ['/app-icon.png', ['app-icon.png', 'image/png']],
 ]);
 for (const file of ['index.js', 'lookup.js', 'lookup-data.js', 'utilities.js']) assets.set('/vendor/width/' + file, ['node_modules/get-east-asian-width/' + file, 'text/javascript']);
-async function body(req) {
+async function bytes(req, limit) {
+  if (Number(req.headers['content-length']) > limit) throw new RequestError(413, 'Request too large');
   const chunks = []; let bytes = 0;
-  for await (const chunk of req) { bytes += chunk.length; if (bytes > 100000) throw new RequestError(413, 'Request too large'); chunks.push(chunk); }
-  try { return JSON.parse(Buffer.concat(chunks).toString()); }
+  for await (const chunk of req.iterator({ destroyOnReturn: false })) { bytes += chunk.length; if (bytes > limit) { req.resume(); throw new RequestError(413, 'Request too large'); } chunks.push(chunk); }
+  return Buffer.concat(chunks);
+}
+async function body(req) {
+  try { return JSON.parse((await bytes(req, 100000)).toString()); }
   catch (error) { if (error instanceof SyntaxError) throw new RequestError(400, 'Invalid JSON'); throw error; }
 }
 export function application({ bridge, auth }) {
@@ -73,6 +77,7 @@ export function application({ bridge, auth }) {
         const command = terminalAction ? await body(req) : null;
         if (!bridge.connected && command?.action === 'viewport') await bridge.connect();
         if (!bridge.connected) throw new RequestError(409, 'Connect the cmux host first');
+        if (req.method === 'POST' && path === '/api/image') return json(await bridge.action({ action: 'image', workspace_id: url.searchParams.get('workspace'), surface_id: url.searchParams.get('surface'), type: req.headers['content-type']?.split(';')[0].trim().toLowerCase(), bytes: await bytes(req, maxImageBytes) }));
         if (req.method === 'GET' && path === '/api/tree') return json(await bridge.tree());
         if (terminalAction) return json(await bridge.action(command));
         if (req.method === 'POST' && path === '/api/manage') return json(await bridge.manage(await body(req)));

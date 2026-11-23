@@ -1,11 +1,13 @@
-import { homedir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { EventEmitter } from 'node:events';
 import { createInterface } from 'node:readline';
 import { createConnection } from 'node:net';
 import { randomUUID } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
-import { readFile, writeFile, mkdir, rename } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, rename, mkdtemp, rm } from 'node:fs/promises';
 const uuid = /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
+export const maxImageBytes = 10 * 1024 * 1024;
 export class RequestError extends Error {
   constructor(status, message) { super(message); this.status = status; }
 }
@@ -291,6 +293,23 @@ export class CmuxBridge extends EventEmitter {
         const result = await this.rpc('terminal.scroll', { ...target, delta_lines, col, row });
         this.emit('input', target);
         return result;
+      }
+      if (body.action === 'image') {
+        const bytes = body.bytes, format = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/gif': 'gif', 'image/webp': 'webp' }[body.type];
+        if (!Buffer.isBuffer(bytes) || !bytes.length || bytes.length > maxImageBytes) throw new RequestError(400, 'Image is empty or exceeds the upload limit');
+        const valid = format === 'png' ? bytes.subarray(0, 8).equals(Buffer.from([137,80,78,71,13,10,26,10]))
+          : format === 'jpg' ? bytes[0] === 255 && bytes[1] === 216 && bytes[2] === 255
+          : format === 'gif' ? ['GIF87a', 'GIF89a'].includes(bytes.subarray(0, 6).toString('ascii'))
+          : format === 'webp' && bytes.subarray(0, 4).toString('ascii') === 'RIFF' && bytes.subarray(8, 12).toString('ascii') === 'WEBP';
+        if (!valid) throw new RequestError(400, 'Paste a PNG, JPEG, GIF or WebP image with a matching content type');
+        const directory = await mkdtemp(join(tmpdir(), 'pokemux-image-')), file = join(directory, 'image.' + format);
+        try {
+          await writeFile(file, bytes, { mode: 0o600, flag: 'wx' });
+          const text = /[\r\n]/u.test(file) ? "'" + file.replaceAll("'", "'\\''") + "'" : file.replace(/[\\ ()[\]{}<>"'`!#$&;|*?~\t]/gu, '\\$&');
+          const result = await this.rpc('terminal.input', { ...target, text });
+          this.emit('input', target);
+          return result;
+        } catch (error) { await rm(directory, { recursive: true }); throw error; }
       }
       if (body.action === 'input' || body.action === 'paste') {
         if (typeof body.text !== 'string' || Buffer.byteLength(body.text) > 65536) throw new RequestError(400, 'Input must be text of at most 64 KiB');

@@ -38,6 +38,35 @@ function terminal(saved,legacyTouchProperties=true) {
   return dom;
 }
 function recordedDiagnostics(w){w.fixture.flushInputDiagnostics();return w.diagnostics}
+test('native image paste from terminal, Scratchpad and fallback uploads the image instead of its accompanying URL',async()=>{
+ for(const entry of ['terminal','scratchpad','fallback']){
+  const dom=terminal(),w=dom.window,d=w.document,uploads=[];
+  try{
+   const fetch=w.fetch;w.fetch=(path,options)=>{if(path.startsWith('/api/image?'))uploads.push({path,...options});return fetch(path,options)};
+   let root=d.querySelector('.terminal');
+   if(entry==='scratchpad'){d.querySelector('#scratchGrip').click();root=d.querySelector('#scratchText');root.value='Keep this draft';root.focus()}
+   if(entry==='fallback'){Object.defineProperty(w.navigator,'clipboard',{value:{readText:async()=>{throw new w.DOMException('Denied','NotAllowedError')}}});d.querySelector('[data-function="2"]').click();await new Promise(r=>w.setTimeout(r,0));root=d.querySelector('#nativePaste')}
+   const image=new w.File([new Uint8Array([137,80,78,71,13,10,26,10])],'image.png',{type:'image/png'}),event=new w.Event('paste',{bubbles:true,cancelable:true});
+   event.clipboardData={files:[image],getData:()=> 'https://example.test/image.png'};root.dispatchEvent(event);await new Promise(r=>w.setTimeout(r,0));
+   assert.equal(event.defaultPrevented,true);assert.equal(uploads.length,1);assert.equal(uploads[0].body,image);assert.equal(uploads[0].headers['Content-Type'],'image/png');
+   const url=new URL(uploads[0].path,w.location);assert.equal(url.searchParams.get('workspace'),'owned-workspace');assert.equal(url.searchParams.get('surface'),'owned-surface');assert.equal(w.actions.length,0,'An image paste must not also send URL text or Enter');
+   if(entry==='scratchpad'){assert.equal(root.value,'Keep this draft');assert.equal(d.activeElement,root)}
+  }finally{w.close()}
+ }
+});
+test('floating Paste prefers clipboard image data and retains the terminal selected before asynchronous reading',async()=>{
+ const dom=terminal(),w=dom.window,d=w.document,uploads=[];let release;
+ try{
+  const fetch=w.fetch;w.fetch=(path,options)=>{if(path.startsWith('/api/image?'))uploads.push({path,...options});return fetch(path,options)};
+  const image=new w.Blob(['PNG bytes'],{type:'image/png'});
+  Object.defineProperty(w.navigator,'clipboard',{value:{read:()=>new Promise(resolve=>release=resolve),readText:()=>{throw new Error('Image-aware paste cannot read text first')}}});
+  d.querySelector('[data-function="2"]').click();assert.ok(release,'Clipboard reading must start in the tap call stack');w.fixture.otherTerminal();
+  release([{types:['text/plain','image/png'],getType:async type=>{assert.equal(type,'image/png');return image}}]);await new Promise(r=>w.setTimeout(r,0));
+  assert.equal(uploads.length,1);assert.equal(uploads[0].body,image);assert.equal(new URL(uploads[0].path,w.location).searchParams.get('surface'),'owned-surface');assert.equal(w.actions.length,0);
+  w.navigator.clipboard.read=async()=>[{types:['text/plain'],getType:async()=>({text:async()=> 'Plain text remains pasteable'})}];
+  d.querySelector('[data-function="2"]').click();await new Promise(r=>w.setTimeout(r,0));assert.equal(w.actions.length,1);assert.equal(w.actions[0].text,'Plain text remains pasteable');assert.equal(w.actions[0].surface_id,'owned-surface-two');
+ }finally{w.close()}
+});
 function terminalPointer(w,root,type,x=42,y=10,extra={}){const event=new w.Event(type,{bubbles:true,cancelable:true});Object.assign(event,{pointerId:1,button:0,isPrimary:true,clientX:x,clientY:y,...extra});root.dispatchEvent(event)}
 function terminalGeometry(output){output.getBoundingClientRect=()=>({left:-85,top:-21,width:450,height:93});for(const [i,row]of[...output.children].entries())row.getBoundingClientRect=()=>({top:-21+i*31,bottom:-21+(i+1)*31,height:31});}
 test('terminal tap sends one native cell click before keyboard focus, with movement, cancellation, selection and long-press excluded',async()=>{
