@@ -3,7 +3,27 @@
 Use your Mac's cmux terminals from your phone. Pokemux is a self-hosted web app
 with terminal tabs, a native phone keyboard, shortcuts and an editable Scratchpad.
 
-**Early alpha:** each tester runs their own instance on their own Mac.
+Run your own instance on your Mac and connect through Tailscale.
+
+## Screenshots
+
+A live cmux terminal running Vim with this public README. The terminal redraws
+for the available screen size, including after rotating to landscape.
+
+<table>
+  <tr>
+    <th>Phone-sized terminal</th>
+    <th>Workspace sidebar</th>
+    <th>Shortcuts</th>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/terminal-portrait.png" alt="Vim displaying the Pokemux README wrapped to a phone-width terminal" width="280"></td>
+    <td><img src="docs/screenshots/workspace-sidebar.png" alt="Workspace sidebar with grouped workspaces alongside the terminal" width="280"></td>
+    <td><img src="docs/screenshots/shortcuts.png" alt="Terminal with the shortcut strip expanded" width="280"></td>
+  </tr>
+</table>
+
+<img src="docs/screenshots/terminal-landscape.png" alt="The same Vim terminal redrawn to use the wider landscape display" width="900">
 
 ## Let your agent install it
 
@@ -20,7 +40,7 @@ On your phone, open that URL in Safari, create your passkey, then use
 
 ## Setup
 
-Tested with **macOS, cmux 0.65.2 and Node.js 26.10**. Use Node.js 26 for this alpha.
+Tested with **macOS, cmux 0.65.2 and Node.js 26.10**. Use Node.js 26.
 Install the macOS Tailscale app in `/Applications/Tailscale.app` and enable
 Tailscale HTTPS when prompted.
 
