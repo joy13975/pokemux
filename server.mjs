@@ -1,7 +1,11 @@
 import { createServer } from 'node:http';
-import { readFile } from 'node:fs/promises';
+import { readFile, open } from 'node:fs/promises';
+import { constants } from 'node:fs';
+import { basename, isAbsolute, join } from 'node:path';
+import { homedir } from 'node:os';
+import { pipeline } from 'node:stream/promises';
 import { pathToFileURL } from 'node:url';
-import { CmuxBridge, RequestError, maxImageBytes } from './bridge.mjs';
+import { CmuxBridge, RequestError, maxImageBytes, imageKind } from './bridge.mjs';
 import { Passkeys } from './auth.mjs';
 const nerdFont = '/vendor/nerd/SymbolsNerdFontMono-v3.5.1.woff2';
 const assets = new Map([
@@ -77,6 +81,29 @@ export function application({ bridge, auth }) {
         const command = terminalAction ? await body(req) : null;
         if (!bridge.connected && command?.action === 'viewport') await bridge.connect();
         if (!bridge.connected) throw new RequestError(409, 'Connect the cmux host first');
+        if (req.method === 'GET' && path === '/api/file') {
+          await bridge.target({ workspace_id: url.searchParams.get('workspace'), surface_id: url.searchParams.get('surface') });
+          const requested = url.searchParams.get('path'), selected = requested?.startsWith('~/') ? join(homedir(), requested.slice(2)) : requested;
+          if (!selected || !isAbsolute(selected) || /[\0\r\n]/u.test(selected)) throw new RequestError(400, 'Select a full Mac file path');
+          let file;
+          try {
+            file = await open(selected, constants.O_RDONLY | constants.O_NONBLOCK);
+            const stat = await file.stat();
+            if (!stat.isFile()) throw new RequestError(400, 'Select a regular file');
+            const header = Buffer.alloc(16); await file.read(header, 0, header.length, 0);
+            const type = imageKind(header)?.type || 'application/octet-stream';
+            const filename = encodeURIComponent(basename(selected)).replace(/['()*]/gu, char => '%' + char.charCodeAt(0).toString(16));
+            res.setHeader('Content-Type', type); res.setHeader('Content-Length', stat.size);
+            res.setHeader('Content-Disposition', `${type === 'application/octet-stream' ? 'attachment' : 'inline'}; filename*=UTF-8''${filename}`);
+            res.setHeader('Content-Security-Policy', "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; sandbox allow-same-origin");
+            await pipeline(file.createReadStream({ start: 0, autoClose: false }), res);
+            return;
+          } catch (error) {
+            if (['ENOENT', 'ENOTDIR', 'EACCES'].includes(error.code)) throw new RequestError(404, 'Selected file is unavailable on the Mac');
+            if (error.code === 'ERR_STREAM_PREMATURE_CLOSE') return;
+            throw error;
+          } finally { await file?.close(); }
+        }
         if (req.method === 'POST' && path === '/api/image') return json(await bridge.action({ action: 'image', workspace_id: url.searchParams.get('workspace'), surface_id: url.searchParams.get('surface'), type: req.headers['content-type']?.split(';')[0].trim().toLowerCase(), bytes: await bytes(req, maxImageBytes) }));
         if (req.method === 'GET' && path === '/api/tree') return json(await bridge.tree());
         if (terminalAction) return json(await bridge.action(command));

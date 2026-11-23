@@ -62,7 +62,7 @@ function terminal() {
   const dom=new JSDOM(html,{virtualConsole,url:'https://pokemux-test.invalid',runScripts:'outside-only',pretendToBeVisual:true}),w=dom.window;
   w.localStorage.setItem('cmux-pocket-customizations',JSON.stringify({shortcuts:[],snippets:[],keyboardMode:'native',keyboardDefaultVersion:1}));
   installPopover(w);w.isSecureContext=true;w.ResizeObserver=class{observe(){}disconnect(){}};w.HTMLElement.prototype.setPointerCapture=()=>{};
-  w.matchMedia=()=>({matches:true});w.visualViewport={width:390,height:844,scale:1,offsetTop:0,offsetLeft:0,addEventListener(){}};
+  w.document.elementFromPoint=()=>null;w.Range.prototype.getClientRects=()=>[];w.matchMedia=()=>({matches:true});w.visualViewport={width:390,height:844,scale:1,offsetTop:0,offsetLeft:0,addEventListener(){}};
   w.EventSource=class{addEventListener(){}close(){}};w.HTMLDialogElement.prototype.showModal=function(){this.open=true};w.HTMLDialogElement.prototype.close=function(){this.open=false};
   w.__RenderGrid=RenderGrid;w.__KanaComposer=KanaComposer;w.actions=[];w.opened=[];w.open=(...args)=>{w.opened.push(args);return null};
   w.fetch=async(path,options)=>{if(path==='/api/action')w.actions.push(JSON.parse(options.body));return {ok:true,status:200,json:async()=>({})}};
@@ -70,12 +70,28 @@ function terminal() {
   w.eval(script.slice(0,script.lastIndexOf('(async()=>{'))+`
     RenderGrid=window.__RenderGrid;KanaComposer=window.__KanaComposer;kana=new KanaComposer();
     current=workspace('owned-workspace','Owned',null,'','',[pane('owned-pane',[surface('owned-surface','Owned terminal')])],'owned-window');workspaces.push(current);selectedWindow=current.window;connected=true;
-    const model=new RenderGrid();model.apply(${JSON.stringify(frame([{row:0,column:0,text:'https://example.test/report'},{row:1,column:0,text:'Open the benchmark report',style_id:1}],{styles:[{id:1,foreground:'#0000ff',underline:true}],modes:[{code:1000,on:true,ansi:false}]}))});grids.set('owned-surface',model);render();window.fixture={model,paintTerminal};
+    const model=new RenderGrid();model.apply(${JSON.stringify(frame([{row:0,column:0,text:'https://example.test/report'},{row:1,column:0,text:'Open the benchmark report',style_id:1},{row:2,column:0,text:'/tmp/pokemux-preview.png'}],{styles:[{id:1,foreground:'#0000ff',underline:true}],modes:[{code:1000,on:true,ansi:false}]}))});grids.set('owned-surface',model);render();window.fixture={model,paintTerminal,metadata(){render()},switchTerminal(){current.panes[0].tabs.push(surface('other-surface','Other'));selectSurface('owned-pane','other-surface')}};
   `);
   const output=w.document.querySelector('.terminal');geometry(output,80);
   return dom;
 }
 function pointer(w,root,type,col,row=0){const event=new w.Event(type,{bubbles:true,cancelable:true});Object.assign(event,{pointerId:1,button:0,isPrimary:true,clientX:10+col*10+5,clientY:20+row*20+5});root.dispatchEvent(event)}
+function highlight(w,row){const range=w.document.createRange();range.selectNodeContents(w.document.querySelector('.terminal').children[row]);range.getClientRects=()=>[{left:10,right:810,top:20+row*20,bottom:40+row*20}];w.getSelection().removeAllRanges();w.getSelection().addRange(range)}
+test('holding selected URL or full image path opens a new client tab, preserves selection and never clicks the host',async()=>{
+ const dom=terminal(),w=dom.window,wrap=w.document.querySelector('.terminalwrap');
+ try{
+  for(const row of [0,2]){highlight(w,row);const text=w.getSelection().toString(),url=w.location.href;pointer(w,wrap,'pointerdown',5,row);w.fixture.metadata();await new Promise(r=>w.setTimeout(r,550));pointer(w,wrap,'pointerup',5,row);assert.equal(w.opened.length,row===0?1:2);assert.equal(w.opened.at(-1)[1],'_blank');assert.equal(w.location.href,url);assert.equal(w.getSelection().toString(),text)}
+  assert.equal(w.opened[0][0],'https://example.test/report');const file=new URL(w.opened[1][0],w.location);assert.equal(file.pathname,'/api/file');assert.equal(file.searchParams.get('path'),'/tmp/pokemux-preview.png');assert.equal(file.searchParams.get('workspace'),'owned-workspace');assert.equal(file.searchParams.get('surface'),'owned-surface');assert.equal(w.actions.length,0);
+ }finally{w.close()}
+});
+test('short selected taps, drags, cancellation, changed selection and a switched tab cannot open a resource',async()=>{
+ const dom=terminal(),w=dom.window,wrap=w.document.querySelector('.terminalwrap');
+ try{
+  highlight(w,2);pointer(w,wrap,'pointerdown',5,2);pointer(w,wrap,'pointerup',5,2);
+  for(const cancel of [()=>pointer(w,wrap,'pointermove',9,2),()=>pointer(w,wrap,'pointercancel',5,2),()=>highlight(w,1),()=>w.fixture.switchTerminal()]){highlight(w,2);pointer(w,wrap,'pointerdown',5,2);cancel();await new Promise(r=>w.setTimeout(r,550));pointer(w,wrap,'pointerup',5,2)}
+  assert.equal(w.opened.length,0);assert.equal(w.actions.length,0);
+ }finally{w.close()}
+});
 test('trusted URL tap opens on client immediately and never forwards host mouse; ordinary TUI label click still forwards',async()=>{
   const dom=terminal(),w=dom.window,wrap=w.document.querySelector('.terminalwrap');
   try{

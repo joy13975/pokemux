@@ -8,6 +8,13 @@ import { isDeepStrictEqual } from 'node:util';
 import { readFile, writeFile, mkdir, rename, mkdtemp, rm } from 'node:fs/promises';
 const uuid = /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
 export const maxImageBytes = 10 * 1024 * 1024;
+export function imageKind(bytes) {
+  if (bytes.subarray(0, 8).equals(Buffer.from([137,80,78,71,13,10,26,10]))) return { type: 'image/png', extension: 'png' };
+  if (bytes[0] === 255 && bytes[1] === 216 && bytes[2] === 255) return { type: 'image/jpeg', extension: 'jpg' };
+  if (['GIF87a', 'GIF89a'].includes(bytes.subarray(0, 6).toString('ascii'))) return { type: 'image/gif', extension: 'gif' };
+  if (bytes.subarray(0, 4).toString('ascii') === 'RIFF' && bytes.subarray(8, 12).toString('ascii') === 'WEBP') return { type: 'image/webp', extension: 'webp' };
+  return null;
+}
 export class RequestError extends Error {
   constructor(status, message) { super(message); this.status = status; }
 }
@@ -295,14 +302,11 @@ export class CmuxBridge extends EventEmitter {
         return result;
       }
       if (body.action === 'image') {
-        const bytes = body.bytes, format = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/gif': 'gif', 'image/webp': 'webp' }[body.type];
+        const bytes = body.bytes;
         if (!Buffer.isBuffer(bytes) || !bytes.length || bytes.length > maxImageBytes) throw new RequestError(400, 'Image is empty or exceeds the upload limit');
-        const valid = format === 'png' ? bytes.subarray(0, 8).equals(Buffer.from([137,80,78,71,13,10,26,10]))
-          : format === 'jpg' ? bytes[0] === 255 && bytes[1] === 216 && bytes[2] === 255
-          : format === 'gif' ? ['GIF87a', 'GIF89a'].includes(bytes.subarray(0, 6).toString('ascii'))
-          : format === 'webp' && bytes.subarray(0, 4).toString('ascii') === 'RIFF' && bytes.subarray(8, 12).toString('ascii') === 'WEBP';
-        if (!valid) throw new RequestError(400, 'Paste a PNG, JPEG, GIF or WebP image with a matching content type');
-        const directory = await mkdtemp(join(tmpdir(), 'pokemux-image-')), file = join(directory, 'image.' + format);
+        const kind = imageKind(bytes);
+        if (!kind || kind.type !== body.type) throw new RequestError(400, 'Paste a PNG, JPEG, GIF or WebP image with a matching content type');
+        const directory = await mkdtemp(join(tmpdir(), 'pokemux-image-')), file = join(directory, 'image.' + kind.extension);
         try {
           await writeFile(file, bytes, { mode: 0o600, flag: 'wx' });
           const text = /[\r\n]/u.test(file) ? "'" + file.replaceAll("'", "'\\''") + "'" : file.replace(/[\\ ()[\]{}<>"'`!#$&;|*?~\t]/gu, '\\$&');

@@ -36,6 +36,16 @@ Pokemux transfers the image to a private temporary file on your Mac and inserts
 its path. The TUI must support images from local file paths. Image paste does
 not press Enter.
 
+## Open links and files on your phone
+
+Tap a visible URL, or select a URL and hold the selection, to open a new browser
+tab. Select a full Mac file path (`/…`, `~/…` or `file://…`) and hold it to open
+the file on your phone. PNG, JPEG, GIF and WebP images preview; other files
+download. Your Pokemux terminal tab stays open.
+
+Hidden destinations behind TUI link labels are unavailable in cmux's current
+terminal stream. Relative file paths also need their full Mac path.
+
 ## Let your agent install it
 
 Install and sign in to Tailscale on your Mac and phone using the same account.
