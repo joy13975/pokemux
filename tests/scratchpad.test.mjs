@@ -19,6 +19,10 @@ function client(saved={},draft=''){
 const tick=w=>new Promise(r=>w.setTimeout(r,0));
 function open(w){w.document.querySelector('#floatingHandle').click();w.document.querySelector('[data-function="4"]').click()}
 function enter(w,text){const area=w.document.querySelector('#scratchText');area.focus();area.value=text;area.dispatchEvent(new w.InputEvent('input',{bubbles:true,inputType:'insertText',data:text}));return area}
+test('ordinary Scratchpad text paste leaves native insertion enabled and sends nothing to the terminal',async()=>{
+ const dom=client(),w=dom.window;
+ try{open(w);const area=w.document.querySelector('#scratchText');area.focus();const event=new w.Event('paste',{bubbles:true,cancelable:true});event.clipboardData={files:[],getData:()=> 'Pasted draft 日本語'};assert.equal(area.dispatchEvent(event),true);assert.equal(event.defaultPrevented,false);await tick(w);assert.equal(w.requests.filter(r=>r.path.startsWith('/api/action')||r.path.startsWith('/api/image')).length,0);assert.equal(w.document.activeElement,area)}finally{w.close()}
+});
 
 test('fifth scratchpad action preserves existing choices and can be configured',()=>{
  for(const saved of [{},{floatingFunctions:['key:Ctrl-C','recent','paste']},{floatingFunctions:['key:Ctrl-W','key:Tab','paste','keyboard']}]){const dom=client(saved),w=dom.window,d=w.document;try{assert.equal(w.fixture.floatingChoices().length,5);assert.equal(w.fixture.floatingChoices()[4],'scratchpad');if(saved.floatingFunctions)assert.equal(w.fixture.floatingChoices()[0],saved.floatingFunctions[0]);open(w);assert.equal(d.querySelector('#scratchEditor').hidden,false);assert.notEqual(d.activeElement,d.querySelector('#scratchText'));d.querySelector('#scratchGrip').click();w.fixture.displaySettings();const setting=d.querySelector('[data-function-setting="4"]');assert.equal(setting.value,'scratchpad');assert.equal(setting.querySelector('option[value="scratchpad"]').textContent,'Scratchpad')}finally{w.close()}}

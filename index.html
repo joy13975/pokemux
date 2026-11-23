@@ -720,7 +720,7 @@ function bindScratchGrip(){
  };
 }
 function bindScratchpad(){
- const input=$('scratchText');input.value=localStorage.getItem(scratchDraftKey)||'';input.onpaste=e=>pasteImages(e);
+ const input=$('scratchText');input.value=localStorage.getItem(scratchDraftKey)||'';input.onpaste=e=>{pasteImages(e)};
  input.oninput=()=>{scratchRevision++;clearTimeout(scratchSaveTimer);scratchSaveTimer=setTimeout(saveScratchpad,200);syncScratchSend()};
  const backspace=e=>{
   if(e.isComposing||input.selectionStart!==0||input.selectionEnd!==0)return;
