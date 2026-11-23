@@ -1,11 +1,10 @@
+import { socketPath } from './socket-fixture.mjs';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createServer } from 'node:net';
 import { createInterface } from 'node:readline';
 import { randomUUID } from 'node:crypto';
 import { CmuxBridge } from '../bridge.mjs';
-import { mkdir } from 'node:fs/promises';
-await mkdir(new URL('../state/',import.meta.url),{recursive:true});
 const until = async predicate => { const end = Date.now() + 3000; while (!predicate()) { assert.ok(Date.now() < end, 'local mirror made progress'); await new Promise(r => setTimeout(r, 10)); } };
 test('completed taps reach only the explicitly targeted native mouse cell and reject missing or invalid geometry',async()=>{
  const workspace_id=randomUUID(),surface_id=randomUUID(),bridge=new CmuxBridge(),received=[];
@@ -33,7 +32,7 @@ test('unsupported function and modified navigation keys fail before stock cmux c
  assert.deepEqual(received.map(r=>[r.method,r.params.key]),['Home','End','PageUp','PageDown','Delete','Ctrl-Up','Alt-Right'].map(key=>['surface.send_key',key]));
 });
 test('local mirror needs no vendor account, pushes authoritative changes and stops reading when detached', async () => {
-  const path = new URL(`../state/mirror-${randomUUID()}.sock`, import.meta.url).pathname;
+  const path = socketPath();
   const sockets = new Set(), requests = [], frames = [];
   const target = { workspace_id: randomUUID(), surface_id: randomUUID() };
   let revision = 1, capture = 0;
@@ -198,7 +197,7 @@ test('rapid terminal input does not exhaust the native snapshot budget',async()=
 });
 
 test('a native metadata burst produces one shared authoritative inventory for browser subscribers',async()=>{
- const path=new URL(`../state/metadata-${randomUUID()}.sock`,import.meta.url).pathname,sockets=new Set(),events=[];let reads=0;
+ const path=socketPath(),sockets=new Set(),events=[];let reads=0;
  const server=createServer(socket=>{sockets.add(socket);socket.on('close',()=>sockets.delete(socket));createInterface({input:socket}).on('line',line=>{const request=JSON.parse(line);assert.equal(request.method,'events.stream');socket.write(JSON.stringify({type:'ack'})+'\n');for(const name of ['workspace.created','pane.created','surface.created','workspace.updated'])socket.write(JSON.stringify({type:'event',name})+'\n')})});
  await new Promise(r=>server.listen(path,r));const bridge=new CmuxBridge({socketPath:path});bridge.tree=async()=>{reads++;return{windows:[{id:'owned-window',workspaces:[]}],notifications:[]}};bridge.on('event',event=>events.push(event));
  try{bridge.observeMetadata();await until(()=>events.length>0);assert.equal(events.length,1);assert.equal(reads,1);assert.equal(events[0].payload.windows[0].id,'owned-window');assert.deepEqual(events[0].payload.notifications,[]);

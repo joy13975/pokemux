@@ -1,6 +1,12 @@
 {
   "name": "pokemux",
   "version": "0.1.0",
+  "description": "A phone-sized web client for cmux over Tailscale",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/joy13975/pokemux.git"
+  },
   "private": true,
   "type": "module",
   "scripts": {

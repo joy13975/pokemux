@@ -1,14 +1,12 @@
+import { socketPath } from './socket-fixture.mjs';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createServer } from 'node:net';
 import { createInterface } from 'node:readline';
-import { randomUUID } from 'node:crypto';
 import { inspect } from 'node:util';
 import { CmuxBridge } from '../bridge.mjs';
-import { mkdir } from 'node:fs/promises';
-await mkdir(new URL('../state/',import.meta.url),{recursive:true});
 test('local socket rejection reports the operation but cannot expose pasted terminal text', async () => {
-  const privateText='private-pasted-fixture-value',path=new URL(`../state/error-${randomUUID()}.sock`,import.meta.url).pathname;
+  const privateText='private-pasted-fixture-value',path=socketPath();
   const sockets=new Set();
   const server=createServer(socket=>{
     sockets.add(socket);socket.on('close',()=>sockets.delete(socket));
@@ -28,7 +26,7 @@ test('local socket rejection reports the operation but cannot expose pasted term
 test('unavailable cmux socket rejects without an unhandled readline error',async()=>{
   const {execFile}=await import('node:child_process');
   const {promisify}=await import('node:util');
-  const path=new URL(`../state/missing-${randomUUID()}.sock`,import.meta.url).pathname;
+  const path=socketPath();
   const source=`import {CmuxBridge} from './bridge.mjs';const b=new CmuxBridge({socketPath:${JSON.stringify(path)}});try{await b.status();process.exitCode=2;}catch(e){if(e.status!==502)throw e;}finally{b.close();}`;
   await promisify(execFile)(process.execPath,['--input-type=module','-e',source],{cwd:new URL('..',import.meta.url)});
 });
