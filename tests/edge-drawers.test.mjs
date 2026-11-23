@@ -69,6 +69,21 @@ test('drawer drag release cannot activate its starting button and never swallows
 test('reversed edge previews preserve the prior shortcut section and scroll position',()=>{
  for(const side of ['left','right']){const dom=terminal(),w=dom.window,d=w.document;try{w.fixtureUI.keyboardDialog('snippets',false);const dialog=d.querySelector('#dialog'),body=d.querySelector('#dialogBody');body.scrollTop=17;box(dialog,300);box(d.querySelector('#sidebar'),300);const edge=d.querySelector('[data-edge="'+side+'"]'),x=side==='left'?4:386,sign=side==='left'?1:-1;pointer(w,edge,'pointerdown',x,200);pointer(w,edge,'pointermove',x+sign*90,200);pointer(w,edge,'pointermove',x+sign*10,200);pointer(w,edge,'pointerup',x+sign*10,200);assert.equal(dialog.open,true,side+' reversal retains prior overlay');assert.equal(d.querySelector('[data-panel].active')?.dataset.panel,'snippets');assert.equal(body.scrollTop,17)}finally{w.close()}}
 });
+test('pulling either sidebar folds temporary and latched arrow wings immediately',async()=>{
+ for(const side of ['left','right'])for(const latched of [false,true]){
+  const dom=terminal(),w=dom.window,d=w.document,h=d.querySelector('#cursorJoystick');
+  try{
+   if(latched){pointer(w,h,'pointerdown',40,300);await new Promise(r=>w.setTimeout(r,400));pointer(w,h,'pointerup',40,300)}else h.click();
+   assert.equal(h.getAttribute('aria-expanded'),'true');
+   box(d.querySelector('#sidebar'),300);box(d.querySelector('#dialog'),300);
+   const edge=d.querySelector('[data-edge="'+side+'"]'),x=side==='left'?4:386,sign=side==='left'?1:-1;
+   pointer(w,edge,'pointerdown',x,200);pointer(w,edge,'pointermove',x+sign*90,200);
+   assert.equal(h.getAttribute('aria-expanded'),'false',side+' preview must fold the wings');assert.equal(d.querySelector('#cursorWings').hidden,true);assert.equal(h.getAttribute('aria-pressed'),'false');
+   pointer(w,edge,'pointercancel',x+sign*90,200);
+   assert.equal(h.getAttribute('aria-expanded'),'false','Cancelling the drawer must not restore the latch');assert.equal(w.actions.length,0);
+  }finally{w.close()}
+ }
+});
 test('committing the opposite edge transfers overlay ownership but reversing preserves it',()=>{
  const dom=terminal(),w=dom.window,d=w.document;try{w.fixtureUI.openSidebar();box(d.querySelector('#dialog'),300);const edge=d.querySelector('[data-edge="right"]');pointer(w,edge,'pointerdown',386,200);pointer(w,edge,'pointermove',296,200);pointer(w,edge,'pointerup',296,200);assert.equal(d.querySelector('#shell').classList.contains('sidebar-open'),true);pointer(w,edge,'pointerdown',386,200);pointer(w,edge,'pointermove',186,200);pointer(w,edge,'pointerup',186,200);assert.equal(d.querySelector('#dialog').dataset.modal,'true');assert.equal(d.querySelector('#shell').classList.contains('sidebar-open'),false);assert.equal(d.querySelector('#viewportDock').inert,false)}finally{w.close()}
 });

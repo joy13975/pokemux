@@ -1156,10 +1156,14 @@ test('cursor wings expand on tap and send character, word and line steps',async(
   handle.click();
   assert.equal(handle.getAttribute('aria-expanded'),'true');
   const step=(direction,unit)=>d.querySelector(`[data-cursor-direction="${direction}"][data-cursor-step="${unit}"]`).click();
-  step('Left','near');step('Right','far');step('Up','near');step('Down','far');
+  for(const [direction,unit] of [['Left','near'],['Right','far'],['Up','near'],['Down','far']]){
+   if(handle.getAttribute('aria-expanded')!=='true')handle.click();
+   step(direction,unit);
+   assert.equal(handle.getAttribute('aria-expanded'),'false','A single arrow action folds the unlatched wings');
+  }
   await new Promise(r=>w.setTimeout(r,0));
   assert.deepEqual(w.actions.map(a=>a.key),['Left','Alt-Right','Up','Down','Down','Down']);
-  handle.click();
+  handle.click();handle.click();
   assert.equal(handle.getAttribute('aria-expanded'),'false');
   assert.equal(w.actions.length,6,'Opening and folding send no input');
  }finally{w.close()}
@@ -1197,9 +1201,26 @@ test('cursor repeat retains native keyboard focus, stops on release and stops on
   const stopped=w.actions.length;
   assert.ok(stopped>=2);assert.ok(w.actions.every(a=>a.key==='Down'));assert.equal(d.activeElement,output);
   await wait(260);assert.equal(w.actions.length,stopped);
+  d.querySelector('#cursorJoystick').click();
   cursorContact(w,wing,'pointerdown');await wait(0);w.fixture.otherTerminal();
   await wait(430);assert.equal(w.actions.length,stopped+1);
  }finally{w.close()}
+});
+test('holding the arrow handle latches repeated actions until the center is tapped',async()=>{
+ const dom=terminal(),w=dom.window,d=w.document,h=d.querySelector('#cursorJoystick');
+ try{
+  cursorContact(w,h,'pointerdown');await new Promise(r=>w.setTimeout(r,400));cursorContact(w,h,'pointerup');
+  assert.equal(h.getAttribute('aria-expanded'),'true');assert.equal(h.getAttribute('aria-pressed'),'true');
+  for(const direction of ['Left','Right']){const wing=cursorWing(d,direction,'near');cursorContact(w,wing,'pointerdown');cursorContact(w,wing,'pointerup');assert.equal(h.getAttribute('aria-expanded'),'true')}
+  await new Promise(r=>w.setTimeout(r,0));assert.deepEqual(w.actions.map(a=>a.key),['Left','Right']);
+  h.click();assert.equal(h.getAttribute('aria-expanded'),'false');assert.equal(h.getAttribute('aria-pressed'),'false');
+  cursorContact(w,h,'pointerdown');await new Promise(r=>w.setTimeout(r,400));cursorContact(w,h,'pointercancel');
+  assert.equal(h.getAttribute('aria-expanded'),'false','A cancelled hold must not latch');
+ }finally{w.close()}
+});
+test('temporary arrow wings fold on an outside contact without consuming the contact',()=>{
+ const dom=terminal(),w=dom.window,d=w.document,h=d.querySelector('#cursorJoystick');
+ try{h.click();const event=new w.Event('pointerdown',{bubbles:true,cancelable:true});Object.assign(event,{pointerId:71,isPrimary:true,button:0});d.querySelector('#content').dispatchEvent(event);assert.equal(h.getAttribute('aria-expanded'),'false');assert.equal(event.defaultPrevented,false)}finally{w.close()}
 });
 test('cursor handle moves only after a hold and swiping never sends a key',async()=>{
  const dom=terminal(),w=dom.window,d=w.document,h=d.querySelector('#cursorJoystick');
