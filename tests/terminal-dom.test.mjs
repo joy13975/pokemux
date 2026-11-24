@@ -1275,3 +1275,16 @@ test('Desktop uses the existing keyboard and shortcuts without sending input or 
   w.fixture.closeDesktop();assert.ok(w.document.querySelector('.terminal'));assert.equal(w.document.querySelector('#desktopStage'),null);
  }finally{dom.window.close()}
 });
+
+test('Desktop shortcut strip toggles on touch with no terminal workspace selected',async()=>{
+ const dom=terminal(),w=dom.window;
+ try{
+  w.fixture.applyTree({windows:[],notifications:[]});
+  w.fixture.desktopClass(class{constructor(options){this.input=options.input;this.options=options}async connect(){this.options.state(true)}layout(){}destroy(){this.options.state(false)}});
+  await w.fixture.openDesktop();const root=w.document.querySelector('.inputdock'),button=root.querySelector('.shortcut-grip');
+  const touch={pointerId:1,button:0,isPrimary:true,target:button,clientX:100,clientY:100,preventDefault(){}};
+  assert.equal(root.classList.contains('strip-hidden'),true);
+  root.onpointerdown(touch);root.onpointerup(touch);assert.equal(root.classList.contains('strip-hidden'),false);
+  root.onpointerdown(touch);root.onpointerup(touch);assert.equal(root.classList.contains('strip-hidden'),true);
+ }finally{w.close()}
+});
