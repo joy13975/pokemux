@@ -61,6 +61,9 @@ npm run desktop:setup
 This builds the engine with Homebrew and the Xcode Command Line Tools. Grant
 **Screen & System Audio Recording** and **Accessibility** to the app that starts
 the bridge when macOS asks. Restart the bridge after granting permissions.
+For the background LaunchAgent, add the Node executable (`command -v node`)
+to both permission lists using **+ → ⌘⇧G**. Permissions granted to Terminal
+or a coding agent do not carry over to the background service.
 The engine listens only on loopback; Pokemux protects its stream with the existing
 passkey session and Tailscale URL. Its native dependencies retain their upstream
 licenses; see screen-relay's third-party notices.
