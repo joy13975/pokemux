@@ -48,10 +48,10 @@ It is one screen, with the same floating keyboard control and shortcut strip
 as the terminal view. Use the back arrow to return to your terminals.
 
 Live macOS desktop in a separate Space, with Chrome in Incognito. Pointer
-control, scrolling and pinch zoom, viewed through Pokemux.
-[Still screenshot](docs/screenshots/mac-desktop.png).
+control, scrolling and pinch zoom, viewed through Pokemux. Menu bar status icons
+are redacted. [Still screenshot](docs/screenshots/mac-desktop-redacted.png).
 
-<img src="docs/screenshots/mac-desktop-demo.gif" alt="Pokemux controlling a real macOS desktop with its menu bar, Dock and a Chrome Incognito window, showing pointer control, scrolling and pinch zoom" width="900">
+<img src="docs/screenshots/mac-desktop-redacted.gif" alt="Pokemux controlling a real macOS desktop with menu bar status icons redacted, Dock and a Chrome Incognito window, showing pointer control, scrolling and pinch zoom" width="900">
 
 - Drag one finger to move the pointer; tap to click.
 - Hold to right-click, or hold and move to drag.
