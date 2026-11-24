@@ -41,11 +41,12 @@ test('lifting one finger after a pinch immediately returns to pointer panning',(
  assert.ok(p.x>before);assert.ok(sent.some(event=>event.type==='pointerMove'));assert.equal(sent.some(event=>event.type==='buttonDown'),false);
 });
 
-test('releasing one captured finger preserves the remaining finger gesture',()=>{
+test('desktop stage preserves remaining pointer contacts and native input focus',()=>{
  const dom=new JSDOM('<div></div><canvas></canvas><textarea></textarea><svg></svg><p></p>'),document=globalThis.document,observer=globalThis.ResizeObserver;globalThis.document=dom.window.document;globalThis.ResizeObserver=class{observe(){}disconnect(){}};
  let viewer;
  try{const d=dom.window.document,stage=d.querySelector('div');stage.setPointerCapture=()=>{};viewer=new DesktopView({sensitivity,stage,canvas:d.querySelector('canvas'),input:d.querySelector('textarea'),cursor:d.querySelector('svg'),status:d.querySelector('p'),text:()=>{},key:()=>{},state:()=>{}});viewer.pointer.resize(1000,600,500,300);
   const event=(pointerId,x,timeStamp)=>({pointerId,clientX:x,clientY:100,timeStamp,pointerType:'touch',preventDefault(){}});stage.onpointerdown(event(1,100,0));stage.onpointerdown(event(2,200,5));stage.onpointermove(event(2,280,100));stage.onpointerup(event(2,280,120));stage.onlostpointercapture(event(2,280,120));const before=viewer.pointer.x;stage.onpointermove(event(1,150,150));assert.ok(viewer.pointer.x>before);
+  viewer.input.focus();const click=new dom.window.MouseEvent('mousedown',{bubbles:true,cancelable:true});stage.dispatchEvent(click);assert.equal(click.defaultPrevented,true);assert.equal(d.activeElement,viewer.input);
  }finally{viewer?.destroy();globalThis.document=document;globalThis.ResizeObserver=observer;dom.window.close()}
 });
 

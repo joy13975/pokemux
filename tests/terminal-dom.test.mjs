@@ -1267,6 +1267,7 @@ test('Desktop uses the existing keyboard and shortcuts without sending input or 
  try{
   w.fixture.desktopClass(class{constructor(options){desktop=this;this.input=options.input;this.options=options}async connect(){this.options.state(true)}send(action,value){sent.push({action,value});return Promise.resolve(true)}layout(){}destroy(){this.options.state(false)}});
   await w.fixture.openDesktop();assert.ok(w.document.querySelector('#desktopStage'));assert.equal(w.document.querySelector('.panetabs'),null);assert.notEqual(w.document.activeElement,w.document.querySelector('#desktopInput'));
+  assert.equal(desktop.options.sensitivity().pan,1.3);
   w.document.querySelector('#dockKeyboard').click();assert.equal(w.document.activeElement,w.document.querySelector('#desktopInput'));
   w.document.querySelector('[data-key="Ctrl-K"]').click();await new Promise(r=>w.setTimeout(r,0));assert.deepEqual(sent,[{action:'key',value:'Ctrl+K'}]);assert.equal(w.actions.filter(a=>a.action!=='viewport').length,0);
   w.document.querySelector('[data-key="Ctrl"]').click();desktop.options.text('a');await new Promise(r=>w.setTimeout(r,0));assert.deepEqual(sent.at(-1),{action:'key',value:'Ctrl+a'});

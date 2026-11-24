@@ -95,6 +95,8 @@ export class DesktopView {
   } });
   bindDesktopInput(input, { text,key,paste:value=>this.send('paste',value),focus });
   stage.oncontextmenu = event => event.preventDefault();
+  // iOS 26 can blur the editor despite cancelling pointerdown.
+  stage.onmousedown = event => event.preventDefault();
   const mouse = event => { const rect=stage.getBoundingClientRect(),image=this.pointer.image;if(!image)return;this.pointer.x=clamp((event.clientX-rect.left-image.left)/image.width,0,1);this.pointer.y=clamp((event.clientY-rect.top-image.top)/image.height,0,1);this.emit({type:'pointerMove',x:this.pointer.x,y:this.pointer.y});this.pointer.paint(); };
   const button = event => event.button===2?3:event.button===1?2:1;
   stage.onpointerdown = event => { event.preventDefault(); stage.setPointerCapture(event.pointerId);if(event.pointerType==='mouse'){mouse(event);this.mouseDown=true;this.emit({type:'buttonDown',button:button(event),x:this.pointer.x,y:this.pointer.y});return}this.pointer.down(event.pointerId,event.clientX,event.clientY,event.timeStamp); };
