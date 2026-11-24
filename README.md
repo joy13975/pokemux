@@ -1,7 +1,12 @@
+<img src="app-icon.png" alt="Pokemux icon" width="80" height="80">
+
 # Pokemux
 
-Use your Mac's cmux terminals from your phone. Pokemux is a self-hosted web app
-with terminal tabs, a native phone keyboard, shortcuts and an editable Scratchpad.
+Use your Mac's cmux terminals from your phone. Check on Claude Code, Codex or
+OpenCode, answer questions and send the next instruction while away from your Mac.
+Pokemux is a self-hosted web app with terminal tabs, a native phone keyboard,
+shortcuts and an editable Scratchpad. Switch to Remote Desktop when you need to
+click something on the Mac's screen.
 
 Run your own instance on your Mac and connect through Tailscale.
 
@@ -41,6 +46,10 @@ not press Enter.
 Open the sidebar and choose **Desktop** to control the Mac's main display.
 It is one screen, with the same floating keyboard control and shortcut strip
 as the terminal view. Use the back arrow to return to your terminals.
+
+Live Mac screen, viewed from Pokemux in landscape. [Still screenshot](docs/screenshots/desktop.png).
+
+<img src="docs/screenshots/desktop-demo.gif" alt="Pokemux controlling a live Mac window showing this public README, with pointer movement and pinch zoom" width="900">
 
 - Drag one finger to move the pointer; tap to click.
 - Hold to right-click, or hold and move to drag.
