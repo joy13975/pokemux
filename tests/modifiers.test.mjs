@@ -9,7 +9,7 @@ function fixture() {
   buttons.forEach(b=>b.classList.owner=b);
   const roots=buttons.map(b=>({querySelectorAll: selector=>selector==='[data-key]'?[b]:[]}));
   const status={textContent:''},mods=new Map(),sent=[];let interrupts=0;
-  const context=vm.createContext({mods,kanaActive:()=>false,updateKeyboardLabels(){},connected:true,modifierKeys:['Ctrl','Alt','Shift'],preferences:{shortcuts:[]},document:{querySelectorAll:()=>buttons},$:()=>status,interruptDialog(){interrupts++},sendTerminal(kind,value){sent.push({kind,value})}});
+  const context=vm.createContext({mods,kanaActive:()=>false,updateKeyboardLabels(){},desktopActive:false,inputReady:()=>true,modifierKeys:['Ctrl','Alt','Shift'],preferences:{shortcuts:[]},document:{querySelectorAll:()=>buttons},$:()=>status,interruptDialog(){interrupts++},sendTerminal(kind,value){sent.push({kind,value})}});
   vm.runInContext(source,context); roots.forEach(root=>context.bindKeys(root));
   return {buttons,mods,sent,context,get interrupts(){return interrupts}};
 }

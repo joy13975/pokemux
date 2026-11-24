@@ -36,6 +36,35 @@ Pokemux transfers the image to a private temporary file on your Mac and inserts
 its path. The TUI must support images from local file paths. Image paste does
 not press Enter.
 
+## Desktop
+
+Open the sidebar and choose **Desktop** to control the Mac's main display.
+It is one screen, with the same floating keyboard control and shortcut strip
+as the terminal view. Use the back arrow to return to your terminals.
+
+- Drag one finger to move the pointer; tap to click.
+- Hold to right-click, or hold and move to drag.
+- Use two fingers to scroll; pinch to zoom into the screen.
+- The pointer stays centered while the zoomed desktop pans beneath it, until
+  a desktop edge is reached. Lifting one finger returns to pointer movement.
+- Adjust **Pan sensitivity** and **Pinch sensitivity** in **Settings → Desktop**.
+- Open the native keyboard with **⌘ → Show keyboard** or the keyboard button.
+  Tapping the desktop keeps the keyboard as it is.
+
+Desktop streaming uses [screen-relay](https://github.com/vercel-labs/screen-relay).
+After installing Pokemux's dependencies, set up its Mac engine once:
+
+```sh
+npm run desktop:setup
+```
+
+This builds the engine with Homebrew and the Xcode Command Line Tools. Grant
+**Screen & System Audio Recording** and **Accessibility** to the app that starts
+the bridge when macOS asks. Restart the bridge after granting permissions.
+The engine listens only on loopback; Pokemux protects its stream with the existing
+passkey session and Tailscale URL. Its native dependencies retain their upstream
+licenses; see screen-relay's third-party notices.
+
 ## Open links and files on your phone
 
 Tap a visible URL, or select a URL and hold the selection, to open a new browser
@@ -115,6 +144,8 @@ registration.
 
 Run `npm test`. Browser and cmux integration tools are in `tests/`; fixtures
 create disposable terminals and must clean up their own workspaces.
+With the Desktop engine installed and permissions granted, run
+`node tests/desktop-live.mjs` to check engine restart and credential cleanup.
 
 ## License
 

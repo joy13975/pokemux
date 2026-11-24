@@ -7,11 +7,15 @@ import { pipeline } from 'node:stream/promises';
 import { pathToFileURL } from 'node:url';
 import { CmuxBridge, RequestError, maxImageBytes, imageKind } from './bridge.mjs';
 import { Passkeys } from './auth.mjs';
+import { DesktopEngine, bindDesktopSockets } from './desktop-server.mjs';
 const nerdFont = '/vendor/nerd/SymbolsNerdFontMono-v3.5.1.woff2';
 const assets = new Map([
   ['/', ['index.html', 'text/html; charset=utf-8']],
   ['/setup', ['setup.html', 'text/html; charset=utf-8']],
   ['/setup.mjs', ['setup.mjs', 'text/javascript']],
+  ['/desktop.mjs', ['desktop.mjs', 'text/javascript']],
+  ['/vendor/screen-relay/index.js', ['node_modules/screen-relay/dist/protocol/index.js', 'text/javascript']],
+  ['/vendor/screen-relay/errors.js', ['node_modules/screen-relay/dist/protocol/errors.js', 'text/javascript']],
   ['/grid.mjs', ['grid.mjs', 'text/javascript']],
   ['/keyboard.mjs', ['keyboard.mjs', 'text/javascript']],
   ['/vendor/english/model.mjs', ['vendor/english/model.mjs', 'text/javascript']],
@@ -36,7 +40,7 @@ async function body(req) {
   try { return JSON.parse((await bytes(req, 100000)).toString()); }
   catch (error) { if (error instanceof SyntaxError) throw new RequestError(400, 'Invalid JSON'); throw error; }
 }
-export function application({ bridge, auth }) {
+export function application({ bridge, auth, desktop = new DesktopEngine({ origin: auth.origin }) }) {
   const streams = new Set();
   bridge.on('event', frame => {
     for (const stream of streams) {
@@ -46,7 +50,7 @@ export function application({ bridge, auth }) {
     }
   });
   bridge.on('disconnected', () => { for (const stream of streams) stream.res.end(); });
-  return createServer(async (req, res) => {
+  const server = createServer(async (req, res) => {
     res.setHeader('Cache-Control', 'no-store'); res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Referrer-Policy', 'no-referrer');
     res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'");
@@ -73,7 +77,15 @@ export function application({ bridge, auth }) {
           for(const entry of entries)console.info('Pokemux client diagnostic', JSON.stringify({receivedAt:new Date().toISOString(),...entry}));
           return json({recorded:true});
         }
-        if (req.method === 'POST' && path === '/api/logout') { await auth.logout(session.id); res.setHeader('Set-Cookie', 'pokemux=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0'); return json({ loggedOut: true }); }
+        if (req.method === 'POST' && path === '/api/logout') { await auth.logout(session.id); server.closeDesktopSession(session.id); res.setHeader('Set-Cookie', 'pokemux=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0'); return json({ loggedOut: true }); }
+        if (req.method === 'POST' && path === '/api/desktop') {
+          await desktop.start(); desktopSockets.stopIdle(); return json({ ready: true });
+        }
+        if (req.method === 'POST' && path === '/api/desktop/clipboard') {
+          const data = await body(req);
+          if (typeof data.text !== 'string' || data.text.includes('\0')) throw new RequestError(400, 'Paste text without NUL characters');
+          await desktop.clipboard(data.text); return json({ ready: true });
+        }
         if (req.method === 'GET' && path === '/api/status') return json(await bridge.status());
         if (req.method === 'POST' && path === '/api/connect') { await bridge.connect(); return json({ connected: true }); }
         if (req.method === 'GET' && path === '/api/events') { await bridge.connect(); bridge.observeMetadata(); }
@@ -138,11 +150,18 @@ export function application({ bridge, auth }) {
       if (!(error instanceof RequestError)) console.error(error);
     }
   });
+  const desktopSockets = bindDesktopSockets(server, { auth, desktop });
+  return server;
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const { origin, ownerLogin } = JSON.parse(await readFile(new URL('state/server.json', import.meta.url), 'utf8'));
   if (!origin.startsWith('https://') || !ownerLogin) throw new Error('Run node configure.mjs to configure the owner and HTTPS origin');
   const auth = new Passkeys({ origin, ownerLogin, file: new URL(`state/passkeys-${new URL(origin).hostname}.json`, import.meta.url) }); await auth.initialize();
   const bridge = new CmuxBridge(); await bridge.initialize();
-  application({ bridge, auth, origin }).listen(4388, '127.0.0.1', () => console.log(`Pokemux bridge listening on loopback:4388 for ${origin}`));
+  const desktop = new DesktopEngine({ origin });
+  for (const signal of ['SIGTERM', 'SIGINT']) process.once(signal, async () => {
+    try { await desktop.stop(); process.exit(0); }
+    catch (error) { console.error('Desktop shutdown failed:', error); process.exit(1); }
+  });
+  application({ bridge, auth, desktop }).listen(4388, '127.0.0.1', () => console.log(`Pokemux bridge listening on loopback:4388 for ${origin}`));
 }
