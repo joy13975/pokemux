@@ -15,7 +15,6 @@ const assets = new Map([
   ['/setup.mjs', ['setup.mjs', 'text/javascript']],
   ['/desktop.mjs', ['desktop.mjs', 'text/javascript']],
   ['/vendor/screen-relay/index.js', ['node_modules/screen-relay/dist/protocol/index.js', 'text/javascript']],
-  ['/vendor/screen-relay/errors.js', ['node_modules/screen-relay/dist/protocol/errors.js', 'text/javascript']],
   ['/grid.mjs', ['grid.mjs', 'text/javascript']],
   ['/keyboard.mjs', ['keyboard.mjs', 'text/javascript']],
   ['/vendor/english/model.mjs', ['vendor/english/model.mjs', 'text/javascript']],
