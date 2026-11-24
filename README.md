@@ -47,9 +47,11 @@ Open the sidebar and choose **Desktop** to control the Mac's main display.
 It is one screen, with the same floating keyboard control and shortcut strip
 as the terminal view. Use the back arrow to return to your terminals.
 
-Live Mac screen, viewed from Pokemux in landscape. [Still screenshot](docs/screenshots/desktop.png).
+Live macOS desktop in a separate Space, with Chrome in Incognito. Pointer
+control, scrolling and pinch zoom, viewed through Pokemux.
+[Still screenshot](docs/screenshots/mac-desktop.png).
 
-<img src="docs/screenshots/desktop-demo.gif" alt="Pokemux controlling a live Mac window showing this public README, with pointer movement and pinch zoom" width="900">
+<img src="docs/screenshots/mac-desktop-demo.gif" alt="Pokemux controlling a real macOS desktop with its menu bar, Dock and a Chrome Incognito window, showing pointer control, scrolling and pinch zoom" width="900">
 
 - Drag one finger to move the pointer; tap to click.
 - Hold to right-click, or hold and move to drag.
