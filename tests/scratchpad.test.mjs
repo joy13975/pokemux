@@ -6,9 +6,9 @@ import {RenderGrid} from '../grid.mjs';
 import {KanaComposer} from '../kana.mjs';
 import {installPopover} from './popover-fixture.mjs';
 const html=readFileSync(new URL('../index.html',import.meta.url),'utf8');
-function client(saved={},draft=''){
+function client(saved={},draft='',memory=null){
  const vc=new VirtualConsole();vc.on('jsdomError',error=>{if(error.type==='unhandled-exception')throw error});const dom=new JSDOM(html,{url:'https://scratchpad.invalid',runScripts:'outside-only',pretendToBeVisual:true,virtualConsole:vc}),w=dom.window;
- w.localStorage.setItem('cmux-pocket-customizations',JSON.stringify({shortcuts:[],snippets:[],keyboardDefaultVersion:1,keyboardMode:'native',...saved}));w.localStorage.setItem('pokemux-scratchpad',draft);
+ w.localStorage.setItem('cmux-pocket-customizations',JSON.stringify({shortcuts:[],snippets:[],keyboardDefaultVersion:1,keyboardMode:'native',...saved}));w.localStorage.setItem('pokemux-scratchpad',draft);if(memory!==null)w.localStorage.setItem('pokemux-scratchpad-history',memory);
  Object.defineProperties(w.document.documentElement,{clientWidth:{value:428},clientHeight:{value:926}});
  w.ResizeObserver=class{observe(){}disconnect(){}};w.matchMedia=query=>({matches:query!=='(display-mode: standalone)'});w.visualViewport={width:428,height:926,scale:1,offsetTop:0,offsetLeft:0,addEventListener(){}};installPopover(w);w.HTMLElement.prototype.setPointerCapture=()=>{};w.EventSource=class{addEventListener(){}close(){}};
  w.HTMLDialogElement.prototype.showModal=function(){this.open=true};w.HTMLDialogElement.prototype.show=function(){this.open=true};w.HTMLDialogElement.prototype.close=function(){this.open=false;this.dispatchEvent(new w.Event('close'))};
@@ -30,8 +30,8 @@ test('fifth scratchpad action preserves existing choices and can be configured',
 
 test('native scratchpad typing, composition and Close stay local, retain selection/draft, and survive refresh',async()=>{
  const dom=client({keyboardMode:'custom',keyboardLanguage:'katakana'}),w=dom.window,d=w.document;let retained;
- try{open(w);const area=enter(w,'Private draft 日本語\nsecond line');area.dispatchEvent(new w.CompositionEvent('compositionstart',{bubbles:true,data:'に'}));area.dispatchEvent(new w.CompositionEvent('compositionend',{bubbles:true,data:'に'}));assert.equal(area.getAttribute('autocorrect'),'on');assert.equal(area.getAttribute('spellcheck'),'true');assert.equal(area.getAttribute('inputmode'),'text');area.setSelectionRange(2,6);d.querySelector('#scratchGrip').click();assert.equal(d.querySelector('#scratchEditor').hidden,true);assert.equal(w.fixture.preferences.keyboardMode,'custom');assert.equal(w.fixture.preferences.keyboardLanguage,'katakana');open(w);assert.equal(area.value,'Private draft 日本語\nsecond line');assert.equal(area.selectionStart,2);assert.equal(area.selectionEnd,6);w.dispatchEvent(new w.Event('pagehide'));retained=w.localStorage.getItem('pokemux-scratchpad');await tick(w);assert.equal(w.requests.filter(r=>r.path==='/api/action').length,0);assert.ok(w.requests.every(r=>!r.body?.includes('Private draft')))}finally{w.close()}
- const refreshed=client({},retained);try{open(refreshed.window);assert.equal(refreshed.window.document.querySelector('#scratchText').value,retained)}finally{refreshed.window.close()}
+ try{open(w);const area=enter(w,'Private draft 日本語\nsecond line');area.dispatchEvent(new w.CompositionEvent('compositionstart',{bubbles:true,data:'に'}));area.dispatchEvent(new w.CompositionEvent('compositionend',{bubbles:true,data:'に'}));assert.equal(area.getAttribute('autocorrect'),'on');assert.equal(area.getAttribute('spellcheck'),'true');assert.equal(area.getAttribute('inputmode'),'text');area.setSelectionRange(2,6);d.querySelector('#scratchGrip').click();assert.equal(d.querySelector('#scratchEditor').hidden,true);assert.equal(w.fixture.preferences.keyboardMode,'custom');assert.equal(w.fixture.preferences.keyboardLanguage,'katakana');open(w);assert.equal(area.value,'Private draft 日本語\nsecond line');assert.equal(area.selectionStart,2);assert.equal(area.selectionEnd,6);w.dispatchEvent(new w.Event('pagehide'));retained=w.localStorage.getItem('pokemux-scratchpad-history');await tick(w);assert.equal(w.requests.filter(r=>r.path==='/api/action').length,0);assert.ok(w.requests.every(r=>!r.body?.includes('Private draft')))}finally{w.close()}
+ const refreshed=client({},'',retained);try{open(refreshed.window);assert.equal(refreshed.window.document.querySelector('#scratchText').value,'Private draft 日本語\nsecond line')}finally{refreshed.window.close()}
 });
 
 test('pulling the Scratchpad grip previews, reverses and commits without discarding the draft',()=>{
@@ -209,7 +209,7 @@ test('all five expanded floating actions remain distinct and inside the keyboard
  try{Object.assign(w.visualViewport,{height:300});for(const position of [[0,0],[1,0],[0,1],[1,1]]){w.fixture.preferences.floatingPosition=position;w.fixture.syncFloating();const control=d.querySelector('#floatingFunctions'),cx=parseFloat(control.style.left)+22,cy=parseFloat(control.style.top)+22,boxes=[...control.querySelectorAll('[data-function]')].map(b=>({x:cx+parseFloat(b.style.left),y:cy+parseFloat(b.style.top)}));for(const box of boxes){assert.ok(box.x>=48&&box.x<=428-48);assert.ok(box.y>=22&&box.y<=300-22)}for(let i=0;i<boxes.length;i++)for(let j=i+1;j<boxes.length;j++)assert.ok(Math.abs(boxes[i].x-boxes[j].x)>=96||Math.abs(boxes[i].y-boxes[j].y)>=44)} }finally{w.close()}
 });
 
-test('Send pastes the complete draft into the active tab then presses Enter',async()=>{const dom=client({},'Draft 日本語');const w=dom.window,d=w.document;try{w.fixture.switchSurface();open(w);d.querySelector('#scratchText').focus();const button=d.querySelector('#scratchSend');assert.ok(button,'Scratchpad needs Send');assert.equal(button.disabled,false);button.click();await tick(w);const actions=w.requests.filter(r=>r.path==='/api/action').map(r=>JSON.parse(r.body));assert.deepEqual(actions,[{action:'paste',workspace_id:'owned-workspace',surface_id:'other-surface',text:'Draft 日本語'},{action:'key',workspace_id:'owned-workspace',surface_id:'other-surface',key:'Enter'}]);assert.equal(d.querySelector('#scratchEditor').hidden,false);assert.equal(d.activeElement,d.querySelector('#scratchText'));assert.equal(d.querySelector('#scratchText').value,'');assert.equal(w.localStorage.getItem('pokemux-scratchpad'),'');assert.equal(d.querySelector('[data-scratch-send="enter"]').disabled,true);enter(w,'Retained');w.fixture.setConnection(false);assert.equal(d.querySelector('[data-scratch-send="enter"]').disabled,true);button.click();await tick(w);assert.equal(w.requests.filter(r=>r.path==='/api/action').length,2);assert.equal(d.querySelector('#scratchText').value,'Retained')}finally{w.close()}});
+test('Send pastes the complete draft into the active tab then presses Enter',async()=>{const dom=client({},'Draft 日本語');const w=dom.window,d=w.document;try{w.fixture.switchSurface();open(w);d.querySelector('#scratchText').focus();const button=d.querySelector('#scratchSend');assert.ok(button,'Scratchpad needs Send');assert.equal(button.disabled,false);button.click();await tick(w);const actions=w.requests.filter(r=>r.path==='/api/action').map(r=>JSON.parse(r.body));assert.deepEqual(actions,[{action:'paste',workspace_id:'owned-workspace',surface_id:'other-surface',text:'Draft 日本語'},{action:'key',workspace_id:'owned-workspace',surface_id:'other-surface',key:'Enter'}]);assert.equal(d.querySelector('#scratchEditor').hidden,false);assert.equal(d.activeElement,d.querySelector('#scratchText'));assert.equal(d.querySelector('#scratchText').value,'');assert.equal(d.querySelector('[data-scratch-send="enter"]').disabled,true);enter(w,'Retained');w.fixture.setConnection(false);assert.equal(d.querySelector('[data-scratch-send="enter"]').disabled,true);button.click();await tick(w);assert.equal(w.requests.filter(r=>r.path==='/api/action').length,2);assert.equal(d.querySelector('#scratchText').value,'Retained')}finally{w.close()}});
 
 test('Close hands an open native keyboard directly from the composer to the terminal',()=>{
  const dom=client(),w=dom.window,d=w.document;
@@ -241,4 +241,38 @@ test('holding Send can cancel or deliver the draft without Return',async()=>{
   assert.deepEqual(w.requests.filter(r=>r.path==='/api/action').map(r=>JSON.parse(r.body).action),['paste']);
   assert.equal(d.querySelector('#scratchText').value,'');assert.equal(d.activeElement,d.querySelector('#scratchText'));
  }finally{w.close()}
+});
+
+
+test('Scratchpad remembers nine recent messages and the current draft in a ten-slot FIFO',async()=>{
+ const dom=client(),w=dom.window,d=w.document;
+ try{
+  open(w);const previous=()=>d.querySelector('[data-scratch-history="-1"]'),next=()=>d.querySelector('[data-scratch-history="1"]');assert.ok(previous(),'The Send hold menu has Prev scratch');assert.ok(next(),'The Send hold menu has Next scratch');
+  for(let n=1;n<=12;n++){enter(w,'Message '+n);d.querySelector('#scratchSend').click();await tick(w)}
+  const draft=enter(w,'Unsent current draft');
+  for(let n=12;n>=4;n--){assert.equal(previous().disabled,false);previous().click();assert.equal(draft.value,'Message '+n)}
+  assert.equal(previous().disabled,true);for(let n=5;n<=12;n++){next().click();assert.equal(draft.value,'Message '+n)}next().click();assert.equal(draft.value,'Unsent current draft');assert.equal(next().disabled,true);assert.equal(d.activeElement,draft);
+ }finally{w.close()}
+});
+
+test('holding empty Send can navigate Scratchpad history without sending or changing keyboard focus',async()=>{
+ const dom=client({},'Sent message'),w=dom.window,d=w.document;
+ try{
+  open(w);const area=d.querySelector('#scratchText'),button=d.querySelector('#scratchSend'),choices=d.querySelector('#scratchSendChoices');area.focus();button.click();await tick(w);const delivered=w.requests.length;assert.equal(area.value,'');assert.equal(button.disabled,false);
+  const previous=choices.querySelector('[data-scratch-history="-1"]');assert.ok(previous);d.elementFromPoint=()=>previous;const point={button:0,isPrimary:true,pointerId:1,clientX:10,clientY:10,preventDefault(){}};button.onpointerdown(point);await new Promise(r=>w.setTimeout(r,380));assert.equal(choices.hidden,false);button.onpointerup(point);assert.equal(area.value,'Sent message');assert.equal(d.activeElement,area);choices.querySelector('[data-scratch-history="1"]').click();assert.equal(area.value,'');assert.equal(w.requests.length,delivered);assert.equal(d.activeElement,area);
+ }finally{w.close()}
+});
+
+test('Scratchpad migrates literal legacy text and persists navigation plus the unsent draft across reload',async()=>{
+ const legacy='["literal JSON draft"]',dom=client({},legacy),w=dom.window,d=w.document;let memory;
+ try{open(w);assert.equal(d.querySelector('#scratchText').value,legacy);d.querySelector('#scratchSend').click();await tick(w);enter(w,'Keep unsent');const previous=d.querySelector('[data-scratch-history="-1"]');assert.ok(previous);previous.click();w.dispatchEvent(new w.Event('pagehide'));memory=w.localStorage.getItem('pokemux-scratchpad-history')}finally{w.close()}
+ const restored=client({},'',memory);try{const d=restored.window.document;assert.equal(d.querySelector('#scratchText').value,legacy);d.querySelector('[data-scratch-history="1"]').click();assert.equal(d.querySelector('#scratchText').value,'Keep unsent')}finally{restored.window.close()}
+});
+
+test('Scratchpad records successful delivery while preserving edits typed during send, and does not record failed sends',async()=>{
+ for(const succeeds of [true,false]){
+  const dom=client({},'Submitted message'),w=dom.window,d=w.document;let complete;const fetch=w.fetch;
+  w.fetch=(path,options)=>path==='/api/action'&&JSON.parse(options.body).action==='paste'?new Promise(resolve=>complete=()=>resolve({ok:succeeds,status:succeeds?200:502,json:async()=>succeeds?{}:{error:'Failed delivery'}})):fetch(path,options);
+  try{open(w);d.querySelector('#scratchSend').click();await tick(w);enter(w,'New draft during send');complete();await tick(w);await tick(w);const previous=d.querySelector('[data-scratch-history="-1"]');assert.ok(previous);assert.equal(d.querySelector('#scratchText').value,'New draft during send');assert.equal(previous.disabled,!succeeds);if(succeeds){previous.click();assert.equal(d.querySelector('#scratchText').value,'Submitted message')}}finally{w.close()}
+ }
 });

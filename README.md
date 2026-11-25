@@ -30,6 +30,13 @@ for the available screen size, including after rotating to landscape.
 
 <img src="docs/screenshots/terminal-landscape.png" alt="The same Vim terminal redrawn to use the wider landscape display" width="900">
 
+## Scratchpad
+
+Hold **Send** for **Prev scratch** and **Next scratch**, even when the editor
+is empty. Pokemux keeps ten entries on this device, including the current draft.
+Sending adds to the history; browsing preserves the unsent draft. The history
+survives reloads.
+
 ## Image paste
 
 Copy an image on your phone, then open **⌘ → Paste**. Confirm Safari's Paste

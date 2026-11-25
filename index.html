@@ -52,7 +52,7 @@
 #scratchSend[data-can-send="false"]{background:var(--wash);color:var(--muted)}
 .scratch-layer:has(.scratch-send-choices:not([hidden])){z-index:9}
 .scratch-send-choices{position:absolute;right:0;bottom:100%;z-index:1;display:flex;flex-direction:column;gap:4px;padding:4px;border:1px solid var(--line);border-radius:10px;background:var(--chrome);box-shadow:0 4px 16px #0008;width:max-content;max-width:calc(var(--ui-width) - max(4px,var(--safe-left,0px)) - max(4px,var(--safe-right,0px)) - 10px)}
-.scratch-send-choices button{min-height:min(40px,calc((var(--scratch-space) - var(--scratch-bottom) - 69px)/3));padding:0 10px}
+.scratch-send-choices button{min-height:min(40px,calc((var(--scratch-space) - var(--scratch-bottom) - 69px)/var(--scratch-options)));padding:0 10px}
 .scratch-send-choices button.armed{background:var(--action);border-color:var(--blue);color:white}
 .language-popover{position:fixed;inset:auto;left:0;top:0;margin:0;padding:0;border:0;background:transparent;color:var(--ink);transform-origin:0 0;pointer-events:none;overflow:visible}.language-popover::backdrop{background:transparent;pointer-events:none}.language-choices{position:absolute;width:228px;max-width:calc(100% - 16px);padding:4px;border:1px solid var(--line);border-radius:12px;background:var(--raised);box-shadow:0 8px 28px #0008;pointer-events:auto;user-select:none;-webkit-user-select:none}.language-choices button{display:flex;align-items:center;justify-content:space-between;width:100%;min-height:44px;padding:0 12px;border:0;border-radius:7px;text-align:left;font-size:14px;background:transparent}.language-choices button[aria-pressed="true"]{background:var(--action);color:var(--blue)}.language-choices small{font-size:10px;color:var(--muted)}
 .workspacearea [data-drag-workspace] .wsbutton,.workspacearea [data-drag-workspace] .groupname{touch-action:none;user-select:none;-webkit-user-select:none}.workspace-drag-source{opacity:.5}.workspace-drop-before{box-shadow:inset 0 2px var(--blue)}.workspace-drop-after{box-shadow:inset 0 -2px var(--blue)}.workspace-drop-group{background:var(--wash);outline:1px solid var(--blue);outline-offset:-1px}.workspace-dragging{user-select:none;-webkit-user-select:none}
@@ -82,7 +82,7 @@
 <dialog class="dialog" id="dialog" aria-labelledby="dialogTitle"><div class="dialogheader"><h2 id="dialogTitle"></h2><button class="iconbtn" id="dialogClose" aria-label="Close dialog">×</button></div><div class="dialogbody" id="dialogBody"></div><div class="scrollcue" id="dialogScrollCue" hidden aria-hidden="true">⌄</div></dialog>
 <div class="viewport-dock" id="viewportDock"><section id="softwareKeyboard" class="software-keyboard" aria-label="Terminal keyboard" hidden></section></div><div class="floating-layer" id="floatingLayer"><div class="floating-functions" id="floatingFunctions"><button class="floating-handle" id="floatingHandle" aria-label="Floating functions" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6v12a3 3 0 1 0 3-3H6a3 3 0 1 0 3 3V6a3 3 0 1 0-3 3h12a3 3 0 1 0-3-3"/></svg></button><button data-function="0"></button><button data-function="1"></button><button data-function="2"></button><button data-function="3"></button><button data-function="4"></button></div><div id="cursorWings" class="cursor-wings" role="group" aria-label="Cursor steps" hidden></div><button class="cursor-joystick" id="cursorJoystick" aria-label="Cursor arrows" aria-controls="cursorWings" aria-expanded="false"><svg viewBox="0 0 44 44" aria-hidden="true"><path d="m18 13 4-4 4 4m5 5 4 4-4 4m-5 5-4 4-4-4m-5-5-4-4 4-4"/><circle cx="22" cy="22" r="2.5"/></svg></button></div>
 <div id="scratchLayer" class="scratch-layer" hidden><section id="scratchpad" class="scratchpad" aria-label="Scratchpad"><button type="button" id="scratchGrip" class="dock-grip scratch-grip" aria-label="Scratchpad" aria-controls="scratchEditor" aria-expanded="false" aria-keyshortcuts="ArrowUp ArrowDown" aria-description="Pull up or press Up to open"><svg class="icon" aria-hidden="true"><use href="#i-scratchpad"/></svg></button><button type="button" id="dockKeyboard" class="dock-keyboard" aria-label="Keyboard" aria-pressed="false" title="Show keyboard" disabled><svg class="icon" aria-hidden="true"><use href="#i-keyboard"/></svg></button><div id="scratchEditor" class="scratch-editor" hidden><textarea id="scratchText" aria-label="Scratchpad text" placeholder="Write here…" inputmode="text" autocorrect="on" autocapitalize="sentences" autocomplete="on" spellcheck="true"></textarea><div class="scratch-actions">
-<div class="scratch-send-anchor"><button type="button" id="scratchSend" class="primary" title="Hold for Scratchpad options" aria-controls="scratchSendChoices" aria-expanded="false" disabled>Send</button><div class="scratch-send-choices" id="scratchSendChoices" role="group" aria-label="Scratchpad options" hidden><button type="button" class="secondarybutton" data-scratch-resize aria-label="Expand scratchpad" aria-expanded="false">Expand</button><button type="button" class="secondarybutton" data-scratch-send="paste">Send without Enter</button><button type="button" class="secondarybutton" data-scratch-send="enter">Send and press Enter</button></div></div></div></div></section></div>
+<div class="scratch-send-anchor"><button type="button" id="scratchSend" class="primary" title="Hold for Scratchpad options" aria-controls="scratchSendChoices" aria-expanded="false" disabled>Send</button><div class="scratch-send-choices" id="scratchSendChoices" role="group" aria-label="Scratchpad options" hidden><button type="button" class="secondarybutton" data-scratch-history="-1">Prev scratch</button><button type="button" class="secondarybutton" data-scratch-history="1">Next scratch</button><button type="button" class="secondarybutton" data-scratch-resize aria-label="Expand scratchpad" aria-expanded="false">Expand</button><button type="button" class="secondarybutton" data-scratch-send="paste">Send without Enter</button><button type="button" class="secondarybutton" data-scratch-send="enter">Send and press Enter</button></div></div></div></div></section></div>
 <div id="languagePopover" class="language-popover" popover="auto" aria-label="Keyboard language"><div class="language-choices" role="group" aria-label="Choose keyboard language"><button type="button" id="languageEnglish" data-language="english">English</button><button type="button" id="languageHiragana" data-language="hiragana">日本語 · ひらがな</button><button type="button" id="languageKatakana" data-language="katakana">日本語 · カタカナ</button><button type="button" id="languageSystem" data-language="system">System keyboard <small>Kanji & dictation</small></button></div></div>
 <div class="edge-layer" id="edgeLayer"><div class="edge-zone" data-edge="left" aria-hidden="true"></div><div class="edge-zone" data-edge="right" aria-hidden="true"></div><div class="swipe-guide" id="swipeGuide" hidden aria-hidden="true"><div class="swipe-band"><svg class="icon" viewBox="0 0 24 24"><path d="m15 5-7 7 7 7"/></svg></div><div class="swipe-band"><svg class="icon" viewBox="0 0 24 24"><path d="M3 5h18v14H3zM9 5v14"/></svg></div></div></div><button id="menuScrim" class="menu-scrim" aria-label="Close app menu" hidden></button>
 <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
@@ -684,14 +684,25 @@ function revealInputLine(force=false){if(desktopActive)return;if((force!==true&&
 function syncPanelLayout(){document.documentElement.style.setProperty('--topbar-height',($('content').querySelector('.workspacehead')?.offsetHeight||0)+'px');const dialog=$('dialog'),open=dialog.open&&dialog.classList.contains('keyboard');$('content').classList.toggle('shortcuts-open',open);syncDock();syncFloating();requestAnimationFrame(revealInputLine)}
 function updateScrollHints(){const body=$('dialogBody'),rail=$('viewportDock').querySelector('.keygroups');$('dialogScrollCue').hidden=!$('dialog').open||body.scrollHeight-body.clientHeight-body.scrollTop<3;if(rail)rail.closest('.keybar').classList.toggle('more-keys',rail.scrollWidth-rail.clientWidth-rail.scrollLeft>3)}
 $('dialog').addEventListener('click',e=>{if($('dialog').dataset.swiped==='true'){delete $('dialog').dataset.swiped;e.preventDefault();e.stopImmediatePropagation()}},true);$('dialog').addEventListener('close',()=>{syncPanelLayout();updateScrollHints()});$('dialogBody').onscroll=updateScrollHints;panelResize.observe($('dialog'));panelResize.observe($('softwareKeyboard'));
-const scratchDraftKey='pokemux-scratchpad';
-function saveScratchpad(){clearTimeout(scratchSaveTimer);localStorage.setItem(scratchDraftKey,$('scratchText').value)}
+const scratchDraftKey='pokemux-scratchpad',scratchHistoryKey='pokemux-scratchpad-history',scratchCapacity=10;
+const savedScratchMemory=localStorage.getItem(scratchHistoryKey);
+const scratchMemory=savedScratchMemory===null?{entries:[localStorage.getItem(scratchDraftKey)||''],index:0}:JSON.parse(savedScratchMemory);
+function saveScratchpad(){clearTimeout(scratchSaveTimer);scratchMemory.entries[scratchMemory.index]=$('scratchText').value;localStorage.setItem(scratchHistoryKey,JSON.stringify(scratchMemory));localStorage.removeItem(scratchDraftKey)}
+function browseScratchpad(step){
+ if(scratchSending)return;
+ saveScratchpad();
+ const index=Math.max(0,Math.min(scratchMemory.entries.length-1,scratchMemory.index+step));
+ if(index===scratchMemory.index)return;
+ scratchMemory.index=index;const input=$('scratchText');input.value=scratchMemory.entries[index];scratchRevision++;
+ saveScratchpad();syncScratchSend();
+}
 function canSendScratchpad(){return !scratchSending&&!!$('scratchText').value&&inputReady()&&(desktopActive||!!current&&activeSurface().kind==='terminal')}
 function syncScratchSend(){
  const ready=canSendScratchpad();
  $('scratchSend').disabled=scratchSending;
  $('scratchSend').dataset.canSend=String(ready);
  for(const option of $('scratchSendChoices').querySelectorAll('[data-scratch-send]'))option.disabled=!ready;
+ for(const option of $('scratchSendChoices').querySelectorAll('[data-scratch-history]')){const index=scratchMemory.index+Number(option.dataset.scratchHistory);option.disabled=scratchSending||index<0||index>=scratchMemory.entries.length;}
 }
 function syncScratchpad(softwareHeight,otherDockHeight){
  syncScratchSend();
@@ -729,15 +740,20 @@ function hideScratchpad(){
 }
 async function sendScratchpad(withEnter){
  if(!canSendScratchpad())return;
- const input=$('scratchText'),revision=scratchRevision,target=inputTarget();
+ const input=$('scratchText'),revision=scratchRevision,target=inputTarget(),text=input.value,index=scratchMemory.index;saveScratchpad();
  cursorFollowing=true;revealInputLine();
  scratchSending=true;syncScratchSend();
  try{
   consumeModifiers();
-  const paste=sendTerminal('paste',input.value,target);
+  const paste=sendTerminal('paste',text,target);
   const delivery=withEnter?sendTerminal('key','Enter',target):paste;
-  if(await delivery&&scratchRevision===revision){
-   input.value='';saveScratchpad();
+  if(await delivery){
+   const draft=scratchRevision===revision?'':input.value;
+   if(index===scratchMemory.entries.length-1)scratchMemory.entries[index]=text;
+   else scratchMemory.entries.push(text);
+   scratchMemory.entries.push(draft);
+   if(scratchMemory.entries.length>scratchCapacity)scratchMemory.entries.splice(0,scratchMemory.entries.length-scratchCapacity);
+   scratchMemory.index=scratchMemory.entries.length-1;input.value=draft;scratchRevision++;saveScratchpad();
   }
  }finally{scratchSending=false;syncScratchSend()}
 }
@@ -811,7 +827,7 @@ function bindScratchGrip(){
  };
 }
 function bindScratchpad(){
- const input=$('scratchText');input.value=localStorage.getItem(scratchDraftKey)||'';input.onpaste=e=>{pasteImages(e)};
+ const input=$('scratchText');input.value=scratchMemory.entries[scratchMemory.index];saveScratchpad();input.onpaste=e=>{pasteImages(e)};
  input.oninput=()=>{scratchRevision++;clearTimeout(scratchSaveTimer);scratchSaveTimer=setTimeout(saveScratchpad,200);syncScratchSend()};
  const backspace=e=>{
   if(e.isComposing||input.selectionStart!==0||input.selectionEnd!==0)return;
@@ -827,7 +843,7 @@ function bindScratchpad(){
  window.addEventListener('pagehide',saveScratchpad);
 }
 function bindScratchSend(){
- const button=$('scratchSend'),choices=$('scratchSendChoices');let contact,timer;
+ const button=$('scratchSend'),choices=$('scratchSendChoices');let contact,timer;choices.style.setProperty('--scratch-options',choices.childElementCount);
  const show=open=>{
   choices.hidden=!open;button.setAttribute('aria-expanded',String(open));
   if(!open)choices.querySelector('.armed')?.classList.remove('armed');
@@ -835,7 +851,8 @@ function bindScratchSend(){
  const finish=()=>{clearTimeout(timer);contact=null;show(false)};
  const activate=option=>{
   finish();
-  if(option.hasAttribute('data-scratch-resize'))setScratchExpanded(!$('scratchpad').classList.contains('expanded'));
+  if(option.hasAttribute('data-scratch-history'))browseScratchpad(Number(option.dataset.scratchHistory));
+  else if(option.hasAttribute('data-scratch-resize'))setScratchExpanded(!$('scratchpad').classList.contains('expanded'));
   else sendScratchpad(option.dataset.scratchSend==='enter');
  };
  const choiceAt=e=>{const choice=document.elementFromPoint(e.clientX,e.clientY)?.closest('button');return choices.contains(choice)&&!choice.disabled?choice:null};
@@ -858,7 +875,7 @@ function bindScratchSend(){
  };
  button.onpointercancel=finish;button.addEventListener('lostpointercapture',()=>{if(contact)finish()});
  button.oncontextmenu=e=>e.preventDefault();
- button.onkeydown=e=>{if(e.key==='ArrowDown'){e.preventDefault();show(true);choices.firstElementChild.focus()}};
+ button.onkeydown=e=>{if(e.key==='ArrowDown'){e.preventDefault();show(true);choices.querySelector('button:not(:disabled)').focus()}};
  button.onclick=e=>{if(e.detail===0&&!contact){finish();sendScratchpad(true)}};
  for(const option of choices.children){
   option.onpointerdown=e=>e.preventDefault();
