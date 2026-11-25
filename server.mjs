@@ -16,6 +16,7 @@ const assets = new Map([
   ['/desktop.mjs', ['desktop.mjs', 'text/javascript']],
   ['/vendor/screen-relay/index.js', ['node_modules/screen-relay/dist/protocol/index.js', 'text/javascript']],
   ['/grid.mjs', ['grid.mjs', 'text/javascript']],
+  ['/block-selection.mjs', ['block-selection.mjs', 'text/javascript']],
   ['/keyboard.mjs', ['keyboard.mjs', 'text/javascript']],
   ['/vendor/english/model.mjs', ['vendor/english/model.mjs', 'text/javascript']],
   ['/vendor/symbols/NotoSansSymbols2-Regular.ttf', ['vendor/symbols/NotoSansSymbols2-Regular.ttf', 'font/ttf']],

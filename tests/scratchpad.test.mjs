@@ -158,7 +158,7 @@ test('holding Send expands an empty Scratchpad and shrinking preserves a selecte
   const resize=()=>choices.querySelector('[data-scratch-resize]');
   d.elementFromPoint=()=>resize();
   const chooseResize=async()=>{
-   send.onpointerdown(point);
+   send.onpointerdown(point);send.onpointermove({...point,clientY:0});
    assert.equal(choices.hidden,false);
    send.onpointerup(point);
   };
@@ -232,7 +232,7 @@ test('holding Send can cancel or deliver the draft without Return',async()=>{
  try{
   open(w);d.querySelector('#scratchText').focus();const button=d.querySelector('#scratchSend'),choices=d.querySelector('#scratchSendChoices');
   const point=x=>({button:0,isPrimary:true,pointerId:1,clientX:x,clientY:10,preventDefault(){}});
-  const hold=async()=>{button.onpointerdown(point(0));assert.equal(choices.hidden,false)};
+  const hold=async()=>{button.onpointerdown(point(0));button.onpointermove(point(50));assert.equal(choices.hidden,false)};
   d.elementFromPoint=x=>x===50?choices.querySelector('[data-scratch-send="paste"]'):d.body;
   await hold();button.onpointerup(point(99));await tick(w);
   assert.equal(d.querySelector('#scratchText').value,'Saved draft');assert.equal(w.requests.filter(r=>r.path==='/api/action').length,0);
@@ -258,7 +258,7 @@ test('holding empty Send can navigate Scratchpad history without sending or chan
  const dom=client({},'Sent message'),w=dom.window,d=w.document;
  try{
   open(w);const area=d.querySelector('#scratchText'),button=d.querySelector('#scratchSend'),choices=d.querySelector('#scratchSendChoices');area.focus();button.click();await tick(w);const delivered=w.requests.length;assert.equal(area.value,'');assert.equal(button.disabled,false);
-  const previous=choices.querySelector('[data-scratch-history="-1"]');assert.ok(previous);d.elementFromPoint=()=>previous;const point={button:0,isPrimary:true,pointerId:1,clientX:10,clientY:10,preventDefault(){}};button.onpointerdown(point);assert.equal(choices.hidden,false);button.onpointerup(point);assert.equal(area.value,'Sent message');assert.equal(d.activeElement,area);choices.querySelector('[data-scratch-history="1"]').click();assert.equal(area.value,'');assert.equal(w.requests.length,delivered);assert.equal(d.activeElement,area);
+  const previous=choices.querySelector('[data-scratch-history="-1"]');assert.ok(previous);d.elementFromPoint=()=>previous;const point={button:0,isPrimary:true,pointerId:1,clientX:10,clientY:10,preventDefault(){}};button.onpointerdown(point);button.onpointermove({...point,clientY:0});assert.equal(choices.hidden,false);button.onpointerup(point);assert.equal(area.value,'Sent message');assert.equal(d.activeElement,area);choices.querySelector('[data-scratch-history="1"]').click();assert.equal(area.value,'');assert.equal(w.requests.length,delivered);assert.equal(d.activeElement,area);
  }finally{w.close()}
 });
 
@@ -277,10 +277,10 @@ test('Scratchpad records successful delivery while preserving edits typed during
 });
 
 
-test('Send opens its menu immediately and a fast drag selects an option without waiting',async()=>{
+test('Send keeps the menu hidden on contact and a fast drag opens it without waiting',async()=>{
  const dom=client({},'Fast drag'),w=dom.window,d=w.document;
  try{open(w);const button=d.querySelector('#scratchSend'),menu=d.querySelector('#scratchSendChoices'),paste=menu.querySelector('[data-scratch-send="paste"]'),area=d.querySelector('#scratchText');area.focus();d.elementFromPoint=x=>x===50?paste:button;const point=x=>({button:0,isPrimary:true,pointerId:1,clientX:x,clientY:10,preventDefault(){}});
-  button.onpointerdown(point(0));assert.equal(menu.hidden,false,'The menu opens on contact, without a timer');button.onpointermove(point(50));assert.equal(paste.classList.contains('armed'),true);button.onpointerup(point(50));await tick(w);assert.deepEqual(w.requests.filter(r=>r.path==='/api/action').map(r=>JSON.parse(r.body).action),['paste']);assert.equal(area.value,'');assert.equal(d.activeElement,area);
+  button.onpointerdown(point(0));assert.equal(menu.hidden,true,'A normal tap does not flash the menu');button.onpointermove(point(50));assert.equal(menu.hidden,false);assert.equal(paste.classList.contains('armed'),true);button.onpointerup(point(50));await tick(w);assert.deepEqual(w.requests.filter(r=>r.path==='/api/action').map(r=>JSON.parse(r.body).action),['paste']);assert.equal(area.value,'');assert.equal(d.activeElement,area);
  }finally{w.close()}
 });
 
@@ -299,3 +299,12 @@ test('an interrupted Send press never submits on a later release over Send',asyn
   try{open(w);const button=d.querySelector('#scratchSend'),point={button:0,isPrimary:true,pointerId:1,clientX:0,clientY:10,preventDefault(){}};d.elementFromPoint=()=>button;button.onpointerdown(point);if(interruption==='blur')w.dispatchEvent(new w.Event('blur'));else button.dispatchEvent(new w.Event(interruption));button.onpointerup(point);await tick(w);assert.equal(w.requests.filter(r=>r.path==='/api/action').length,0);assert.equal(d.querySelector('#scratchText').value,'Retained after interruption');assert.equal(d.querySelector('#scratchSendChoices').hidden,true)}finally{w.close()}
  }
 });
+
+ test('stationary Send opens after one second, a normal tap never flashes it, and cancellation clears the timer',async()=>{
+ const dom=client({},'Tap to send'),w=dom.window,d=w.document;
+ try{open(w);const button=d.querySelector('#scratchSend'),menu=d.querySelector('#scratchSendChoices');let at=0;const timers=new Map();w.setTimeout=(fn,ms)=>{const id=Symbol();timers.set(id,{fn,at:at+ms});return id};w.clearTimeout=id=>timers.delete(id);const advance=ms=>{at+=ms;for(const[id,t]of timers)if(t.at<=at){timers.delete(id);t.fn()}};const point={button:0,isPrimary:true,pointerId:1,clientX:0,clientY:10,preventDefault(){}};d.elementFromPoint=()=>button;
+ button.onpointerdown(point);advance(999);assert.equal(menu.hidden,true);advance(1);assert.equal(menu.hidden,false);button.onpointercancel();assert.equal(menu.hidden,true);
+ button.onpointerdown(point);button.onpointerup(point);advance(2000);assert.equal(menu.hidden,true);await new Promise(r=>setTimeout(r,0));assert.equal(d.querySelector('#scratchText').value,'');
+ button.onpointerdown(point);button.onpointercancel();advance(2000);assert.equal(menu.hidden,true);assert.equal(timers.size,0);
+ }finally{w.close()}
+ });

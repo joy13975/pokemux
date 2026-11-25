@@ -9,6 +9,29 @@ export function cursorOffset(text, column) {
 export class RenderGrid {
   revision = 0;
   history = [];
+  copyRectangle(start, end) {
+    const history = this.activeScreen === 'alternate' ? [] : this.history;
+    const left = Math.max(0, Math.min(start.col, end.col)), right = Math.min(this.columns - 1, Math.max(start.col, end.col));
+    const top = Math.max(-history.length, Math.min(start.row, end.row)), bottom = Math.min(this.rows - 1, Math.max(start.row, end.row));
+    const lines = [...history, ...this.screen], result = [];
+    for (let row = top; row <= bottom; row++) {
+      let text = '', column = left;
+      for (const span of lines[row + history.length]) {
+        let at = span.column;
+        for (const { segment } of segments.segment(span.text)) {
+          const size = width(segment), next = at + size;
+          if (next > left && at <= right && size) {
+            text += ' '.repeat(Math.max(0, at - column));
+            text += span.style?.invisible ? ' '.repeat(Math.min(next, right + 1) - Math.max(at, left)) : segment;
+            column = next;
+          }
+          at = next;
+        }
+      }
+      result.push(text.replace(/ +$/u, ''));
+    }
+    return result.join('\n');
+  }
   cellAt(element, x, y, includeHistory = false) {
     if (element.paintedGrid !== `${this.epoch}/${this.revision}` || !element.firstElementChild) return null;
     const box = element.getBoundingClientRect(), line = element.firstElementChild.getBoundingClientRect();
@@ -80,7 +103,7 @@ export class RenderGrid {
   }
   paint(element) {
     const selection = element.ownerDocument.getSelection();
-    if (element.composing || selection?.toString() && element.contains(selection.anchorNode)) return false;
+    if (element.blockSelection || element.composing || selection?.toString() && element.contains(selection.anchorNode)) return false;
     if (element.paintedGrid === `${this.epoch}/${this.revision}`) return false;
     const doc = element.ownerDocument, content = [];
     const history = this.activeScreen === 'alternate' ? [] : this.history;

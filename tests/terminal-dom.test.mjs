@@ -1310,3 +1310,14 @@ test('Desktop shortcut strip toggles on touch with no terminal workspace selecte
   root.onpointerdown(touch);root.onpointerup(touch);assert.equal(root.classList.contains('strip-hidden'),true);
  }finally{w.close()}
 });
+
+test('Cmd replaces pipe in the default strip and supports one-shot, lock, unlock and native text input',async()=>{
+ const dom=terminal({groupOrder:[['|','`'],['Ctrl-C'],['Esc','Tab','Ctrl','Alt','Shift','Del']]}),w=dom.window,d=w.document;
+ try{
+  w.fixture.focusInput();const cmd=d.querySelector('.inputdock [data-key="Cmd"]');assert.ok(cmd,'Command is present even with saved strip group ordering');assert.equal(d.querySelector('.inputdock [data-key="|"]'),null);assert.equal(cmd.nextElementSibling.dataset.key,'`');
+  const type=text=>d.querySelector('.terminal').dispatchEvent(new w.InputEvent('beforeinput',{inputType:'insertText',data:text,bubbles:true,cancelable:true}));
+  cmd.click();type('a');await new Promise(r=>w.setTimeout(r,0));assert.equal(w.actions.at(-1).key,'Cmd-a');assert.equal(cmd.getAttribute('aria-pressed'),'false');
+  cmd.click();cmd.click();type('x');type('y');await new Promise(r=>w.setTimeout(r,0));assert.deepEqual(w.actions.slice(-2).map(a=>a.key),['Cmd-x','Cmd-y']);assert.equal(cmd.classList.contains('locked'),true);
+  cmd.click();type('z');await new Promise(r=>w.setTimeout(r,0));assert.equal(w.actions.at(-1).text,'z');
+ }finally{w.close()}
+});

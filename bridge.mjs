@@ -356,12 +356,12 @@ export class CmuxBridge extends EventEmitter {
         return result;
       }
       if (body.action === 'key') {
-        if (typeof body.key !== 'string' || body.key.length > 40 || !/^(?:(?:Ctrl|Alt|Shift)-)*(?:[\p{L}\p{N}\p{P}\p{S}]|Enter|Tab|Escape|Backspace|Space|Left|Right|Up|Down|Home|End|PageUp|PageDown|Insert|Delete|F(?:[1-9]|1[0-2]))$/u.test(body.key)) throw new RequestError(400, 'Unsupported key');
-        const prefix=body.key.match(/^(?:(?:Ctrl|Alt|Shift)-)+/)?.[0]||'',parts=prefix.split('-'),key=body.key.slice(prefix.length),modifier=1+(parts.includes('Shift')?1:0)+(parts.includes('Alt')?2:0)+(parts.includes('Ctrl')?4:0);
+        if (typeof body.key !== 'string' || body.key.length > 40 || !/^(?:(?:Ctrl|Alt|Shift|Cmd)-)*(?:[\p{L}\p{N}\p{P}\p{S}]|Enter|Tab|Escape|Backspace|Space|Left|Right|Up|Down|Home|End|PageUp|PageDown|Insert|Delete|F(?:[1-9]|1[0-2]))$/u.test(body.key)) throw new RequestError(400, 'Unsupported key');
+        const prefix=body.key.match(/^(?:(?:Ctrl|Alt|Shift|Cmd)-)+/)?.[0]||'',parts=prefix.split('-'),key=body.key.slice(prefix.length),modifier=1+(parts.includes('Shift')?1:0)+(parts.includes('Alt')?2:0)+(parts.includes('Ctrl')?4:0)+(parts.includes('Cmd')?8:0);
         if (/^F\d+$/.test(key)||key==='Insert'||(modifier>1&&['Home','End','PageUp','PageDown','Delete'].includes(key))) throw new RequestError(400, `cmux cannot send ${body.key} as a key; no terminal input was sent`);
         let sequence;
         if(modifier===1&&[...key].length===1)sequence=key;
-        else if (parts.includes('Alt')&&([...key].length===1||key==='Space')) {
+        else if (!parts.includes('Cmd')&&parts.includes('Alt')&&([...key].length===1||key==='Space')) {
           // Native named Alt text follows the Mac's Option policy rather than terminal Meta semantics.
           let text=key==='Space'?' ':parts.includes('Shift')?key.toUpperCase():key;
           if(parts.includes('Ctrl')){const code=text.toUpperCase().charCodeAt(0);if(text===' '||code>=64&&code<=95)text=String.fromCharCode(code&31);else if(text==='?')text='\x7f';}

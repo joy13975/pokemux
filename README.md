@@ -32,12 +32,21 @@ for the available screen size, including after rotating to landscape.
 
 ## Scratchpad
 
-Press **Send** to open its menu immediately, then drag to an option. Release
+Tap **Send** to send normally. Hold it for one second, or drag immediately,
+to open its menu. Release
 on **Send** to send with Enter, or outside both the button and menu to cancel.
 **Prev scratch** and **Next scratch** work even when the editor is empty.
 Pokemux keeps ten entries on this device, including the current draft.
 Sending adds to the history; browsing preserves the unsent draft. The history
 survives reloads.
+
+## Block selection
+
+Open the right sidebar and choose **Select block**. Drag across the text, adjust
+the two corner handles, then tap **Copy**. Only the chosen columns are copied;
+line breaks are preserved and trailing spaces are removed. This is useful for
+copying one table column without its neighbours. The display stays frozen until
+you tap **Done**; the terminal continues running.
 
 ## Image paste
 

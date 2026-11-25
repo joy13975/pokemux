@@ -6,6 +6,12 @@ import { createInterface } from 'node:readline';
 import { randomUUID } from 'node:crypto';
 import { CmuxBridge } from '../bridge.mjs';
 const until = async predicate => { const end = Date.now() + 3000; while (!predicate()) { assert.ok(Date.now() < end, 'local mirror made progress'); await new Promise(r => setTimeout(r, 10)); } };
+test('Command chords reach stock cmux intact instead of becoming plain text or Option escapes',async()=>{
+ const workspace_id=randomUUID(),surface_id=randomUUID(),bridge=new CmuxBridge(),received=[];
+ bridge.rpc=async(method,params)=>{if(method==='surface.health')return {workspace_id,surfaces:[{id:surface_id,type:'terminal'}]};received.push({method,params});return {ok:true}};
+ for(const key of ['Cmd-a','Cmd-Left','Cmd-Alt-x','Ctrl-Cmd-Shift-c'])await bridge.action({action:'key',key,workspace_id,surface_id});
+ assert.deepEqual(received.map(r=>[r.method,r.params.key]),['Cmd-a','Cmd-Left','Cmd-Alt-x','Ctrl-Cmd-Shift-c'].map(key=>['surface.send_key',key]));
+});
 test('completed taps reach only the explicitly targeted native mouse cell and reject missing or invalid geometry',async()=>{
  const workspace_id=randomUUID(),surface_id=randomUUID(),bridge=new CmuxBridge(),received=[];
  bridge.rpc=async(method,params)=>{if(method==='surface.health')return {workspace_id,surfaces:[{id:surface_id,type:'terminal'}]};received.push({method,params});return {ok:true}};
