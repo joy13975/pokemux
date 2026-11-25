@@ -677,3 +677,5 @@ Read-only investigation: current custom handler tracks independent pointer IDs, 
 
 
 | 283 | Add Recover last closed tab to the right sidebar. | Uses stock cmux's localized native History command through Accessibility and selects the restored terminal. Repeated taps cannot submit twice, and errors remain visible. Reproduced cmux acknowledging a close before its tree updates; tab and workspace closes now wait for actual removal before returning. Verified the browser close → right sidebar → native recovery → selected terminal flow against an owned cmux window. |
+
+| 284 | Keep TUI bottom content reachable after opening the iOS keyboard. | Reproduced with Scratchpad focused: keyboard opening shrank the visible terminal from 602px to 255px while leaving its scroll offset at 50px. The viewport now retains bottom alignment when the footer was visible, while preserving earlier reading positions. Touch, wheel and inertia consume clipped local rows before forwarding remaining motion to the TUI. Native Safari on iPhone 13 Pro Max Simulator verified the footer above the keyboard with Scratchpad still focused; regression checks cover local/remote handoff and zoom. |

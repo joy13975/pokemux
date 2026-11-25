@@ -669,6 +669,28 @@ function scrollFixture(saved={}){
  return {dom,w,d,wrap,touch};
 }
 
+test('keyboard-clipped TUI rows scroll locally before touch motion reaches the host',async()=>{
+ const {w,d,wrap,touch}=scrollFixture({scrollInertia:0});let top=50;
+ Object.defineProperties(wrap,{clientHeight:{value:255},scrollHeight:{value:656},scrollTop:{get:()=>top,set:value=>top=Math.max(0,Math.min(401,value))}});
+ try{
+  d.querySelector('#scratchGrip').click();const draft=d.querySelector('#scratchText');draft.focus();
+  w.visualViewport.scale=2;
+  touch('touchstart',250,0);touch('touchmove',190,16);touch('touchend',190,20);await new Promise(r=>w.setTimeout(r,0));
+  assert.equal(top,170,'Finger travel must pan the clipped terminal at its displayed scale');assert.equal(w.actions.length,0,'The TUI cannot consume motion while lower local rows remain hidden');assert.equal(d.activeElement,draft);
+  touch('touchstart',250,30);touch('touchmove',0,46);touch('touchend',0,50);await new Promise(r=>w.setTimeout(r,0));
+  assert.equal(top,401);assert.ok(w.actions.some(a=>a.action==='scroll'&&a.delta_lines<0),'Motion beyond the local bottom must continue into TUI scrolling');
+  w.actions.length=0;touch('touchstart',100,60);touch('touchmove',180,76);touch('touchend',180,80);await new Promise(r=>w.setTimeout(r,0));assert.equal(top,241);assert.equal(w.actions.length,0);
+ }finally{w.close()}
+});
+
+test('wheel scrolling exposes keyboard-clipped TUI rows before forwarding the remaining distance',async()=>{
+ const {w,wrap}=scrollFixture({scrollInertia:0});let top=350;Object.defineProperties(wrap,{clientHeight:{value:255},scrollHeight:{value:656},scrollTop:{get:()=>top,set:value=>top=Math.max(0,Math.min(401,value))}});
+ try{
+  const event=new w.WheelEvent('wheel',{deltaY:40,clientX:90,clientY:30,cancelable:true});wrap.dispatchEvent(event);await new Promise(r=>w.setTimeout(r,0));assert.equal(top,390);assert.equal(event.defaultPrevented,true);assert.equal(w.actions.length,0);
+  wrap.dispatchEvent(new w.WheelEvent('wheel',{deltaY:40,clientX:90,clientY:30,cancelable:true}));await new Promise(r=>w.setTimeout(r,0));assert.equal(top,401);assert.ok(w.actions.some(a=>a.action==='scroll'&&a.delta_lines<0));
+ }finally{w.close()}
+});
+
 test('TUI scrolling doubles its default displacement and persists both motion settings',async()=>{
  const {w,d,touch}=scrollFixture({scrollInertia:0});try{
   touch('touchstart',60,0);touch('touchmove',36,16);touch('touchend',36,16);await new Promise(r=>w.setTimeout(r,0));assert.equal(w.actions.reduce((n,a)=>n+a.delta_lines,0),-2);
