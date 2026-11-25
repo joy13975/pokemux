@@ -82,7 +82,7 @@
 <dialog class="dialog" id="dialog" aria-labelledby="dialogTitle"><div class="dialogheader"><h2 id="dialogTitle"></h2><button class="iconbtn" id="dialogClose" aria-label="Close dialog">×</button></div><div class="dialogbody" id="dialogBody"></div><div class="scrollcue" id="dialogScrollCue" hidden aria-hidden="true">⌄</div></dialog>
 <div class="viewport-dock" id="viewportDock"><section id="softwareKeyboard" class="software-keyboard" aria-label="Terminal keyboard" hidden></section></div><div class="floating-layer" id="floatingLayer"><div class="floating-functions" id="floatingFunctions"><button class="floating-handle" id="floatingHandle" aria-label="Floating functions" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6v12a3 3 0 1 0 3-3H6a3 3 0 1 0 3 3V6a3 3 0 1 0-3 3h12a3 3 0 1 0-3-3"/></svg></button><button data-function="0"></button><button data-function="1"></button><button data-function="2"></button><button data-function="3"></button><button data-function="4"></button></div><div id="cursorWings" class="cursor-wings" role="group" aria-label="Cursor steps" hidden></div><button class="cursor-joystick" id="cursorJoystick" aria-label="Cursor arrows" aria-controls="cursorWings" aria-expanded="false"><svg viewBox="0 0 44 44" aria-hidden="true"><path d="m18 13 4-4 4 4m5 5 4 4-4 4m-5 5-4 4-4-4m-5-5-4-4 4-4"/><circle cx="22" cy="22" r="2.5"/></svg></button></div>
 <div id="scratchLayer" class="scratch-layer" hidden><section id="scratchpad" class="scratchpad" aria-label="Scratchpad"><button type="button" id="scratchGrip" class="dock-grip scratch-grip" aria-label="Scratchpad" aria-controls="scratchEditor" aria-expanded="false" aria-keyshortcuts="ArrowUp ArrowDown" aria-description="Pull up or press Up to open"><svg class="icon" aria-hidden="true"><use href="#i-scratchpad"/></svg></button><button type="button" id="dockKeyboard" class="dock-keyboard" aria-label="Keyboard" aria-pressed="false" title="Show keyboard" disabled><svg class="icon" aria-hidden="true"><use href="#i-keyboard"/></svg></button><div id="scratchEditor" class="scratch-editor" hidden><textarea id="scratchText" aria-label="Scratchpad text" placeholder="Write here…" inputmode="text" autocorrect="on" autocapitalize="sentences" autocomplete="on" spellcheck="true"></textarea><div class="scratch-actions">
-<div class="scratch-send-anchor"><button type="button" id="scratchSend" class="primary" title="Hold for Scratchpad options" aria-controls="scratchSendChoices" aria-expanded="false" disabled>Send</button><div class="scratch-send-choices" id="scratchSendChoices" role="group" aria-label="Scratchpad options" hidden><button type="button" class="secondarybutton" data-scratch-history="-1">Prev scratch</button><button type="button" class="secondarybutton" data-scratch-history="1">Next scratch</button><button type="button" class="secondarybutton" data-scratch-resize aria-label="Expand scratchpad" aria-expanded="false">Expand</button><button type="button" class="secondarybutton" data-scratch-send="paste">Send without Enter</button><button type="button" class="secondarybutton" data-scratch-send="enter">Send and press Enter</button></div></div></div></div></section></div>
+<div class="scratch-send-anchor"><button type="button" id="scratchSend" class="primary" title="Drag for Scratchpad options" aria-controls="scratchSendChoices" aria-expanded="false" disabled>Send</button><div class="scratch-send-choices" id="scratchSendChoices" role="group" aria-label="Scratchpad options" hidden><button type="button" class="secondarybutton" data-scratch-history="-1">Prev scratch</button><button type="button" class="secondarybutton" data-scratch-history="1">Next scratch</button><button type="button" class="secondarybutton" data-scratch-resize aria-label="Expand scratchpad" aria-expanded="false">Expand</button><button type="button" class="secondarybutton" data-scratch-send="paste">Send without Enter</button><button type="button" class="secondarybutton" data-scratch-send="enter">Send and press Enter</button></div></div></div></div></section></div>
 <div id="languagePopover" class="language-popover" popover="auto" aria-label="Keyboard language"><div class="language-choices" role="group" aria-label="Choose keyboard language"><button type="button" id="languageEnglish" data-language="english">English</button><button type="button" id="languageHiragana" data-language="hiragana">日本語 · ひらがな</button><button type="button" id="languageKatakana" data-language="katakana">日本語 · カタカナ</button><button type="button" id="languageSystem" data-language="system">System keyboard <small>Kanji & dictation</small></button></div></div>
 <div class="edge-layer" id="edgeLayer"><div class="edge-zone" data-edge="left" aria-hidden="true"></div><div class="edge-zone" data-edge="right" aria-hidden="true"></div><div class="swipe-guide" id="swipeGuide" hidden aria-hidden="true"><div class="swipe-band"><svg class="icon" viewBox="0 0 24 24"><path d="m15 5-7 7 7 7"/></svg></div><div class="swipe-band"><svg class="icon" viewBox="0 0 24 24"><path d="M3 5h18v14H3zM9 5v14"/></svg></div></div></div><button id="menuScrim" class="menu-scrim" aria-label="Close app menu" hidden></button>
 <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
@@ -843,12 +843,12 @@ function bindScratchpad(){
  window.addEventListener('pagehide',saveScratchpad);
 }
 function bindScratchSend(){
- const button=$('scratchSend'),choices=$('scratchSendChoices');let contact,timer;choices.style.setProperty('--scratch-options',choices.childElementCount);
+ const button=$('scratchSend'),choices=$('scratchSendChoices');let contact;choices.style.setProperty('--scratch-options',choices.childElementCount);
  const show=open=>{
   choices.hidden=!open;button.setAttribute('aria-expanded',String(open));
   if(!open)choices.querySelector('.armed')?.classList.remove('armed');
  };
- const finish=()=>{clearTimeout(timer);contact=null;show(false)};
+ const finish=()=>{contact=null;show(false)};
  const activate=option=>{
   finish();
   if(option.hasAttribute('data-scratch-history'))browseScratchpad(Number(option.dataset.scratchHistory));
@@ -859,19 +859,17 @@ function bindScratchSend(){
  button.onpointerdown=e=>{
   if(e.button!==0||!e.isPrimary||button.disabled)return;
   e.preventDefault();button.setPointerCapture(e.pointerId);
-  contact={id:e.pointerId,x:e.clientX,y:e.clientY,dragged:false};timer=setTimeout(()=>show(true),350);
+  contact={id:e.pointerId};show(true);
  };
  button.onpointermove=e=>{
   if(contact?.id!==e.pointerId)return;
-  if(!choices.hidden){const choice=choiceAt(e);for(const option of choices.children)option.classList.toggle('armed',option===choice)}
-  else if(Math.hypot(e.clientX-contact.x,e.clientY-contact.y)*visualViewport.scale>=12){contact.dragged=true;clearTimeout(timer)}
+  const choice=choiceAt(e);for(const option of choices.children)option.classList.toggle('armed',option===choice);
  };
  button.onpointerup=e=>{
   if(contact?.id!==e.pointerId)return;
-  const option=choices.hidden?null:choiceAt(e);
-  const tap=choices.hidden&&!contact.dragged&&Math.hypot(e.clientX-contact.x,e.clientY-contact.y)*visualViewport.scale<12;
+  const option=choiceAt(e),overSend=button.contains(document.elementFromPoint(e.clientX,e.clientY));
   if(option)activate(option);
-  else{finish();if(tap)sendScratchpad(true)}
+  else{finish();if(overSend)sendScratchpad(true)}
  };
  button.onpointercancel=finish;button.addEventListener('lostpointercapture',()=>{if(contact)finish()});
  button.oncontextmenu=e=>e.preventDefault();

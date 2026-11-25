@@ -32,8 +32,10 @@ for the available screen size, including after rotating to landscape.
 
 ## Scratchpad
 
-Hold **Send** for **Prev scratch** and **Next scratch**, even when the editor
-is empty. Pokemux keeps ten entries on this device, including the current draft.
+Press **Send** to open its menu immediately, then drag to an option. Release
+on **Send** to send with Enter, or outside both the button and menu to cancel.
+**Prev scratch** and **Next scratch** work even when the editor is empty.
+Pokemux keeps ten entries on this device, including the current draft.
 Sending adds to the history; browsing preserves the unsent draft. The history
 survives reloads.
 

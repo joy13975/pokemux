@@ -159,7 +159,6 @@ test('holding Send expands an empty Scratchpad and shrinking preserves a selecte
   d.elementFromPoint=()=>resize();
   const chooseResize=async()=>{
    send.onpointerdown(point);
-   await new Promise(resolve=>w.setTimeout(resolve,380));
    assert.equal(choices.hidden,false);
    send.onpointerup(point);
   };
@@ -233,7 +232,7 @@ test('holding Send can cancel or deliver the draft without Return',async()=>{
  try{
   open(w);d.querySelector('#scratchText').focus();const button=d.querySelector('#scratchSend'),choices=d.querySelector('#scratchSendChoices');
   const point=x=>({button:0,isPrimary:true,pointerId:1,clientX:x,clientY:10,preventDefault(){}});
-  const hold=async()=>{button.onpointerdown(point(0));await new Promise(r=>w.setTimeout(r,380));assert.equal(choices.hidden,false)};
+  const hold=async()=>{button.onpointerdown(point(0));assert.equal(choices.hidden,false)};
   d.elementFromPoint=x=>x===50?choices.querySelector('[data-scratch-send="paste"]'):d.body;
   await hold();button.onpointerup(point(99));await tick(w);
   assert.equal(d.querySelector('#scratchText').value,'Saved draft');assert.equal(w.requests.filter(r=>r.path==='/api/action').length,0);
@@ -259,7 +258,7 @@ test('holding empty Send can navigate Scratchpad history without sending or chan
  const dom=client({},'Sent message'),w=dom.window,d=w.document;
  try{
   open(w);const area=d.querySelector('#scratchText'),button=d.querySelector('#scratchSend'),choices=d.querySelector('#scratchSendChoices');area.focus();button.click();await tick(w);const delivered=w.requests.length;assert.equal(area.value,'');assert.equal(button.disabled,false);
-  const previous=choices.querySelector('[data-scratch-history="-1"]');assert.ok(previous);d.elementFromPoint=()=>previous;const point={button:0,isPrimary:true,pointerId:1,clientX:10,clientY:10,preventDefault(){}};button.onpointerdown(point);await new Promise(r=>w.setTimeout(r,380));assert.equal(choices.hidden,false);button.onpointerup(point);assert.equal(area.value,'Sent message');assert.equal(d.activeElement,area);choices.querySelector('[data-scratch-history="1"]').click();assert.equal(area.value,'');assert.equal(w.requests.length,delivered);assert.equal(d.activeElement,area);
+  const previous=choices.querySelector('[data-scratch-history="-1"]');assert.ok(previous);d.elementFromPoint=()=>previous;const point={button:0,isPrimary:true,pointerId:1,clientX:10,clientY:10,preventDefault(){}};button.onpointerdown(point);assert.equal(choices.hidden,false);button.onpointerup(point);assert.equal(area.value,'Sent message');assert.equal(d.activeElement,area);choices.querySelector('[data-scratch-history="1"]').click();assert.equal(area.value,'');assert.equal(w.requests.length,delivered);assert.equal(d.activeElement,area);
  }finally{w.close()}
 });
 
@@ -274,5 +273,29 @@ test('Scratchpad records successful delivery while preserving edits typed during
   const dom=client({},'Submitted message'),w=dom.window,d=w.document;let complete;const fetch=w.fetch;
   w.fetch=(path,options)=>path==='/api/action'&&JSON.parse(options.body).action==='paste'?new Promise(resolve=>complete=()=>resolve({ok:succeeds,status:succeeds?200:502,json:async()=>succeeds?{}:{error:'Failed delivery'}})):fetch(path,options);
   try{open(w);d.querySelector('#scratchSend').click();await tick(w);enter(w,'New draft during send');complete();await tick(w);await tick(w);const previous=d.querySelector('[data-scratch-history="-1"]');assert.ok(previous);assert.equal(d.querySelector('#scratchText').value,'New draft during send');assert.equal(previous.disabled,!succeeds);if(succeeds){previous.click();assert.equal(d.querySelector('#scratchText').value,'Submitted message')}}finally{w.close()}
+ }
+});
+
+
+test('Send opens its menu immediately and a fast drag selects an option without waiting',async()=>{
+ const dom=client({},'Fast drag'),w=dom.window,d=w.document;
+ try{open(w);const button=d.querySelector('#scratchSend'),menu=d.querySelector('#scratchSendChoices'),paste=menu.querySelector('[data-scratch-send="paste"]'),area=d.querySelector('#scratchText');area.focus();d.elementFromPoint=x=>x===50?paste:button;const point=x=>({button:0,isPrimary:true,pointerId:1,clientX:x,clientY:10,preventDefault(){}});
+  button.onpointerdown(point(0));assert.equal(menu.hidden,false,'The menu opens on contact, without a timer');button.onpointermove(point(50));assert.equal(paste.classList.contains('armed'),true);button.onpointerup(point(50));await tick(w);assert.deepEqual(w.requests.filter(r=>r.path==='/api/action').map(r=>JSON.parse(r.body).action),['paste']);assert.equal(area.value,'');assert.equal(d.activeElement,area);
+ }finally{w.close()}
+});
+
+test('a Send drag returned to Send submits with Enter; releasing outside cancels even without a move event',async()=>{
+ for(const landing of ['send','outside']){
+  const dom=client({},'Release target'),w=dom.window,d=w.document;
+  try{open(w);const button=d.querySelector('#scratchSend'),menu=d.querySelector('#scratchSendChoices'),paste=menu.querySelector('[data-scratch-send="paste"]');const point=x=>({button:0,isPrimary:true,pointerId:1,clientX:x,clientY:10,preventDefault(){}});d.elementFromPoint=x=>x===50?paste:landing==='send'?button:d.body;
+   button.onpointerdown(point(0));if(landing==='send'){button.onpointermove(point(50));button.onpointermove(point(0))}button.onpointerup(point(1));await tick(w);const calls=w.requests.filter(r=>r.path==='/api/action').map(r=>JSON.parse(r.body));assert.deepEqual(calls.map(r=>r.action),landing==='send'?['paste','key']:[]);if(landing==='send')assert.equal(calls[1].key,'Enter');assert.equal(d.querySelector('#scratchText').value,landing==='send'?'':'Release target');assert.equal(menu.hidden,true);
+  }finally{w.close()}
+ }
+});
+
+test('an interrupted Send press never submits on a later release over Send',async()=>{
+ for(const interruption of ['pointercancel','lostpointercapture','blur']){
+  const dom=client({},'Retained after interruption'),w=dom.window,d=w.document;
+  try{open(w);const button=d.querySelector('#scratchSend'),point={button:0,isPrimary:true,pointerId:1,clientX:0,clientY:10,preventDefault(){}};d.elementFromPoint=()=>button;button.onpointerdown(point);if(interruption==='blur')w.dispatchEvent(new w.Event('blur'));else button.dispatchEvent(new w.Event(interruption));button.onpointerup(point);await tick(w);assert.equal(w.requests.filter(r=>r.path==='/api/action').length,0);assert.equal(d.querySelector('#scratchText').value,'Retained after interruption');assert.equal(d.querySelector('#scratchSendChoices').hidden,true)}finally{w.close()}
  }
 });
