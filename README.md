@@ -89,6 +89,18 @@ download. Your Pokemux terminal tab stays open.
 Hidden destinations behind TUI link labels are unavailable in cmux's current
 terminal stream. Relative file paths also need their full Mac path.
 
+## Recover a closed tab
+
+Open the right sidebar and tap **Recover last closed tab**. This runs cmux's
+**History → Reopen Last Closed**, then selects the recovered tab in Pokemux.
+It uses cmux's shared history, including items closed on the Mac. Recovery has
+the same limits as cmux's native command; it cannot undo a terminated process.
+
+Install the Xcode Command Line Tools (`xcode-select --install`) and grant
+**Accessibility** to the app or Node executable running the bridge in
+**System Settings → Privacy & Security**. Screen recording is not required
+for tab recovery.
+
 ## Let your agent install it
 
 Install and sign in to Tailscale on your Mac and phone using the same account.

@@ -12,7 +12,7 @@ test('workspace close sends confirmation only after the red button; Cancel does 
  }finally{f.dom.window.close()}
 });
 test('only explicit confirmation permits closing a busy native workspace',async()=>{
- const bridge=new CmuxBridge(),closed=[];bridge.tree=async()=>({windows:[{id:'window',groups:[],workspaces:[{id:'busy'}]}]});bridge.rpc=async(method,params)=>{assert.equal(method,'workspace.close');if(params.force!==true)throw new Error('confirmation_required');closed.push(params.workspace_id);return{workspace_id:params.workspace_id}};
+ const bridge=new CmuxBridge(),closed=[];bridge.tree=async()=>({windows:[{id:'window',groups:[],workspaces:[{id:'busy'}]}]});bridge.rpc=async(method,params)=>{if(method==='system.tree')return {windows:[]};assert.equal(method,'workspace.close');if(params.force!==true)throw new Error('confirmation_required');closed.push(params.workspace_id);return{workspace_id:params.workspace_id}};
  try{const request={action:'close-workspace',window_id:'window',workspace_id:'busy'};for(const extra of [{},{force:true},{confirmed:'true'}]){await assert.rejects(bridge.manage({...request,...extra}),/confirmation_required/);assert.equal(closed.length,0)}await bridge.manage({...request,confirmed:true});assert.deepEqual(closed,['busy'])}finally{bridge.close()}
 });
 function fixture(){

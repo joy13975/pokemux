@@ -4,7 +4,9 @@ import { EventEmitter } from 'node:events';
 import { createInterface } from 'node:readline';
 import { createConnection } from 'node:net';
 import { randomUUID } from 'node:crypto';
-import { isDeepStrictEqual } from 'node:util';
+import { isDeepStrictEqual, promisify } from 'node:util';
+import { execFile } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { readFile, writeFile, mkdir, rename, mkdtemp, rm } from 'node:fs/promises';
 const uuid = /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
 export const maxImageBytes = 10 * 1024 * 1024;
@@ -148,6 +150,13 @@ export class CmuxBridge extends EventEmitter {
   async manage(body) {
     const tree = await this.tree(), window = tree.windows.find(w => w.id === body.window_id);
     if (!window) throw new RequestError(404, 'cmux window no longer exists');
+    if (body.action === 'recover-tab') {
+      const existing = new Set(tree.windows.flatMap(w => w.workspaces.flatMap(ws => ws.panes.flatMap(p => p.surfaces.map(s => s.id)))));
+      await this.rpc('window.focus', { window_id: window.id });
+      await this.reopenNativeTab();
+      const { active } = await this.waitForTree(tree => tree.active?.surface_id && !existing.has(tree.active.surface_id), 'cmux did not report a recovered tab.');
+      return Object.fromEntries(['window_id', 'workspace_id', 'pane_id', 'surface_id'].map(key => [key, active[key]]));
+    }
     const workspace = window.workspaces.find(w => w.id === body.workspace_id), group = window.groups.find(g => g.id === body.group_id);
     if (body.action === 'new-group') {
       if (typeof body.name !== 'string' || !body.name.trim() || body.name.length > 120) throw new RequestError(400, 'Group name required');
@@ -193,8 +202,33 @@ export class CmuxBridge extends EventEmitter {
       if (typeof body.name !== 'string' || !body.name.trim() || body.name.length > 120) throw new RequestError(400, 'Workspace name required');
       return this.rpc('workspace.rename', { workspace_id: workspace.id, title: body.name });
     }
-    if (body.action === 'close-workspace') return this.rpc('workspace.close', { workspace_id: workspace.id, force: body.confirmed === true });
+    if (body.action === 'close-workspace') return this.closeTarget('workspace.close', { workspace_id: workspace.id, force: body.confirmed === true });
     throw new RequestError(400, 'Unknown workspace action');
+  }
+  async waitForTree(ready, message) {
+    const deadline = Date.now() + 5000;
+    do {
+      const tree = await this.rpc('system.tree', { all_windows: true });
+      if (ready(tree)) return tree;
+      await new Promise(resolve => setTimeout(resolve, 50));
+    } while (Date.now() < deadline);
+    throw new RequestError(504, message);
+  }
+  async closeTarget(method, params) {
+    const result = await this.rpc(method, params);
+    await this.waitForTree(tree => {
+      const workspace = tree.windows.flatMap(w => w.workspaces).find(ws => ws.id === params.workspace_id);
+      return !workspace || params.surface_id && !workspace.panes.some(p => p.surfaces.some(s => s.id === params.surface_id));
+    }, 'cmux did not finish closing the tab or workspace.');
+    return result;
+  }
+  async reopenNativeTab() {
+    try { await promisify(execFile)('/usr/bin/swift', [fileURLToPath(new URL('recover-tab.swift', import.meta.url))], { timeout: 15000, maxBuffer: 65536 }); }
+    catch (error) {
+      if (error.code === 'ENOENT' || error.code === 72) throw new RequestError(503, 'Install the Xcode Command Line Tools on the Mac to enable tab recovery.');
+      if (error.code === 2) { const failure = JSON.parse(error.stderr); throw new RequestError(failure.status, failure.message); }
+      throw error;
+    }
   }
   async target(params) {
     if (!uuid.test(params.workspace_id || '') || !uuid.test(params.surface_id || '')) throw new RequestError(400, 'Explicit workspace and terminal IDs required');
@@ -339,8 +373,8 @@ export class CmuxBridge extends EventEmitter {
       }
       if (body.action === 'close') {
         return health.surfaces.length === 1
-          ? this.rpc('workspace.close', { workspace_id: target.workspace_id, force: true })
-          : this.rpc('surface.close', { ...target, force: true });
+          ? this.closeTarget('workspace.close', { workspace_id: target.workspace_id, force: true })
+          : this.closeTarget('surface.close', { ...target, force: true });
       }
       if (body.action === 'rename') {
         if (typeof body.name !== 'string' || !body.name.trim() || body.name.length > 120) throw new RequestError(400, 'A terminal name is required');

@@ -674,3 +674,6 @@ Read-only investigation: current custom handler tracks independent pointer IDs, 
 | 281 | Move the source to code/pokemux and clean its history. | Removed generated screenshots, traces, run reports and unused icon experiments from every retained source revision. Machine-specific source locations are redacted in historical revisions and current runtime paths use the current user's home directory. |
 
 | 282 | Align wider keyboard, Enter and Scratchpad actions. | Send is 45 pixels tall. Its hold menu stacks upward with Expand or Shrink and both Send choices. Expansion works with an empty draft. Backspace at an unselected Scratchpad caret at zero goes directly to the active terminal. Verified browser gestures, delivery and cancellation, plus native Safari deletion and portrait/landscape alignment. |
+
+
+| 283 | Add Recover last closed tab to the right sidebar. | Uses stock cmux's localized native History command through Accessibility and selects the restored terminal. Repeated taps cannot submit twice, and errors remain visible. Reproduced cmux acknowledging a close before its tree updates; tab and workspace closes now wait for actual removal before returning. Verified the browser close → right sidebar → native recovery → selected terminal flow against an owned cmux window. |

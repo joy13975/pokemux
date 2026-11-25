@@ -23,7 +23,7 @@ function client(saved={},boot=false) {
  w.eval(script.slice(0,script.lastIndexOf('(async()=>{'))+`
   RenderGrid=window.__RenderGrid;KanaComposer=window.__KanaComposer;kana=new KanaComposer();
   current=workspace('owned-workspace','Owned workspace',null,'','',[pane('owned-pane',[surface('owned-surface','Owned terminal'),surface('owned-other','Other terminal')])],'owned-window');workspaces.push(current);selectedWindow=current.window;connected=true;render();syncFloating();
-  window.fixture={runFloating,sendKey,displaySettings,appMenu,languageDialog,preferences,floatingChoices,syncFloating,switchTerminal(){selectSurface('owned-pane','owned-other')}};
+  window.fixture={runFloating,sendKey,displaySettings,appMenu,languageDialog,preferences,floatingChoices,syncFloating,setConnection,switchTerminal(){selectSurface('owned-pane','owned-other')}};
  `);
  return dom;
 }
@@ -55,4 +55,25 @@ test('authenticated startup with a saved emulated keyboard offers only the nativ
   assert.equal(d.querySelector('#softwareKeyboard').hidden,true);
   assert.equal(JSON.parse(w.localStorage.getItem('cmux-pocket-customizations')).customKeyboardLanguage,'katakana');
  }finally{w.close()}
+});
+
+test('right sidebar recovers once while pending, then selects the restored workspace and tab',async()=>{
+ const dom=client({keyboardMode:'native',keyboardLanguage:'system'}),w=dom.window,d=w.document,calls=[];let finish;
+ const restored={window_id:'restored-window',workspace_id:'restored-workspace',pane_id:'restored-pane',surface_id:'restored-tab'},fetch=w.fetch;
+ w.fetch=async(path,options)=>{
+  if(path==='/api/manage'){calls.push(JSON.parse(options.body));return new Promise(resolve=>finish=()=>resolve({ok:true,status:200,json:async()=>restored}))}
+  if(path==='/api/tree')return {ok:true,status:200,json:async()=>({notifications:[],windows:[{id:restored.window_id,groups:[],workspaces:[{id:restored.workspace_id,title:'Recovered workspace',panes:[{id:restored.pane_id,selected_surface_id:restored.surface_id,surfaces:[{id:restored.surface_id,title:'Recovered tab',type:'terminal'}]}]}]}]})};
+  return fetch(path,options);
+ };
+ try{
+  w.fixture.appMenu();const button=d.querySelector('#menuRecoverTab');assert.ok(button,'The right sidebar offers Recover last closed tab');w.fixture.setConnection(false);assert.equal(button.disabled,true);w.fixture.setConnection(true);assert.equal(button.disabled,false);button.click();button.click();
+  assert.deepEqual(calls,[{action:'recover-tab',window_id:'owned-window'}]);w.fixture.appMenu();assert.equal(d.querySelector('#menuRecoverTab').disabled,true,'Reopening the drawer cannot submit twice');
+  finish();await new Promise(r=>w.setTimeout(r,0));assert.equal(d.querySelector('#dialog').open,false);assert.equal(w.location.hash,'#restored-window/restored-workspace/restored-tab');assert.equal(d.querySelector('#windowSelect').value,'restored-window');assert.equal(d.querySelector('[data-surface="restored-tab"]').classList.contains('active'),true);assert.equal(d.activeElement.closest('.terminal'),null,'Recovery cannot automatically activate the keyboard');
+ }finally{w.close()}
+});
+
+test('failed recovery keeps its right sidebar action available and shows the native reason',async()=>{
+ const dom=client(),w=dom.window,d=w.document,fetch=w.fetch;
+ w.fetch=(path,options)=>path==='/api/manage'?Promise.resolve({ok:false,status:409,json:async()=>({error:'No closed tabs to recover'})}):fetch(path,options);
+ try{w.fixture.appMenu();const button=d.querySelector('#menuRecoverTab');assert.ok(button);button.click();await new Promise(r=>w.setTimeout(r,0));assert.equal(d.querySelector('#dialog').open,true);assert.equal(button.disabled,false);assert.equal(d.querySelector('#toast').textContent,'No closed tabs to recover')}finally{w.close()}
 });
