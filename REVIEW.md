@@ -692,6 +692,8 @@ Read-only investigation: current custom handler tracks independent pointer IDs, 
 
 | 290 | Replace the default pipe key with a configurable Cmd modifier. | Cmd has the same one-shot and double-tap lock behavior as the other modifiers. Named and custom shortcuts accept Cmd chords; the bridge forwards them intact through stock cmux's key API, including when combined with Alt. Cmd-Left was verified to deliver the Mac's start-of-line key to an owned terminal. The pipe remains available in the expanded key list and custom shortcuts. |
 
+| 291 | Fix repeated A characters when typing into QEMU or AnyDesk through Desktop. | The text-event path uses the Mac A key code for every character. A physical-key input fix is prepared and unit-tested; it is awaiting verification in a prepared guest field before deployment. |
+
 | 292 | Make block selection the default, with Settings opt-out and reachable edges. | Hold terminal text and drag, or drag with a mouse, to select columns directly. Ordinary touch swipes and pinches keep their scrolling and zoom roles. Settings can restore native selection. The visible edge can be reached from inside a 24px rim, including after zooming or panning; Copy/Done and corner handles remain. |
 
 | 293 | Make Desktop double-tap right-click and two-finger dragging reliably scroll. | The second nearby tap right-clicks instead of sending a second left click. Parallel finger updates are classified together so the first arriving pointer update cannot prematurely lock the gesture into zoom; actual pinches still zoom. Dragging, cancellation and a new multi-touch gesture reset double-tap recognition. |
