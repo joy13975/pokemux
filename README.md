@@ -42,11 +42,13 @@ survives reloads.
 
 ## Block selection
 
-Open the right sidebar and choose **Select block**. Drag across the text, adjust
+Hold terminal text, then drag to select a block. With a mouse, just drag. Adjust
 the two corner handles, then tap **Copy**. Only the chosen columns are copied;
 line breaks are preserved and trailing spaces are removed. This is useful for
 copying one table column without its neighbours. The display stays frozen until
-you tap **Done**; the terminal continues running.
+you tap **Done**; the terminal continues running. The highlight reaches the
+visible edges before your finger reaches the rim. Turn off **Block text
+selection** in Settings to use native selection instead.
 
 ## Image paste
 
@@ -72,7 +74,7 @@ are redacted. [Still screenshot](docs/screenshots/mac-desktop-redacted.png).
 <img src="docs/screenshots/mac-desktop-redacted.gif" alt="Pokemux controlling a real macOS desktop with menu bar status icons redacted, Dock and a Chrome Incognito window, showing pointer control, scrolling and pinch zoom" width="900">
 
 - Drag one finger to move the pointer; tap to click.
-- Hold to right-click, or hold and move to drag.
+- Double-tap to right-click; holding still also right-clicks. Hold and move to drag.
 - Use two fingers to scroll; pinch to zoom into the screen.
 - The pointer stays centered while the zoomed desktop pans beneath it, until
   a desktop edge is reached. Lifting one finger returns to pointer movement.

@@ -36,3 +36,10 @@ test('block drag and corner adjustment copy the frozen paint, then Done restores
   d.querySelector('[data-block-done]').click();assert.equal(output.blockSelection,false);assert.equal(closed,1);assert.equal(d.querySelector('.block-select-stage'),null);assert.equal(grid.paint(output),true);assert.ok(output.textContent.includes('new streamed output'));
  }finally{block.close();w.close()}
 });
+
+test('selection reaches visible edges from inside the rim, including a zoomed and panned terminal',async()=>{
+ const {BlockSelection}=await import('../block-selection.mjs');const dom=new JSDOM('<div class="terminalwrap"><pre></pre></div><div id="layer"></div>'),d=dom.window.document,output=d.querySelector('pre'),grid=new RenderGrid();grid.apply(frame);grid.paint(output);let textLeft=10,textWidth=360;
+ const rect=(left,top,width,height)=>({left,top,width,height,right:left+width,bottom:top+height});output.getBoundingClientRect=()=>rect(textLeft,80,textWidth,80);for(const[row,line]of [...output.children].entries())line.getBoundingClientRect=()=>rect(textLeft,80+row*20,textWidth,20);output.parentElement.getBoundingClientRect=()=>rect(10,80,360,80);d.querySelector('#layer').getBoundingClientRect=()=>rect(0,0,400,240);
+ const block=new BlockSelection({output,grid,layer:d.querySelector('#layer'),copy:()=>{},onClose:()=>{}});
+ try{assert.deepEqual(block.point({clientX:28,clientY:98}),{col:0,row:0});assert.deepEqual(block.point({clientX:352,clientY:142}),{col:35,row:3});const columns=new Set(Array.from({length:140},(_,n)=>block.point({clientX:10+n/2,clientY:120}).col));for(let col=0;col<6;col++)assert.ok(columns.has(col),'Edge assistance must leave every nearby column reachable');textLeft=-100;textWidth=720;assert.deepEqual(block.point({clientX:28,clientY:98}),{col:5,row:0});assert.deepEqual(block.point({clientX:352,clientY:142}),{col:23,row:3});}finally{block.close();dom.window.close()}
+});

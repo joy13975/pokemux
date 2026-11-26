@@ -21,27 +21,21 @@ export class DesktopPointer {
   if (this.contacts.size === 1) { this.dragging = false; this.multi = null; this.holdTimer = setTimeout(() => { if (this.contacts.size===1&&!this.contacts.get(id)?.moved) { this.holding=true;this.paint(); } },holdDelay); }
   if (this.contacts.size === 2) {
    const [a,b] = [...this.contacts.values()];
-   this.multi = { distance: Math.hypot(a.x-b.x,a.y-b.y), x: (a.x+b.x)/2, y: (a.y+b.y)/2, zoom: this.zoom, scrollY: (a.y+b.y)/2, scrollX: (a.x+b.x)/2, mode: null, moved: false };
+   this.lastTap = null;
+   this.multi = { origins: new Map([...this.contacts].map(([id,p])=>[id,{x:p.x,y:p.y}])), distance: Math.hypot(a.x-b.x,a.y-b.y), x: (a.x+b.x)/2, y: (a.y+b.y)/2, zoom: this.zoom, scrollY: (a.y+b.y)/2, scrollX: (a.x+b.x)/2, mode: null, moved: false };
    if (this.dragging) { this.send({ type: 'buttonUp', button: 1, x: this.x, y: this.y }); this.dragging = false; }
   }
  }
  move(id, x, y, at) {
   const contact = this.contacts.get(id); if (!contact) return;
   const dx = x-contact.x, dy = y-contact.y; let firstMove = !contact.moved; contact.x = x; contact.y = y;
-  if (Math.hypot(x-contact.startX,y-contact.startY) > 6) contact.moved = true;
+  if (Math.hypot(x-contact.startX,y-contact.startY) > 6) { contact.moved = true; this.lastTap = null; }
   if (this.multi && this.contacts.size === 1) { this.multi = null; contact.moved = true; firstMove = false; }
   if (this.multi) {
    if (this.contacts.size !== 2) return;
-   const [a,b] = [...this.contacts.values()], m = this.multi, distance = Math.hypot(a.x-b.x,a.y-b.y), cx = (a.x+b.x)/2, cy = (a.y+b.y)/2;
-   if (!m.mode) {
-    if (Math.abs(distance-m.distance) > Math.max(12,m.distance*.12)) m.mode = 'zoom';
-    else if (Math.hypot(cx-m.x,cy-m.y) > 10) m.mode = 'scroll';
-   }
-   if (m.mode === 'zoom') { this.zoom = clamp(m.zoom*(distance/m.distance)**this.sensitivity().pinch,1,6); this.paint(); }
-   if (m.mode === 'scroll') for (const [axis,point,key] of [['vertical',cy,'scrollY'],['horizontal',cx,'scrollX']]) {
-    const steps = Math.trunc((point-m[key])/12); if (steps) { this.send({ type: 'wheel', axis, delta: clamp(-steps*120,-1200,1200), x: this.x, y: this.y }); m[key] += steps*12; }
-   }
-   m.moved ||= !!m.mode; return;
+   if (this.multi.mode || [...this.contacts].every(([id,p])=>{const origin=this.multi.origins.get(id);return origin&&Math.hypot(p.x-origin.x,p.y-origin.y)>6})) this.updateMulti();
+   else if (!this.multiTimer) this.multiTimer = setTimeout(()=>this.updateMulti(),16);
+   return;
   }
   if (!this.image || !contact.moved) return;
   if (!this.dragging && firstMove && at-contact.at >= holdDelay) { this.dragging = true; this.send({ type: 'buttonDown', button: 1, x: this.x, y: this.y }); }
@@ -49,15 +43,33 @@ export class DesktopPointer {
   this.x = clamp(this.x+dx/this.image.width*speed,0,1); this.y = clamp(this.y+dy/this.image.height*speed,0,1);
   this.send({ type: 'pointerMove', x: this.x, y: this.y }); this.paint();
  }
+ updateMulti() {
+  clearTimeout(this.multiTimer); this.multiTimer = null;
+  if (!this.multi || this.contacts.size !== 2) return;
+  const [a,b] = [...this.contacts.values()], m = this.multi, distance = Math.hypot(a.x-b.x,a.y-b.y), cx = (a.x+b.x)/2, cy = (a.y+b.y)/2;
+  if (!m.mode) {
+   const travel = Math.hypot(cx-m.x,cy-m.y), stretch = Math.abs(distance-m.distance);
+   if (stretch > Math.max(12,m.distance*.12) && stretch > travel*1.35) m.mode = 'zoom';
+   else if (travel > 10) m.mode = 'scroll';
+  }
+  if (m.mode === 'zoom') { this.zoom = clamp(m.zoom*(distance/m.distance)**this.sensitivity().pinch,1,6); this.paint(); }
+  if (m.mode === 'scroll') for (const [axis,point,key] of [['vertical',cy,'scrollY'],['horizontal',cx,'scrollX']]) {
+   const steps = Math.trunc((point-m[key])/12); if (steps) { this.send({ type: 'wheel', axis, delta: clamp(-steps*120,-1200,1200), x: this.x, y: this.y }); m[key] += steps*12; }
+  }
+  m.moved ||= !!m.mode;
+ }
  up(id, x, y, at) {
   clearTimeout(this.holdTimer);
-  const contact = this.contacts.get(id); if (!contact) return; this.contacts.delete(id);
+  const contact = this.contacts.get(id); if (!contact) return; this.updateMulti(); this.contacts.delete(id);
   if (this.multi) { if (!this.contacts.size) { if (!this.multi.moved) this.click(3); this.multi = null; } return; }
   if (this.dragging) this.send({ type: 'buttonUp', button: 1, x: this.x, y: this.y });
-  else if (!contact.moved) this.click(at-contact.at>=holdDelay ? 3 : 1);
+  else if (!contact.moved) {
+   const held = at-contact.at>=holdDelay, twice = this.lastTap && at-this.lastTap.at<=300 && Math.hypot(x-this.lastTap.x,y-this.lastTap.y)<24;
+   this.click(held || twice ? 3 : 1); this.lastTap = held || twice ? null : {x,y,at};
+  }
   this.holding = this.dragging = false; this.paint();
  }
- cancel() { clearTimeout(this.holdTimer);this.contacts.clear(); this.multi = null; this.dragging = this.holding = false; this.send({ type: 'releaseAll' }); this.paint(); }
+ cancel() { clearTimeout(this.holdTimer);clearTimeout(this.multiTimer);this.multiTimer=null;this.lastTap=null;this.contacts.clear(); this.multi = null; this.dragging = this.holding = false; this.send({ type: 'releaseAll' }); this.paint(); }
  resetZoom() { this.zoom = this.zoom===1 ? 2 : 1; this.paint(); }
 }
 

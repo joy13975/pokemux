@@ -77,3 +77,17 @@ test('existing Ctrl-K shortcut notation does not introduce an unintended Shift p
  assert.equal(await DesktopView.prototype.send.call(viewer,'key','Ctrl+K'),true);
  assert.deepEqual(events.filter(e=>e.type==='keyDown').map(e=>e.key),[HID_KEYS.ControlLeft,HID_KEYS.KeyK]);
 });
+
+test('a second nearby touch tap right-clicks; a later tap or a drag does not become a right click',()=>{
+ const sent=[],p=new DesktopPointer({sensitivity,send:e=>sent.push(e),view:()=>{}});p.resize(1000,600,500,300);
+ p.down(1,100,100,0);p.up(1,100,100,40);p.down(2,103,102,160);p.up(2,103,102,200);assert.deepEqual(sent.filter(e=>e.type==='buttonDown').map(e=>e.button),[1,3]);
+ p.down(3,103,102,900);p.up(3,103,102,940);assert.equal(sent.filter(e=>e.type==='buttonDown').at(-1).button,1);
+ p.down(4,103,102,1000);p.move(4,150,102,1050);p.up(4,150,102,1100);p.down(5,150,102,1150);p.up(5,150,102,1200);assert.equal(sent.filter(e=>e.type==='buttonDown').at(-1).button,1);
+ p.down(6,150,102,1250);p.cancel();p.down(7,150,102,1350);p.up(7,150,102,1400);assert.equal(sent.filter(e=>e.type==='buttonDown').at(-1).button,1);
+});
+
+test('closely spaced parallel fingers scroll despite staggered pointer events instead of being mistaken for a pinch',()=>{
+ const sent=[],p=new DesktopPointer({sensitivity,send:e=>sent.push(e),view:()=>{}});p.resize(1000,600,500,300);
+ p.down(1,100,100,0);p.down(2,140,100,5);p.move(1,100,140,100);p.move(2,140,140,105);p.up(1,100,140,150);p.up(2,140,140,155);
+ assert.ok(sent.some(e=>e.type==='wheel'));assert.equal(p.zoom,1);assert.equal(sent.filter(e=>e.type==='buttonDown').length,0);
+});

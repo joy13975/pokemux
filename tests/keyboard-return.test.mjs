@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import { readFileSync } from 'node:fs';
 import { JSDOM } from 'jsdom';
 import { RenderGrid } from '../grid.mjs';
+import { BlockSelection } from '../block-selection.mjs';
 import { KeyboardDecoder, calibrate } from '../keyboard.mjs';
 import { KanaComposer } from '../kana.mjs';
 import { installPopover } from './popover-fixture.mjs';
@@ -17,9 +18,9 @@ function client(saved={},boot=false) {
  const tree={notifications:[],windows:[{id:'owned-window',groups:[],workspaces:[{id:'owned-workspace',title:'Owned workspace',panes:[{id:'owned-pane',selected_surface_id:'owned-surface',surfaces:[{id:'owned-surface',type:'terminal',title:'Owned terminal'}]}]}]}]};
  const responses={'/api/auth':{authenticated:true},'/api/status':{connected:true},'/api/tree':tree};
  w.actions=[];w.fetch=async(path,options)=>{if(path==='/api/action')w.actions.push(JSON.parse(options.body));return {ok:true,status:200,json:async()=>responses[path]??{}}};
- w.__RenderGrid=RenderGrid;w.__KanaComposer=KanaComposer;w.__KeyboardDecoder=KeyboardDecoder;w.__calibrate=calibrate;
+ w.__BlockSelection=BlockSelection;w.__RenderGrid=RenderGrid;w.__KanaComposer=KanaComposer;w.__KeyboardDecoder=KeyboardDecoder;w.__calibrate=calibrate;
  const script=html.split('<script type="module">\n')[1].split('</script>')[0];
- if(boot){w.ready=w.eval(script.replace("await import('./grid.mjs')","{RenderGrid:window.__RenderGrid}").replace("await import('./keyboard.mjs')","{KeyboardDecoder:window.__KeyboardDecoder,calibrate:window.__calibrate}").replace("await import('./kana.mjs')","{KanaComposer:window.__KanaComposer}"));return dom}
+ if(boot){w.ready=w.eval(script.replace("await import('./grid.mjs')","{RenderGrid:window.__RenderGrid}").replaceAll("await import('./block-selection.mjs')","{BlockSelection:window.__BlockSelection}").replace("await import('./keyboard.mjs')","{KeyboardDecoder:window.__KeyboardDecoder,calibrate:window.__calibrate}").replace("await import('./kana.mjs')","{KanaComposer:window.__KanaComposer}"));return dom}
  w.eval(script.slice(0,script.lastIndexOf('(async()=>{'))+`
   RenderGrid=window.__RenderGrid;KanaComposer=window.__KanaComposer;kana=new KanaComposer();
   current=workspace('owned-workspace','Owned workspace',null,'','',[pane('owned-pane',[surface('owned-surface','Owned terminal'),surface('owned-other','Other terminal')])],'owned-window');workspaces.push(current);selectedWindow=current.window;connected=true;render();syncFloating();

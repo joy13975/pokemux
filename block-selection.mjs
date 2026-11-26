@@ -15,14 +15,7 @@ export class BlockSelection {
     this.status = this.root.querySelector('[role=status]'); this.copyButton = this.root.querySelector('[data-block-copy]');
     this.handles = [...this.root.querySelectorAll('[data-block-corner]')];
     const end = e => { if (this.contact?.id === e.pointerId) { this.move(e); this.contact = null; } };
-    this.stage.onpointerdown = e => {
-      if (e.button !== 0 || !e.isPrimary) return;
-      e.preventDefault(); this.stage.setPointerCapture(e.pointerId);
-      const corner = e.target.closest('[data-block-corner]')?.dataset.blockCorner;
-      this.contact = { id: e.pointerId, corner };
-      if (!corner) this.start = this.end = this.point(e);
-      this.move(e);
-    };
+    this.stage.onpointerdown = e => this.begin(e);
     this.stage.onpointermove = e => this.move(e); this.stage.onpointerup = end;
     this.stage.onpointercancel = () => { this.contact = null; };
     this.stage.onlostpointercapture = () => { this.contact = null; };
@@ -42,9 +35,26 @@ export class BlockSelection {
     this.scroll = () => this.layout(); output.closest('.terminalwrap').addEventListener('scroll', this.scroll);
     this.layout();
   }
+  begin(e) {
+    if (e.button !== 0 || !e.isPrimary) return;
+    e.preventDefault(); this.stage.setPointerCapture(e.pointerId);
+    const corner = e.target.closest('[data-block-corner]')?.dataset.blockCorner;
+    this.contact = { id: e.pointerId, corner };
+    if (!corner) this.start = this.end = this.point(e);
+    this.move(e);
+  }
   point(e) {
-    const box = this.output.getBoundingClientRect();
-    return this.grid.cellAt(this.output, Math.max(box.left, Math.min(box.right - .01, e.clientX)), Math.max(box.top, Math.min(box.bottom - .01, e.clientY)), true);
+    const box = this.output.getBoundingClientRect(), wrap = this.output.closest('.terminalwrap').getBoundingClientRect(), layer = this.layer.getBoundingClientRect();
+    const scale = this.layer.offsetWidth / layer.width || 1;
+    const reach = (value, min, max) => {
+      const rim = Math.min(24 / scale, (max - min) / 4), left = value < (min + max) / 2, distance = left ? value - min : max - value;
+      if (distance >= rim * 2) return value;
+      const t = Math.max(0, (distance - rim) / rim), offset = rim * t * t * (5 - 3 * t);
+      return left ? min + offset : max - Math.max(.01, offset);
+    };
+    const x = reach(e.clientX, Math.max(box.left, wrap.left, layer.left), Math.min(box.right, wrap.right, layer.right));
+    const y = reach(e.clientY, Math.max(box.top, wrap.top, layer.top), Math.min(box.bottom, wrap.bottom, layer.bottom));
+    return this.grid.cellAt(this.output, x, y, true);
   }
   move(e) {
     if (this.contact?.id !== e.pointerId) return;

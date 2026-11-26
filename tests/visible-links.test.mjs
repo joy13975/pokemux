@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import { readFileSync } from 'node:fs';
 import { JSDOM, VirtualConsole } from 'jsdom';
 import { RenderGrid } from '../grid.mjs';
+import { BlockSelection } from '../block-selection.mjs';
 import { KanaComposer } from '../kana.mjs';
 import { installPopover } from './popover-fixture.mjs';
 
@@ -64,13 +65,13 @@ function terminal() {
   installPopover(w);w.isSecureContext=true;w.ResizeObserver=class{observe(){}disconnect(){}};w.HTMLElement.prototype.setPointerCapture=()=>{};
   w.document.elementFromPoint=()=>null;w.Range.prototype.getClientRects=()=>[];w.matchMedia=()=>({matches:true});w.visualViewport={width:390,height:844,scale:1,offsetTop:0,offsetLeft:0,addEventListener(){}};
   w.EventSource=class{addEventListener(){}close(){}};w.HTMLDialogElement.prototype.showModal=function(){this.open=true};w.HTMLDialogElement.prototype.close=function(){this.open=false};
-  w.__RenderGrid=RenderGrid;w.__KanaComposer=KanaComposer;w.actions=[];w.opened=[];w.open=(...args)=>{w.opened.push(args);return null};
+  w.__BlockSelection=BlockSelection;w.__RenderGrid=RenderGrid;w.__KanaComposer=KanaComposer;w.actions=[];w.opened=[];w.open=(...args)=>{w.opened.push(args);return null};
   w.fetch=async(path,options)=>{if(path==='/api/action')w.actions.push(JSON.parse(options.body));return {ok:true,status:200,json:async()=>({})}};
   const script=html.split('<script type="module">\n')[1].split('</script>')[0];
   w.eval(script.slice(0,script.lastIndexOf('(async()=>{'))+`
-    RenderGrid=window.__RenderGrid;KanaComposer=window.__KanaComposer;kana=new KanaComposer();
+    BlockSelection=window.__BlockSelection;RenderGrid=window.__RenderGrid;KanaComposer=window.__KanaComposer;kana=new KanaComposer();
     current=workspace('owned-workspace','Owned',null,'','',[pane('owned-pane',[surface('owned-surface','Owned terminal')])],'owned-window');workspaces.push(current);selectedWindow=current.window;connected=true;
-    const model=new RenderGrid();model.apply(${JSON.stringify(frame([{row:0,column:0,text:'https://example.test/report'},{row:1,column:0,text:'Open the benchmark report',style_id:1},{row:2,column:0,text:'/tmp/pokemux-preview.png'}],{styles:[{id:1,foreground:'#0000ff',underline:true}],modes:[{code:1000,on:true,ansi:false}]}))});grids.set('owned-surface',model);render();window.fixture={model,paintTerminal,metadata(){render()},switchTerminal(){current.panes[0].tabs.push(surface('other-surface','Other'));selectSurface('owned-pane','other-surface')}};
+    const model=new RenderGrid();model.apply(${JSON.stringify(frame([{row:0,column:0,text:'https://example.test/report'},{row:1,column:0,text:'Open the benchmark report',style_id:1},{row:2,column:0,text:'/tmp/pokemux-preview.png'}],{styles:[{id:1,foreground:'#0000ff',underline:true}],modes:[{code:1000,on:true,ansi:false}]}))});grids.set('owned-surface',model);render();window.fixture={model,paintTerminal,focusInput,displaySettings,metadata(){render()},switchTerminal(){grids.set('other-surface',model);current.panes[0].tabs.push(surface('other-surface','Other'));selectSurface('owned-pane','other-surface')}};
   `);
   const output=w.document.querySelector('.terminal');geometry(output,80);
   return dom;
@@ -114,4 +115,16 @@ test('URL destination is captured with the painted press and drags, selection an
     const range=w.document.createRange();range.selectNodeContents(output.firstElementChild);w.getSelection().addRange(range);pointer(w,wrap,'pointerdown',5);pointer(w,wrap,'pointerup',5);
     assert.equal(w.opened.length,1);
   }finally{w.close()}
+});
+
+test('holding terminal text selects a block by default without host input; Settings opt-out restores native selection and swipes stay scroll gestures',async()=>{
+ const dom=terminal(),w=dom.window,d=w.document,output=d.querySelector('.terminal'),wrap=output.closest('.terminalwrap');
+ const rect=(left,top,width,height)=>({left,top,width,height,right:left+width,bottom:top+height});output.getBoundingClientRect=()=>rect(10,20,800,60);wrap.getBoundingClientRect=()=>rect(10,20,380,60);d.querySelector('#blockLayer').getBoundingClientRect=()=>rect(0,0,390,844);
+ const touch=(type,x,y,id=1,primary=true)=>{const e=new w.Event(type,{bubbles:true,cancelable:true});Object.assign(e,{button:0,isPrimary:primary,pointerId:id,pointerType:'touch',clientX:x,clientY:y});output.dispatchEvent(e)};
+ try{
+  w.fixture.focusInput();touch('pointerdown',65,45);await new Promise(r=>w.setTimeout(r,550));const stage=d.querySelector('.block-select-stage');assert.ok(stage,'Holding text enters block selection without a sidebar visit');assert.equal(d.activeElement,output);assert.equal(w.actions.length,0);d.querySelector('[data-block-done]').click();
+  w.fixture.displaySettings();const toggle=d.querySelector('#blockSelectionEnabled');assert.ok(toggle);assert.equal(toggle.checked,true);toggle.checked=false;toggle.dispatchEvent(new w.Event('change'));d.querySelector('#dialog').close();touch('pointerdown',65,45);await new Promise(r=>w.setTimeout(r,550));touch('pointerup',65,45);assert.equal(d.querySelector('.block-select-stage'),null);assert.equal(d.documentElement.classList.contains('block-selection-default'),false);
+  w.fixture.displaySettings();d.querySelector('#blockSelectionEnabled').checked=true;d.querySelector('#blockSelectionEnabled').dispatchEvent(new w.Event('change'));d.querySelector('#dialog').close();touch('pointerdown',65,45);touch('pointermove',65,75);touch('pointerup',65,75);await new Promise(r=>w.setTimeout(r,550));assert.equal(d.querySelector('.block-select-stage'),null,'Moving before the hold threshold preserves scrolling');
+  touch('pointerdown',65,45);touch('pointerdown',95,45,2,false);await new Promise(r=>w.setTimeout(r,550));touch('pointercancel',65,45);assert.equal(d.querySelector('.block-select-stage'),null,'A second finger cancels selection arming');touch('pointerdown',65,45);w.fixture.switchTerminal();await new Promise(r=>w.setTimeout(r,550));assert.equal(d.querySelector('.block-select-stage'),null,'A delayed hold cannot select text in a different tab');
+ }finally{w.close()}
 });
