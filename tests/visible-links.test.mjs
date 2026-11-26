@@ -145,3 +145,12 @@ test('holding terminal text selects a block by default without host input; Setti
   touch('pointerdown',65,45);touch('pointerdown',95,45,2,false);await new Promise(r=>w.setTimeout(r,550));touch('pointercancel',65,45);assert.equal(d.querySelector('.block-select-stage'),null,'A second finger cancels selection arming');touch('pointerdown',65,45);w.fixture.switchTerminal();await new Promise(r=>w.setTimeout(r,550));assert.equal(d.querySelector('.block-select-stage'),null,'A delayed hold cannot select text in a different tab');
  }finally{w.close()}
 });
+test('a quick mouse drag cannot start box selection before the stationary hold',async()=>{
+ const dom=terminal(),w=dom.window,output=w.document.querySelector('.terminal');
+ const mouse=(type,x,y)=>{const e=new w.Event(type,{bubbles:true,cancelable:true});Object.assign(e,{button:0,isPrimary:true,pointerId:1,pointerType:'mouse',clientX:x,clientY:y});output.dispatchEvent(e)};
+ try{mouse('pointerdown',65,45);mouse('pointermove',95,75);mouse('pointerup',95,75);assert.equal(w.document.querySelector('.block-select-stage'),null);await new Promise(r=>w.setTimeout(r,550));assert.equal(w.document.querySelector('.block-select-stage'),null)}finally{w.close()}
+});
+test('a sidebar-captured swipe cancels selection arming even when move and release do not bubble',async()=>{
+ const dom=terminal(),w=dom.window,wrap=w.document.querySelector('.terminalwrap');
+ try{pointer(w,wrap,'pointerdown',5,1);pointer(w,wrap,'pointermove',15,1);pointer(w,wrap,'pointerup',15,1);await new Promise(r=>w.setTimeout(r,550));assert.equal(w.document.querySelector('.block-select-stage'),null,'A completed swipe must never produce a late selection');assert.equal(w.actions.length,0)}finally{w.close()}
+});

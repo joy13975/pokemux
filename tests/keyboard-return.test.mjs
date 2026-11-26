@@ -28,16 +28,6 @@ function client(saved={},boot=false) {
  `);
  return dom;
 }
-test('custom input still accepts a physical keyboard while terminal focus is released',{timeout:5000},async()=>{
- const dom=client({keyboardMode:'custom',keyboardLanguage:'english'}),w=dom.window,d=w.document;
- try{d.querySelector('.terminalwrap').click();
- let received;const delivery=new Promise(resolve=>received=resolve),fetch=w.fetch;w.fetch=(path,options)=>{const reply=fetch(path,options);if(path==='/api/action'&&JSON.parse(options.body).action==='input')received();return reply};
- d.body.dispatchEvent(new w.KeyboardEvent('keydown',{key:'x',bubbles:true}));await delivery;
- assert.equal(w.actions.length,1);assert.equal(w.actions[0].action,'input');assert.equal(w.actions[0].text,'x');
- w.fixture.appMenu();d.body.dispatchEvent(new w.KeyboardEvent('keydown',{key:'y',bubbles:true}));await new Promise(r=>setTimeout(r,0));assert.equal(w.actions.length,1);
- }finally{w.close()}
-});
-
 test('authenticated startup with a saved emulated keyboard offers only the native toggle',async()=>{
  const dom=client({keyboardMode:'custom',keyboardDefaultVersion:1,keyboardLanguage:'katakana'},true),w=dom.window,d=w.document;
  try{

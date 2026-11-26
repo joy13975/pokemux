@@ -14,11 +14,12 @@ export class BlockSelection {
     this.stage = this.root.querySelector('.block-select-stage'); this.box = this.root.querySelector('.block-select-box');
     this.status = this.root.querySelector('[role=status]'); this.copyButton = this.root.querySelector('[data-block-copy]');
     this.handles = [...this.root.querySelectorAll('[data-block-corner]')];
-    const end = e => { if (this.contact?.id === e.pointerId) { this.move(e); this.contact = null; } };
-    this.stage.onpointerdown = e => this.begin(e);
+    const release = () => { this.contact = null; this.stage.classList.remove('drawing'); };
+    const end = e => { if (this.contact?.id === e.pointerId) { this.move(e); release(); } };
+    this.stage.onpointerdown = e => { if (e.target.closest('[data-block-corner]')) this.begin(e); };
     this.stage.onpointermove = e => this.move(e); this.stage.onpointerup = end;
-    this.stage.onpointercancel = () => { this.contact = null; };
-    this.stage.onlostpointercapture = () => { this.contact = null; };
+    this.stage.onpointercancel = release;
+    this.stage.onlostpointercapture = release;
     this.stage.oncontextmenu = e => e.preventDefault();
     this.stage.addEventListener('touchstart', e => e.preventDefault(), { passive: false });
     for (const button of this.root.querySelectorAll('button')) button.onpointerdown = e => e.preventDefault();
@@ -37,7 +38,7 @@ export class BlockSelection {
   }
   begin(e) {
     if (e.button !== 0 || !e.isPrimary) return;
-    e.preventDefault(); this.stage.setPointerCapture(e.pointerId);
+    e.preventDefault(); this.stage.classList.add('drawing'); this.stage.setPointerCapture(e.pointerId);
     const corner = e.target.closest('[data-block-corner]')?.dataset.blockCorner;
     this.contact = { id: e.pointerId, corner };
     if (!corner) this.start = this.end = this.point(e);

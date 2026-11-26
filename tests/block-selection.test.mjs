@@ -18,7 +18,7 @@ test('rectangle preserves graphemes, real gaps and blank lines while omitting co
  assert.equal(grid.copyRectangle({col:2,row:-1},{col:11,row:2}),'older\n日e\u0301🙂   end\n\n      ok');
  assert.equal(grid.copyRectangle({col:4,row:0},{col:4,row:0}),'🙂');
 });
-function pointer(w,target,type,x,y){const e=new w.Event(type,{bubbles:true,cancelable:true});Object.assign(e,{button:0,isPrimary:true,pointerId:1,clientX:x,clientY:y});target.dispatchEvent(e)}
+function pointer(w,target,type,x,y){const e=new w.Event(type,{bubbles:true,cancelable:true});Object.assign(e,{button:0,isPrimary:true,pointerId:1,clientX:x,clientY:y});target.dispatchEvent(e);return e}
 test('block drag and corner adjustment copy the frozen paint, then Done restores live rendering',async()=>{
  const {BlockSelection}=await import('../block-selection.mjs');
  const dom=new JSDOM('<div class="terminalwrap"><pre></pre></div><div id="layer"></div>',{pretendToBeVisual:true}),w=dom.window,d=w.document,output=d.querySelector('pre'),grid=new RenderGrid(),copied=[];let closed=0;
@@ -29,7 +29,8 @@ test('block drag and corner adjustment copy the frozen paint, then Done restores
  const block=new BlockSelection({output,grid,layer:d.querySelector('#layer'),copy:async text=>copied.push(text),onClose:()=>closed++});
  try{
   const stage=d.querySelector('.block-select-stage');assert.ok(stage);assert.equal(output.blockSelection,true);
-  pointer(w,stage,'pointerdown',115,85);pointer(w,stage,'pointermove',205,105);pointer(w,stage,'pointerup',205,105);
+  block.begin(pointer(w,stage,'pointerdown',115,85));pointer(w,stage,'pointermove',205,105);pointer(w,stage,'pointerup',205,105);
+  const start={...block.start},released=pointer(w,stage,'pointerdown',285,145);assert.equal(released.defaultPrevented,false,'A finished selection must not take a fresh ordinary press');pointer(w,stage,'pointermove',305,145);pointer(w,stage,'pointerup',305,145);assert.deepEqual(block.start,start);
   const end=d.querySelector('[data-block-corner="end"]');pointer(w,end,'pointerdown',210,120);pointer(w,end,'pointermove',205,125);pointer(w,end,'pointerup',205,125);
   grid.apply({...frame,render_revision:2,row_spans:[{row:0,column:0,text:'new streamed output'}]});assert.equal(grid.paint(output),false);assert.ok(output.textContent.includes('first cell'));
   d.querySelector('[data-block-copy]').click();await new Promise(r=>setTimeout(r,0));assert.deepEqual(copied,['first cell\nwraps here\nends here']);

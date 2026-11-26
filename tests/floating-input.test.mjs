@@ -23,6 +23,14 @@ function client(saved={}) {
  return dom;
 }
 const flush=w=>new Promise(resolve=>w.setTimeout(resolve,0));
+test('handle and expanded-button transparency migrate together, then change and persist independently',()=>{
+ const dom=client({floatingTransparency:35}),w=dom.window,d=w.document;let saved;
+ try{
+  w.fixture.displaySettings();const handles=d.querySelector('#floatingTransparency'),buttons=d.querySelector('#floatingButtonsTransparency');assert.ok(buttons,'Expanded buttons have their own slider');assert.equal(Number(buttons.value),Number(handles.value));
+  handles.value='15';handles.dispatchEvent(new w.Event('input'));assert.equal(buttons.value,'35');buttons.value='60';buttons.dispatchEvent(new w.Event('input'));assert.equal(handles.value,'15');saved=JSON.parse(w.localStorage.getItem('cmux-pocket-customizations'));
+ }finally{w.close()}
+ const reloaded=client(saved);try{reloaded.window.fixture.displaySettings();const d=reloaded.window.document;assert.equal(d.querySelector('#floatingTransparency').value,'15');assert.equal(d.querySelector('#floatingButtonsTransparency').value,'60')}finally{reloaded.window.close()}
+});
 test('floating function handle uses an unselectable icon rather than text',()=>{
  const dom=client(),w=dom.window,handle=w.document.querySelector('#floatingHandle');
  try{assert.ok(handle.querySelector('svg'));assert.equal(handle.textContent.trim(),'');assert.equal(w.getComputedStyle(handle).userSelect,'none');assert.equal(w.getComputedStyle(handle.querySelector('svg')).userSelect,'none')}finally{w.close()}
