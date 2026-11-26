@@ -27,9 +27,21 @@ test('floating function handle uses an unselectable icon rather than text',()=>{
  const dom=client(),w=dom.window,handle=w.document.querySelector('#floatingHandle');
  try{assert.ok(handle.querySelector('svg'));assert.equal(handle.textContent.trim(),'');assert.equal(w.getComputedStyle(handle).userSelect,'none');assert.equal(w.getComputedStyle(handle.querySelector('svg')).userSelect,'none')}finally{w.close()}
 });
-test('existing three floating choices survive migration and get a fourth keyboard action',()=>{
- const dom=client({floatingFunctions:['key:Ctrl-C','frequent','paste']}),w=dom.window;
- try{assert.deepEqual([...w.fixture.floatingChoices()],['key:Ctrl-C','recent','paste','keyboard','scratchpad']);w.fixture.displaySettings();assert.equal(w.document.querySelectorAll('[data-function-setting]').length,5);assert.equal(w.document.querySelectorAll('#floatingFunctions [data-function]').length,5)}finally{w.close()}
+test('default and saved Scratchpad actions switch selection mode, persist it and agree with Settings while retaining custom actions',async()=>{
+ for(const floatingFunctions of [undefined,['key:Ctrl-C','frequent','paste'],['key:Ctrl-C','recent','paste','keyboard'],['key:Ctrl-C','recent','paste','keyboard','scratchpad']]){
+  const dom=client(floatingFunctions?{floatingFunctions}:{}),w=dom.window,d=w.document;
+  try{
+   const choice=d.querySelector('[data-function="4"]'),open=()=>d.querySelector('#floatingHandle').click();
+   assert.equal(choice.textContent,'Box select');open();choice.click();
+   assert.equal(d.documentElement.classList.contains('block-selection-default'),false);assert.equal(choice.textContent,'Native select');
+   const saved=JSON.parse(w.localStorage.getItem('cmux-pocket-customizations'));assert.equal(saved.blockSelection,false);
+   const reloaded=client(saved);try{assert.equal(reloaded.window.document.documentElement.classList.contains('block-selection-default'),false);assert.equal(reloaded.window.document.querySelector('[data-function="4"]').textContent,'Native select')}finally{reloaded.window.close()}
+   w.fixture.displaySettings();const setting=d.querySelector('#blockSelectionEnabled');assert.equal(setting.checked,false);setting.checked=true;setting.dispatchEvent(new w.Event('change'));d.querySelector('#dialog').close();
+   assert.equal(d.documentElement.classList.contains('block-selection-default'),true);assert.equal(choice.textContent,'Box select');
+   open();choice.click();open();choice.click();assert.equal(d.documentElement.classList.contains('block-selection-default'),true);assert.equal(w.actions.length,0);
+   if(floatingFunctions){open();d.querySelector('[data-function="0"]').click();await flush(w);assert.equal(w.actions.at(-1).key,'Ctrl-C')}
+  }finally{w.close()}
+ }
 });
 test('recent shortcut follows successful usage rather than historical frequency',async()=>{
  const dom=client({shortcutUsage:{'Ctrl-C':100}}),w=dom.window;

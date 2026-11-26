@@ -47,8 +47,9 @@ the two corner handles, then tap **Copy**. Only the chosen columns are copied;
 line breaks are preserved and trailing spaces are removed. This is useful for
 copying one table column without its neighbours. The display stays frozen until
 you tap **Done**; the terminal continues running. The highlight reaches the
-visible edges before your finger reaches the rim. Turn off **Block text
-selection** in Settings to use native selection instead.
+visible edges before your finger reaches the rim. The floating **Box select** /
+**Native select** action switches modes; **Block text selection** in Settings
+controls the same preference.
 
 ## Image paste
 

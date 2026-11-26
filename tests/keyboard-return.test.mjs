@@ -28,10 +28,6 @@ function client(saved={},boot=false) {
  `);
  return dom;
 }
-test('existing three custom floating actions survive and receive a fourth keyboard action',()=>{
- const dom=client({floatingFunctions:['key:Ctrl-C','frequent','paste']}),w=dom.window;
- try{assert.deepEqual([...w.fixture.floatingChoices()],['key:Ctrl-C','recent','paste','keyboard','scratchpad']);w.fixture.displaySettings();assert.equal(w.document.querySelectorAll('[data-function-setting]').length,5);assert.equal(w.document.querySelectorAll('#floatingFunctions [data-function]').length,5)}finally{w.close()}
-});
 test('custom input still accepts a physical keyboard while terminal focus is released',{timeout:5000},async()=>{
  const dom=client({keyboardMode:'custom',keyboardLanguage:'english'}),w=dom.window,d=w.document;
  try{d.querySelector('.terminalwrap').click();

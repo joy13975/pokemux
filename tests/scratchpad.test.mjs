@@ -17,15 +17,11 @@ function client(saved={},draft='',memory=null){
  const rail=w.document.querySelector('.inputdock');Object.defineProperty(rail,'offsetHeight',{get:()=>80});w.fixture.syncDock();return dom;
 }
 const tick=w=>new Promise(r=>w.setTimeout(r,0));
-function open(w){w.document.querySelector('#floatingHandle').click();w.document.querySelector('[data-function="4"]').click()}
+function open(w){w.document.querySelector('#scratchGrip').click()}
 function enter(w,text){const area=w.document.querySelector('#scratchText');area.focus();area.value=text;area.dispatchEvent(new w.InputEvent('input',{bubbles:true,inputType:'insertText',data:text}));return area}
 test('ordinary Scratchpad text paste leaves native insertion enabled and sends nothing to the terminal',async()=>{
  const dom=client(),w=dom.window;
  try{open(w);const area=w.document.querySelector('#scratchText');area.focus();const event=new w.Event('paste',{bubbles:true,cancelable:true});event.clipboardData={files:[],getData:()=> 'Pasted draft 日本語'};assert.equal(area.dispatchEvent(event),true);assert.equal(event.defaultPrevented,false);await tick(w);assert.equal(w.requests.filter(r=>r.path.startsWith('/api/action')||r.path.startsWith('/api/image')).length,0);assert.equal(w.document.activeElement,area)}finally{w.close()}
-});
-
-test('fifth scratchpad action preserves existing choices and can be configured',()=>{
- for(const saved of [{},{floatingFunctions:['key:Ctrl-C','recent','paste']},{floatingFunctions:['key:Ctrl-W','key:Tab','paste','keyboard']}]){const dom=client(saved),w=dom.window,d=w.document;try{assert.equal(w.fixture.floatingChoices().length,5);assert.equal(w.fixture.floatingChoices()[4],'scratchpad');if(saved.floatingFunctions)assert.equal(w.fixture.floatingChoices()[0],saved.floatingFunctions[0]);open(w);assert.equal(d.querySelector('#scratchEditor').hidden,false);assert.notEqual(d.activeElement,d.querySelector('#scratchText'));d.querySelector('#scratchGrip').click();w.fixture.displaySettings();const setting=d.querySelector('[data-function-setting="4"]');assert.equal(setting.value,'scratchpad');assert.equal(setting.querySelector('option[value="scratchpad"]').textContent,'Scratchpad')}finally{w.close()}}
 });
 
 test('native scratchpad typing, composition and Close stay local, retain selection/draft, and survive refresh',async()=>{
@@ -106,10 +102,10 @@ test('the dock keyboard toggle opens the terminal or the open Scratchpad and can
  }finally{w.close()}
 });
 
-test('Settings persists a reassigned Scratchpad action and dispatches it after reload',()=>{
+test('a reassigned selection action survives reload and keeps the Scratchpad keyboard focused',()=>{
  const dom=client(),w=dom.window,d=w.document;let saved;
- try{w.fixture.displaySettings();const setting=d.querySelector('[data-function-setting="0"]');setting.value='scratchpad';setting.dispatchEvent(new w.Event('change',{bubbles:true}));d.querySelector('#dialog').close();w.fixture.displaySettings();assert.equal(d.querySelector('[data-function-setting="0"]').value,'scratchpad');saved=JSON.parse(w.localStorage.getItem('cmux-pocket-customizations'))}finally{w.close()}
- const refreshed=client(saved);try{const d=refreshed.window.document;d.querySelector('#floatingHandle').click();d.querySelector('[data-function="0"]').click();assert.equal(d.querySelector('#scratchEditor').hidden,false);assert.notEqual(d.activeElement,d.querySelector('#scratchText'))}finally{refreshed.window.close()}
+ try{w.fixture.displaySettings();const setting=d.querySelector('[data-function-setting="0"]');setting.value='selection';setting.dispatchEvent(new w.Event('change',{bubbles:true}));d.querySelector('#dialog').close();saved=JSON.parse(w.localStorage.getItem('cmux-pocket-customizations'))}finally{w.close()}
+ const refreshed=client(saved);try{const w=refreshed.window,d=w.document;open(w);const area=d.querySelector('#scratchText');area.focus();d.querySelector('#floatingHandle').click();d.querySelector('[data-function="0"]').click();assert.equal(d.documentElement.classList.contains('block-selection-default'),false);assert.equal(d.activeElement,area);assert.equal(w.requests.filter(r=>r.path==='/api/action').length,0)}finally{refreshed.window.close()}
 });
 
 test('pulling the compact Scratchpad past the threshold maximizes it until pulled back down',()=>{
