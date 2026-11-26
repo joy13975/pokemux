@@ -76,7 +76,7 @@ function terminal() {
   const output=w.document.querySelector('.terminal');geometry(output,80);
   return dom;
 }
-function pointer(w,root,type,col,row=0){const event=new w.Event(type,{bubbles:true,cancelable:true});Object.assign(event,{pointerId:1,button:0,isPrimary:true,clientX:10+col*10+5,clientY:20+row*20+5});root.dispatchEvent(event)}
+function pointer(w,wrap,type,col,row=0){const event=new w.Event(type,{bubbles:true,cancelable:true});Object.assign(event,{pointerId:1,pointerType:'touch',button:0,isPrimary:true,clientX:10+col*10+5,clientY:20+row*20+5});wrap.querySelector('.terminal').dispatchEvent(event)}
 function highlight(w,row){const range=w.document.createRange();range.selectNodeContents(w.document.querySelector('.terminal').children[row]);range.getClientRects=()=>[{left:10,right:810,top:20+row*20,bottom:40+row*20}];w.getSelection().removeAllRanges();w.getSelection().addRange(range)}
 test('holding selected URL or full image path opens a new client tab, preserves selection and never clicks the host',async()=>{
  const dom=terminal(),w=dom.window,wrap=w.document.querySelector('.terminalwrap');
@@ -93,7 +93,7 @@ test('short selected taps, drags, cancellation, changed selection and a switched
   assert.equal(w.opened.length,0);assert.equal(w.actions.length,0);
  }finally{w.close()}
 });
-test('trusted URL tap opens on client immediately and never forwards host mouse; ordinary TUI label click still forwards',async()=>{
+test('URL tap opens on client immediately and never forwards host mouse; ordinary TUI label click still forwards',async()=>{
   const dom=terminal(),w=dom.window,wrap=w.document.querySelector('.terminalwrap');
   try{
     pointer(w,wrap,'pointerdown',5);pointer(w,wrap,'pointerup',5);
@@ -102,6 +102,23 @@ test('trusted URL tap opens on client immediately and never forwards host mouse;
     pointer(w,wrap,'pointerdown',5,1);pointer(w,wrap,'pointerup',5,1);
     await new Promise(resolve=>w.setTimeout(resolve,0));assert.deepEqual(w.actions.map(({action,col,row})=>({action,col,row})),[{action:'mouse',col:5,row:1}]);
     assert.equal(w.opened.length,1,'Underline and color must not invent an unknown destination');
+  }finally{w.close()}
+});
+test('held URL release opens on the client without entering the competing block-selection gesture',async()=>{
+  const dom=terminal(),w=dom.window,wrap=w.document.querySelector('.terminalwrap');
+  try{
+    pointer(w,wrap,'pointerdown',5);await new Promise(r=>w.setTimeout(r,550));
+    assert.equal(w.document.querySelector('.block-select-stage'),null,'A URL hold belongs to resource opening');
+    pointer(w,wrap,'pointerup',5);
+    assert.deepEqual(w.opened,[['https://example.test/report','_blank','noopener,noreferrer']]);
+    assert.equal(w.actions.length,0);
+  }finally{w.close()}
+});
+test('a stationary URL release between tap and hold thresholds still opens exactly once',async()=>{
+  const dom=terminal(),w=dom.window,wrap=w.document.querySelector('.terminalwrap');
+  try{
+    pointer(w,wrap,'pointerdown',5);await new Promise(r=>w.setTimeout(r,350));pointer(w,wrap,'pointerup',5);
+    assert.equal(w.opened.length,1);assert.equal(w.opened[0][0],'https://example.test/report');assert.equal(w.actions.length,0);
   }finally{w.close()}
 });
 test('URL destination is captured with the painted press and drags, selection and cancellation cannot open it',()=>{

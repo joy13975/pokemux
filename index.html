@@ -340,7 +340,7 @@ function bindResourceOpen(wrap){
  wrap.addEventListener('pointerup',e=>{
   if(!press||press.id!==e.pointerId)return;const ended=press;cancel();
   const pane=current?.panes.find(p=>p.id===wrap.dataset.paneFocus);
-  if(performance.now()-ended.at<500||Math.hypot(e.clientX-ended.x,e.clientY-ended.y)>=8||!ended.output.isConnected||current?.id!==ended.workspace||pane?.active!==ended.surface||ended.text&&getSelection()?.toString()!==ended.text)return;
+  if(ended.text&&(performance.now()-ended.at<500||getSelection()?.toString()!==ended.text)||Math.hypot(e.clientX-ended.x,e.clientY-ended.y)>=8||!ended.output.isConnected||current?.id!==ended.workspace||pane?.active!==ended.surface)return;
   e.preventDefault();
   const href=ended.resource.url||'/api/file?'+new URLSearchParams({workspace:ended.workspace,surface:ended.surface,path:ended.resource.path});
   window.open(href,'_blank','noopener,noreferrer');
@@ -388,9 +388,9 @@ function render(keepEditor=false){if(blockSelection&&(desktopActive||!current||a
  document.querySelectorAll('[data-surface]').forEach(b=>b.onclick=e=>{if(b.dataset.renaming==='true'){b.dataset.renaming='false';return}if(e.detail===2){renameTab(b.dataset.pane,b.dataset.surface);return}if(b.dataset.dragged==='true'){b.dataset.dragged='false';return}selectSurface(b.dataset.pane,b.dataset.surface)});bindTabDragging();
  
  document.querySelectorAll('[data-pane-focus]').forEach(b=>{bindBlockGesture(b);bindResourceOpen(b);let pressedAt=0,contact,tapped=false;
-  b.onpointerdown=e=>{tapped=false;if(!e.isPrimary||e.button!==0){contact=null;return}delete $('content').dataset.swiped;pressedAt=performance.now();const pane=current.panes.find(p=>p.id===b.dataset.paneFocus),output=b.querySelector('.terminal'),grid=grids.get(pane?.active);contact={id:e.pointerId,x:e.clientX,y:e.clientY,moved:false,workspace:current.id,surface:pane?.active,cell:output&&grid?.cellAt(output,e.clientX,e.clientY),url:output&&grid?.urlAt(output,e.clientX,e.clientY)};cursorFollowing=false};
+  b.onpointerdown=e=>{tapped=false;if(!e.isPrimary||e.button!==0){contact=null;return}delete $('content').dataset.swiped;pressedAt=performance.now();const pane=current.panes.find(p=>p.id===b.dataset.paneFocus),output=b.querySelector('.terminal'),grid=grids.get(pane?.active);contact={id:e.pointerId,x:e.clientX,y:e.clientY,moved:false,workspace:current.id,surface:pane?.active,cell:output&&grid?.cellAt(output,e.clientX,e.clientY)};cursorFollowing=false};
   b.onpointermove=e=>{if(contact&&Math.hypot(e.clientX-contact.x,e.clientY-contact.y)>=8)contact.moved=true};
-  b.onpointerup=e=>{if(e.defaultPrevented){contact=null;tapped=false;return}if(!contact||contact.id!==e.pointerId)return;const ended=contact,pane=current.panes.find(p=>p.id===b.dataset.paneFocus);tapped=e.isPrimary&&!contact.moved&&$('content').dataset.swiped!=='true'&&performance.now()-pressedAt<=300&&Math.hypot(e.clientX-contact.x,e.clientY-contact.y)<8;contact=null;if(!tapped||getSelection()?.toString()||ended.workspace!==current.id||ended.surface!==pane?.active)return;const surface=pane.tabs.find(s=>s.id===pane.active),grid=grids.get(surface?.id),cell=ended.cell;if(ended.url){window.open(ended.url,'_blank','noopener,noreferrer');return}if(connected&&cell&&grid.modes?.some(m=>!m.ansi&&m.on&&[9,1000,1002,1003].includes(m.code)))sendTerminal('mouse',cell,{workspace_id:current.id,surface_id:surface.id});if(pane.id!==current.activePane)selectSurface(pane.id,pane.active);else if(surface.kind==='terminal')resumeInput()};
+  b.onpointerup=e=>{if(e.defaultPrevented){contact=null;tapped=false;return}if(!contact||contact.id!==e.pointerId)return;const ended=contact,pane=current.panes.find(p=>p.id===b.dataset.paneFocus);tapped=e.isPrimary&&!contact.moved&&$('content').dataset.swiped!=='true'&&performance.now()-pressedAt<=300&&Math.hypot(e.clientX-contact.x,e.clientY-contact.y)<8;contact=null;if(!tapped||getSelection()?.toString()||ended.workspace!==current.id||ended.surface!==pane?.active)return;const surface=pane.tabs.find(s=>s.id===pane.active),grid=grids.get(surface?.id),cell=ended.cell;if(connected&&cell&&grid.modes?.some(m=>!m.ansi&&m.on&&[9,1000,1002,1003].includes(m.code)))sendTerminal('mouse',cell,{workspace_id:current.id,surface_id:surface.id});if(pane.id!==current.activePane)selectSurface(pane.id,pane.active);else if(surface.kind==='terminal')resumeInput()};
   b.onpointercancel=()=>{contact=null;tapped=false};b.onclick=e=>{if(e.detail>0)return;if($('content').dataset.swiped==='true'){delete $('content').dataset.swiped;return}if(performance.now()-pressedAt>300||e.detail>1||getSelection()?.toString())return;if(b.dataset.paneFocus!==current.activePane)selectSurface(b.dataset.paneFocus,current.panes.find(p=>p.id===b.dataset.paneFocus).active);if(activeSurface().kind==='terminal'){resumeInput();revealInputLine()}};
  });
 
@@ -1118,7 +1118,7 @@ function bindBlockGesture(wrap){
   const selection=startBlockSelection(contact.start);selection?.move(contact.latest);cancelBlockContact();
  };
  wrap.addEventListener('pointerdown',e=>{
-  cancelBlockContact();if(preferences.blockSelection===false||blockSelection||!e.isPrimary||e.button!==0||!e.target.closest('.terminal')||getSelection()?.toString())return;
+  cancelBlockContact();if(e.defaultPrevented||preferences.blockSelection===false||blockSelection||!e.isPrimary||e.button!==0||!e.target.closest('.terminal')||getSelection()?.toString())return;
   const contact=blockSelectionContact={wrap,id:e.pointerId,start:e,latest:e,workspace:current.id,surface:e.target.closest('.terminal').dataset.surfaceId};
   if(e.pointerType!=='mouse')contact.timer=setTimeout(()=>activate(contact),450);
  });
