@@ -4,10 +4,11 @@ import { constants } from 'node:fs';
 import { basename, isAbsolute, join } from 'node:path';
 import { homedir } from 'node:os';
 import { pipeline } from 'node:stream/promises';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { CmuxBridge, RequestError, maxImageBytes, imageKind } from './bridge.mjs';
 import { Passkeys } from './auth.mjs';
 import { DesktopEngine, bindDesktopSockets } from './desktop-server.mjs';
+import { startUpdateChecker } from './update-check.mjs';
 const nerdFont = '/vendor/nerd/SymbolsNerdFontMono-v3.5.1.woff2';
 const assets = new Map([
   ['/', ['index.html', 'text/html; charset=utf-8']],
@@ -40,7 +41,7 @@ async function body(req) {
   try { return JSON.parse((await bytes(req, 100000)).toString()); }
   catch (error) { if (error instanceof SyntaxError) throw new RequestError(400, 'Invalid JSON'); throw error; }
 }
-export function application({ bridge, auth, desktop = new DesktopEngine({ origin: auth.origin }) }) {
+export function application({ bridge, auth, updates, desktop = new DesktopEngine({ origin: auth.origin }) }) {
   const streams = new Set();
   bridge.on('event', frame => {
     for (const stream of streams) {
@@ -87,6 +88,14 @@ export function application({ bridge, auth, desktop = new DesktopEngine({ origin
           await desktop.clipboard(data.text); return json({ ready: true });
         }
         if (req.method === 'GET' && path === '/api/status') return json(await bridge.status());
+        if (req.method === 'GET' && path === '/api/update-status') {
+          if (!updates) return json(null);
+          try { return json(await updates.check()); }
+          catch (error) {
+            console.error('Pokemux update check failed:', error.message);
+            throw new RequestError(502, 'Could not check for updates on the Mac.');
+          }
+        }
         if (req.method === 'POST' && path === '/api/connect') { await bridge.connect(); return json({ connected: true }); }
         if (req.method === 'GET' && path === '/api/events') { await bridge.connect(); bridge.observeMetadata(); }
         const terminalAction = req.method === 'POST' && path === '/api/action';
@@ -143,7 +152,11 @@ export function application({ bridge, auth, desktop = new DesktopEngine({ origin
       if (!asset) throw new RequestError(404, 'Not found');
       if (path === '/' && !auth.session(req)?.authenticated) { res.writeHead(302, { Location: '/setup' }); res.end(); return; }
       if (asset[2]) res.setHeader('Cache-Control', asset[2]);
-      res.setHeader('Content-Type', asset[1]); res.end(await readFile(new URL(asset[0], import.meta.url)));
+      const contents = await readFile(new URL(asset[0], import.meta.url));
+      res.setHeader('Content-Type', asset[1]);
+      res.end(path === '/' && updates
+        ? contents.toString().replace('<meta name="pokemux-revision" content="">', `<meta name="pokemux-revision" content="${updates.running}">`)
+        : contents);
     } catch (error) {
       if (!res.headersSent) { res.writeHead(error.status || 502, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: error instanceof RequestError ? error.message : 'cmux operation failed; check the bridge diagnostic log' })); }
       else res.end();
@@ -159,9 +172,13 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const auth = new Passkeys({ origin, ownerLogin, file: new URL(`state/passkeys-${new URL(origin).hostname}.json`, import.meta.url) }); await auth.initialize();
   const bridge = new CmuxBridge(); await bridge.initialize();
   const desktop = new DesktopEngine({ origin });
+  const updates = await startUpdateChecker(fileURLToPath(new URL('.', import.meta.url))).catch(error => {
+    console.error('Pokemux updates unavailable:', error.message);
+    return null;
+  });
   for (const signal of ['SIGTERM', 'SIGINT']) process.once(signal, async () => {
     try { await desktop.stop(); process.exit(0); }
     catch (error) { console.error('Desktop shutdown failed:', error); process.exit(1); }
   });
-  application({ bridge, auth, desktop }).listen(4388, '127.0.0.1', () => console.log(`Pokemux bridge listening on loopback:4388 for ${origin}`));
+  application({ bridge, auth, desktop, updates }).listen(4388, '127.0.0.1', () => console.log(`Pokemux bridge listening on loopback:4388 for ${origin}`));
 }

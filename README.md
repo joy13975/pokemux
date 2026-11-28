@@ -180,6 +180,9 @@ registration.
 
 ## Updates and troubleshooting
 
+- Pokemux shows an update notice when the Git origin has new commits or when
+  the Mac checkout has changed. Open **Details** for the next step, or use
+  **App menu → Updates** to check again. **Later** dismisses the current notice.
 - Update with `git pull --ff-only` and `npm ci`, then restart your LaunchAgent.
 - Keep `state/`: it contains your configuration, passkeys and login sessions.
   These files are private and ignored by Git.
