@@ -9,12 +9,17 @@ export class BlockSelection {
     doc.getSelection()?.removeAllRanges();
     this.root = doc.createElement('section'); this.root.className = 'block-select';
     this.root.setAttribute('aria-label', 'Rectangular text selection');
-    this.root.innerHTML = `<div class="block-select-stage"><div class="block-select-box" hidden></div><button data-block-corner="start" aria-label="Selection start" hidden></button><button data-block-corner="end" aria-label="Selection end" hidden></button></div><div class="block-select-toolbar"><span role="status">Drag to select columns</span><button data-block-copy disabled>Copy</button><button data-block-done>Done</button></div>`;
+    this.root.innerHTML = `<div class="block-select-stage"><div class="block-select-box" hidden></div><button data-block-corner="start" aria-label="Selection start" hidden></button><button data-block-corner="end" aria-label="Selection end" hidden></button></div><button class="block-select-copy" data-block-copy type="button" hidden>Copy</button>`;
     layer.append(this.root);
     this.stage = this.root.querySelector('.block-select-stage'); this.box = this.root.querySelector('.block-select-box');
-    this.status = this.root.querySelector('[role=status]'); this.copyButton = this.root.querySelector('[data-block-copy]');
+    this.copyButton = this.root.querySelector('[data-block-copy]');
     this.handles = [...this.root.querySelectorAll('[data-block-corner]')];
-    const release = () => { this.contact = null; this.stage.classList.remove('drawing'); };
+    const release = () => {
+      if (!this.contact) return;
+      this.contact = null;
+      this.stage.classList.remove('drawing');
+      this.layout();
+    };
     const end = e => { if (this.contact?.id === e.pointerId) { this.move(e); release(); } };
     this.stage.onpointerdown = e => { if (e.target.closest('[data-block-corner]')) this.begin(e); };
     this.stage.onpointermove = e => this.move(e); this.stage.onpointerup = end;
@@ -24,7 +29,10 @@ export class BlockSelection {
     this.stage.addEventListener('touchstart', e => e.preventDefault(), { passive: false });
     for (const button of this.root.querySelectorAll('button')) button.onpointerdown = e => e.preventDefault();
     this.copyButton.onclick = async () => { await copy(this.grid.copyRectangle(this.start, this.end)); };
-    this.root.querySelector('[data-block-done]').onclick = () => this.close();
+    this.outsidePress = e => {
+      if (e.isPrimary && e.button === 0 && !this.root.contains(e.target)) this.close();
+    };
+    doc.addEventListener('pointerdown', this.outsidePress);
     this.root.onkeydown = e => {
       if (e.key === 'Escape') { e.preventDefault(); this.close(); return; }
       const corner = e.target.dataset.blockCorner, point = this[corner];
@@ -66,8 +74,8 @@ export class BlockSelection {
     const output = this.output, layer = this.layer.getBoundingClientRect(), wrap = output.closest('.terminalwrap').getBoundingClientRect(), text = output.getBoundingClientRect();
     const scale = this.layer.offsetWidth / layer.width || 1, x = value => (value - layer.left) * scale, y = value => (value - layer.top) * scale;
     const top = Math.max(wrap.top, layer.top), left = Math.max(wrap.left, layer.left), right = Math.min(wrap.right, layer.right), bottom = Math.min(wrap.bottom, layer.bottom);
-    Object.assign(this.stage.style, { left: x(left) + 'px', top: y(top) + 'px', width: (right - left) * scale + 'px', height: (bottom - top) * scale + 'px' });
-    Object.assign(this.root.querySelector('.block-select-toolbar').style, { left: x(left) + 'px', top: Math.max(0, y(top) - 44) + 'px', width: (right - left) * scale + 'px' });
+    const width = (right - left) * scale, height = (bottom - top) * scale;
+    Object.assign(this.stage.style, { left: x(left) + 'px', top: y(top) + 'px', width: width + 'px', height: height + 'px' });
     if (!this.start || !this.end) return;
     const line = output.firstElementChild.getBoundingClientRect().height, cell = text.width / this.grid.columns, history = this.grid.activeScreen === 'alternate' ? 0 : this.grid.history.length;
     const rect = { left: (text.left - left + Math.min(this.start.col, this.end.col) * cell) * scale, top: (text.top - top + (Math.min(this.start.row, this.end.row) + history) * line) * scale, width: (Math.abs(this.end.col - this.start.col) + 1) * cell * scale, height: (Math.abs(this.end.row - this.start.row) + 1) * line * scale };
@@ -78,11 +86,27 @@ export class BlockSelection {
       const col = point.col + (start ? this.start.col > this.end.col : this.end.col >= this.start.col), row = point.row + history + (start ? this.start.row > this.end.row : this.end.row >= this.start.row);
       Object.assign(handle.style, { left: (text.left - left + col * cell) * scale + 'px', top: (text.top - top + row * line) * scale + 'px' }); handle.hidden = false;
     }
-    this.copyButton.disabled = !this.grid.copyRectangle(this.start, this.end);
-    this.status.textContent = `${Math.abs(this.end.col - this.start.col) + 1} columns · ${Math.abs(this.end.row - this.start.row) + 1} rows`;
+    const boxLeft = Math.max(0, rect.left), boxRight = Math.min(width, rect.left + rect.width);
+    const boxTop = Math.max(0, rect.top), boxBottom = Math.min(height, rect.top + rect.height);
+    const button = this.copyButton;
+    button.hidden = !!this.contact || boxRight <= boxLeft || boxBottom <= boxTop;
+    if (button.hidden) return;
+    button.disabled = !this.grid.copyRectangle(this.start, this.end);
+    const gap = 8, anchor = (boxLeft + boxRight) / 2;
+    const above = boxTop - button.offsetHeight - gap;
+    const below = boxBottom + gap;
+    const maxTop = Math.max(0, height - button.offsetHeight);
+    const placeAbove = above >= 0 || (below > maxTop && boxTop >= height - boxBottom);
+    const buttonLeft = Math.max(0, Math.min(width - button.offsetWidth, anchor - button.offsetWidth / 2));
+    const buttonTop = Math.max(0, Math.min(maxTop, placeAbove ? above : below));
+    button.dataset.side = placeAbove ? 'above' : 'below';
+    button.style.left = x(left) + buttonLeft + 'px';
+    button.style.top = y(top) + buttonTop + 'px';
+    button.style.setProperty('--copy-anchor', anchor - buttonLeft + 'px');
   }
   close() {
     if (!this.root.isConnected) return;
+    this.output.ownerDocument.removeEventListener('pointerdown', this.outsidePress);
     this.output.closest('.terminalwrap')?.removeEventListener('scroll', this.scroll);
     this.output.blockSelection = false; this.root.remove(); this.onClose();
   }

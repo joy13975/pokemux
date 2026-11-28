@@ -19,22 +19,28 @@ test('rectangle preserves graphemes, real gaps and blank lines while omitting co
  assert.equal(grid.copyRectangle({col:4,row:0},{col:4,row:0}),'🙂');
 });
 function pointer(w,target,type,x,y){const e=new w.Event(type,{bubbles:true,cancelable:true});Object.assign(e,{button:0,isPrimary:true,pointerId:1,clientX:x,clientY:y});target.dispatchEvent(e);return e}
-test('block drag and corner adjustment copy the frozen paint, then Done restores live rendering',async()=>{
+test('Copy follows a finished selection and an outside press restores live rendering',async()=>{
  const {BlockSelection}=await import('../block-selection.mjs');
  const dom=new JSDOM('<div class="terminalwrap"><pre></pre></div><div id="layer"></div>',{pretendToBeVisual:true}),w=dom.window,d=w.document,output=d.querySelector('pre'),grid=new RenderGrid(),copied=[];let closed=0;
  w.HTMLElement.prototype.setPointerCapture=()=>{};grid.apply(frame);grid.paint(output);
  const rect=(left,top,width,height)=>({left,top,width,height,right:left+width,bottom:top+height});
  output.getBoundingClientRect=()=>rect(10,80,360,80);for(const [row,line]of [...output.children].entries())line.getBoundingClientRect=()=>rect(10,80+row*20,360,20);
- output.parentElement.getBoundingClientRect=()=>rect(10,80,360,80);d.querySelector('#layer').getBoundingClientRect=()=>rect(0,0,400,240);
+ output.parentElement.getBoundingClientRect=()=>rect(10,20,360,180);d.querySelector('#layer').getBoundingClientRect=()=>rect(0,0,400,240);
  const block=new BlockSelection({output,grid,layer:d.querySelector('#layer'),copy:async text=>copied.push(text),onClose:()=>closed++});
  try{
   const stage=d.querySelector('.block-select-stage');assert.ok(stage);assert.equal(output.blockSelection,true);
-  block.begin(pointer(w,stage,'pointerdown',115,85));pointer(w,stage,'pointermove',205,105);pointer(w,stage,'pointerup',205,105);
+  const copyButton=d.querySelector('[data-block-copy]');
+  Object.defineProperties(copyButton,{offsetWidth:{value:76},offsetHeight:{value:44}});
+  block.begin(pointer(w,stage,'pointerdown',115,85));pointer(w,stage,'pointermove',205,105);assert.equal(copyButton.hidden,true);
+  pointer(w,stage,'pointerup',205,105);
+  assert.equal(copyButton.hidden,false);
+  assert.ok(parseFloat(copyButton.style.top)+copyButton.offsetHeight<80,'Copy sits just above the highlighted rows');
   const start={...block.start},released=pointer(w,stage,'pointerdown',285,145);assert.equal(released.defaultPrevented,false,'A finished selection must not take a fresh ordinary press');pointer(w,stage,'pointermove',305,145);pointer(w,stage,'pointerup',305,145);assert.deepEqual(block.start,start);
   const end=d.querySelector('[data-block-corner="end"]');pointer(w,end,'pointerdown',210,120);pointer(w,end,'pointermove',205,125);pointer(w,end,'pointerup',205,125);
   grid.apply({...frame,render_revision:2,row_spans:[{row:0,column:0,text:'new streamed output'}]});assert.equal(grid.paint(output),false);assert.ok(output.textContent.includes('first cell'));
-  d.querySelector('[data-block-copy]').click();await new Promise(r=>setTimeout(r,0));assert.deepEqual(copied,['first cell\nwraps here\nends here']);
-  d.querySelector('[data-block-done]').click();assert.equal(output.blockSelection,false);assert.equal(closed,1);assert.equal(d.querySelector('.block-select-stage'),null);assert.equal(grid.paint(output),true);assert.ok(output.textContent.includes('new streamed output'));
+  copyButton.click();await new Promise(r=>setTimeout(r,0));assert.deepEqual(copied,['first cell\nwraps here\nends here']);
+  assert.equal(pointer(w,d.body,'pointerdown',260,28).defaultPrevented,false);
+  assert.equal(output.blockSelection,false);assert.equal(closed,1);assert.equal(d.querySelector('.block-select-stage'),null);assert.equal(grid.paint(output),true);assert.ok(output.textContent.includes('new streamed output'));
  }finally{block.close();w.close()}
 });
 

@@ -44,11 +44,10 @@ survives reloads.
 
 Hold terminal text still for half a second, then drag to select a block. The same
 hold applies to a mouse. Ordinary drags scroll or open sidebars. Adjust
-the two corner handles, then tap **Copy**. Only the chosen columns are copied;
-line breaks are preserved and trailing spaces are removed. This is useful for
-copying one table column without its neighbours. The display stays frozen while
-a box is highlighted; the terminal continues running. Tap **Done** or start a
-fresh gesture to clear the box. The highlight reaches the
+the two corner handles, then tap **Copy** next to the highlight. This copies
+only the selected columns, keeps line breaks, and removes trailing spaces. The display stays frozen while
+a box is highlighted; the terminal continues running. Tap outside to clear
+the box. The highlight reaches the
 visible edges before your finger reaches the rim. The floating **Box select** /
 **Native select** action switches modes; **Block text selection** in Settings
 controls the same preference. Settings has separate transparency sliders for the
