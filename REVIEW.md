@@ -709,3 +709,5 @@ Read-only investigation: current custom handler tracks independent pointer IDs, 
 | 298 | Prompt for new Pokemux commits on the Mac checkout or its Git origin. | A dismissible notice distinguishes a Git update, a pending Mac restart and a browser reload. App menu → Updates stays available after dismissal. Real Git and browser verification covered an incoming push, fast-forward, server restart and reload. |
 
 | 299 | Attach Copy to the terminal highlight and remove Done. | Copy appears above or below the visible box after drawing or adjusting it. Tapping outside clears the highlight and resumes live rendering. |
+
+| 300 | Redesign the update notice. | A light status strip above the tabs distinguishes the notice from terminal chrome. Details has one clear action style and Later stays quiet. Saved floating control positions clear the strip while it is visible. |
